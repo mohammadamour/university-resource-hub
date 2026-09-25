@@ -28,6 +28,13 @@
 | **Object Storage**  | Cloudflare R2                      | Zero-egress cost hosting of compressed PDF assets |
 | **Hosting & Frontend** | Vercel or Render + Next.js/React | SSR, fast deploys, generous free tier             |
 | **Styling**         | Tailwind CSS                       | Rapid UI development                             |
+| **CI/CD & DevOps**  | GitHub Actions / Vercel CI         | Automated deployments and future integrations (Sentry for error tracking, Azure for AI). |
+
+### Infrastructure Edge Cases & Decisions
+- **Storage Privacy:** Cloudflare R2 will remain **Public** for V1 to ensure maximum speed and simplicity. The risk of scrapers is deemed low initially.
+- **Anonymous Access:** The platform must be completely frictionless. Guest users can read/download any file without an account. We will rely on Next.js API rate-limiting rather than forced auth to prevent abuse.
+- **Rendering Strategy (Next.js):** To survive exam-night traffic spikes without exhausting the Supabase free tier, we will use **Incremental Static Regeneration (ISR)**. Next.js will cache pages statically and re-validate them periodically in the background.
+- **Development Environments:** V1 will use a single production database to move fast. A separate staging environment will be introduced later as user risk increases.
 
 ### Data Model, "Doctor Shift" Mitigation & Scalability
 
@@ -69,6 +76,8 @@ Scanned notes create massive file sizes that exhaust storage.
 | **Unified Hierarchy**          | ✅ Single `CourseView` page dynamically renders folders (Summaries, Quizzes, Past Exams) from DB rows. Empty states handled gracefully. |
 | **In-App Browser Resilience**  | ✅ UI optimized to render PDFs cleanly inside WhatsApp/Telegram embedded browsers.             |
 | **Trust Disclaimer**           | ✅ A clear, non-invasive footer disclaimer stating: "A student-made initiative to help peers. Not officially affiliated with the university." |
+| **"Fake Departments"**         | ✅ The UI will group courses by major (e.g., IT), but will include prominent "fake departments" for *University Electives* and *Placement Exams/Prep* to capture all students. |
+| **Static Bureaucracy Guides**  | ✅ High-value, static Markdown guides explaining how to navigate university portals, get the GitHub Education Pack/Gemini Pro, and general survival tips for freshmen. |
 
 ### The Interactive Quiz Engine
 
