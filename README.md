@@ -8,9 +8,11 @@
 ## 1. Executive Summary & Core Vision
 
 - **Mission:** Build a permanent, searchable, and highly curated single source of truth for university course materials and placement exams, solving the chaos of ephemeral WhatsApp group chats.
-- **Target Audience:** Incoming freshmen (Placement Exams) and IT/Software Engineering students.
+- **Target Audience:** Newcomers and freshmen (Sanafer / سنافر), acting as their ultimate resource and guide for placement exams and introductory IT/SWE courses.
+- **Timeline Constraints:** Aggressive 20-day timeline to launch before the first semester starts.
 - **Budget Constraint:** $0/month deployment leveraging free-tier infrastructure.
 - **Strategic Positioning:** Compliment, do not compete. The platform acts as a permanent link repository shared *inside* WhatsApp, rather than attempting to replace chat platforms.
+- **Scaling Goal:** Capture 200-500 active users from Jadara University (out of 12k total) to hit a network-effect tipping point.
 
 ---
 
@@ -25,16 +27,12 @@
 | **Hosting & Frontend** | Vercel or Render + Next.js/React | SSR, fast deploys, generous free tier             |
 | **Styling**         | Tailwind CSS                       | Rapid UI development                             |
 
-### Data Model & "Doctor Shift" Mitigation
+### Data Model, "Doctor Shift" Mitigation & Scalability
 
-All resources are indexed using a strict **three-key hierarchy** to prevent syllabus mismatch:
+The database schema uses an **extended hierarchy** (University → Department → Course Code → Instructor/Doctor → Semester/Year). 
 
-```
-Course Code → Instructor (Doctor) → Semester/Year
-```
-
-- Users are **forced** to select their specific instructor before viewing materials, ensuring high trust and accuracy.
-- Database schema relies on indexed relational fields for fast O(1) filtering.
+- **V1 Simplification:** Since initial resource volume is low and focused on IT at Jadara, the UI will *not* force filtering by University, Department, Doctor, or Year at launch. This reduces friction and avoids empty states.
+- **Future-Proofing for Scale:** The relational schema foundation is built now. When the platform expands to other departments or universities, we can enable these filters without retroactively rebuilding the database.
 
 ### The PDF Compression Pipeline
 
@@ -101,33 +99,36 @@ Use the platform as an academic weapon for yourself:
 3. Generate quizzes *before* the semester starts
 4. Lock in high grades while stocking the site with Day 1 inventory
 
+### 5. The Ambassador Program (Long-Term Scaling)
+Once the platform hits the tipping point (200-500 users), recruit "Ambassadors" from other departments (and eventually other universities). 
+- **Value Proposition for them:** A powerful resume booster ("X Department Admin for campus-wide resource platform").
+- **Value for the platform:** Decentralized curation and monitoring. The founder transitions to an administrative/oversight role rather than a manual content creator.
+
+### 6. User-Generated Content (UGC) Pipeline
+V1 relies on manual curation to ensure high quality and trust. However, true scale requires UGC. Future iterations will allow users to upload their own resources, shifting the platform from a personal repository to a true community hub.
+
 ---
 
 ## 6. Development Timeline & Code Scope
 
-**Total estimated time to launch: ~45 Days (~55–75 labor hours)**
+**Total estimated time to launch: 20 Days (Strict deadline before Fall semester starts)**
 
 ```
-Weeks 1–3  │ PREPARATION
-           │ • Gather seed files
-           │ • Run Ghostscript compression pipeline
-           │ • Generate JSON quizzes via Gemini
+Days 1–5   │ CORE INFRASTRUCTURE & SEEDING
+           │ • Setup Supabase (Schema for future-proof filtering)
+           │ • Setup Cloudflare R2 & manual PDF uploading
+           │ • Skip Ghostscript/AI automation for V1 (Anti-feature creep)
            │
-Week 4     │ INFRASTRUCTURE & DATABASE (~10–13 hours)
-           │ • Write Supabase SQL schema (~50 lines)
-           │ • Setup Cloudflare R2
-           │ • Configure auth guardrails
-           │
-Weeks 4–5  │ FRONTEND EXECUTION (~18–24 hours)
+Days 6–14  │ FRONTEND MVP (~18–24 hours)
            │ • Build MVP (~1,000 LOC across 3 main views)
-           │   ├── Home / Landing Page
-           │   ├── Course Hub (CourseView)
-           │   └── Quiz / PDF Renderer
+           │   ├── Landing Page (Targeted at Sanafer/Freshmen)
+           │   ├── Course Hub (Simple view, no mandatory Doctor filtering yet)
+           │   └── PDF Renderer
            │
-Week 6     │ LAUNCH
-           │ • Seed database via batch script
-           │ • QA test on mobile devices
-           │ • Deploy targeted links during registration week
+Days 15–20 │ QA & LAUNCH
+           │ • Seed initial database rows
+           │ • QA test on mobile devices (WhatsApp in-app browser)
+           │ • Deploy to Vercel and soft-launch via targeted group links
 ```
 
 ---
