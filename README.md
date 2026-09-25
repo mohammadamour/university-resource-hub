@@ -1,17 +1,19 @@
 # Platform Architecture & Strategy Blueprint
-## University Academic Resource Hub
+## Molakhasat (ملخصات) - University Academic Resource Hub
 
-> A zero-cost, permanent, searchable, and curated single source of truth for university course materials and placement exams — replacing the chaos of ephemeral WhatsApp group chats.
+> A fast, mobile-first, and curated single source of truth for university course materials and placement exams — replacing the chaos of ephemeral WhatsApp group chats.
 
 ---
 
 ## 1. Executive Summary & Core Vision
 
-- **Mission:** Build a permanent, searchable, and highly curated single source of truth for university course materials and placement exams, solving the chaos of ephemeral WhatsApp group chats.
-- **Target Audience:** Newcomers and freshmen (Sanafer / سنافر), acting as their ultimate resource and guide for placement exams and introductory IT/SWE courses.
+- **Mission:** Build a permanent, searchable, and highly curated single source of truth for university course materials.
+- **Brand & Language:** Named "Molakhasat" (ملخصات), meaning summaries. The platform is primarily in Arabic to match the students' native language.
+- **Target Content:** Initial focus on IT department courses (major focus) AND University Requirement/Elective courses (National Education, Communication Skills, Life Skills) which have massive cross-department enrollment.
+- **Target Audience:** Newcomers and freshmen (Sanafer / سنافر), acting as their ultimate resource and guide for placement exams and introductory courses.
 - **Timeline Constraints:** Aggressive 20-day timeline to launch before the first semester starts.
 - **Budget Constraint:** $0/month deployment leveraging free-tier infrastructure.
-- **Strategic Positioning:** Compliment, do not compete. The platform acts as a permanent link repository shared *inside* WhatsApp, rather than attempting to replace chat platforms.
+- **Strategic Positioning:** Compliment, do not compete. The platform acts as a permanent link repository shared *inside* WhatsApp.
 - **Scaling Goal:** Capture 200-500 active users from Jadara University (out of 12k total) to hit a network-effect tipping point.
 
 ---
@@ -31,8 +33,20 @@
 
 The database schema uses an **extended hierarchy** (University → Department → Course Code → Instructor/Doctor → Semester/Year). 
 
-- **V1 Simplification:** Since initial resource volume is low and focused on IT at Jadara, the UI will *not* force filtering by University, Department, Doctor, or Year at launch. This reduces friction and avoids empty states.
-- **Future-Proofing for Scale:** The relational schema foundation is built now. When the platform expands to other departments or universities, we can enable these filters without retroactively rebuilding the database.
+- **Hidden Complexity (V1 Backend):** The backend MUST be fully built out for multi-university and multi-department scaling from Day 1 (schema, foreign keys, routing logic). We will not retroactively refactor the backend when things change.
+- **V1 Simplification (Frontend):** The UI will completely hide this backend complexity. The frontend will hard-assume "Jadara University" and show a flat list or basic filtering for courses initially. We just expose the UI filters later when volume dictates it.
+
+### Auth, User Profiles & Bookmarks (Schema Foundation)
+To transition from a "repository" to a "platform," the schema will include tables for users and personalization from Day 1, even if the UI for registration is hidden in V1:
+- `users` (Managed by Supabase Auth).
+- `profiles` (Linked to Auth, storing Major/Department).
+- `bookmarks` (Join table linking `user_id` to `course_id` or `resource_id` for quick access).
+
+### Security & Role-Based Access Control (RBAC)
+We will implement strict Supabase Row Level Security (RLS) from the beginning using a multi-tiered role system:
+- **Super Admin (Founder):** Can manage universities, departments, users, and all resources.
+- **Admin (Future Ambassadors):** Can only upload, edit, and delete resources within their assigned department.
+- **User (Students):** Can only read resources and manage their personal bookmarks.
 
 ### The PDF Compression Pipeline
 
@@ -49,9 +63,12 @@ Scanned notes create massive file sizes that exhaust storage.
 
 | Feature                        | Decision                                                                                      |
 | ------------------------------ | --------------------------------------------------------------------------------------------- |
-| **Admin Panel**                | ❌ No custom CMS in V1. Saves 60% of dev time. Seed data via Supabase UI + batch script.      |
+| **Admin Panel**                | ❌ No custom CMS in V1. Saves 60% of dev time. All V1 resource uploads and management will be done directly through the **Supabase Dashboard UI** (drag-and-drop storage + table editor) to avoid hardcoding files in the frontend.      |
+| **UI/UX Philosophy**           | ✅ Simple, lightweight, fast (optimized for mobile data). Layout mimics the official university portal for instant familiarity, but distinct enough to avoid looking like a scam. |
+| **Mobile-First Design**        | ✅ Built explicitly for smartphones and iPads, as this is how 90% of students access resources on campus. |
 | **Unified Hierarchy**          | ✅ Single `CourseView` page dynamically renders folders (Summaries, Quizzes, Past Exams) from DB rows. Empty states handled gracefully. |
 | **In-App Browser Resilience**  | ✅ UI optimized to render PDFs cleanly inside WhatsApp/Telegram embedded browsers.             |
+| **Trust Disclaimer**           | ✅ A clear, non-invasive footer disclaimer stating: "A student-made initiative to help peers. Not officially affiliated with the university." |
 
 ### The Interactive Quiz Engine
 
@@ -86,8 +103,11 @@ Indexed via [YourSite.com] • Original Author: [Name] / Batch '[Year]
 ```
 When students share the raw PDF in private chats, the document itself acts as an organic referral link back to the platform.
 
-### 3. Targeted Drop-Links
-Do **not** broadcast generic "Check out my site" messages. Instead, when a student asks a specific question in a 300-person group chat, drop the **exact URL** as the answer:
+### 3. High-Touch Manual Distribution & Targeted Drop-Links
+Growth in V1 will be completely manual, organic, and face-to-face. 
+- Pitch the platform directly to peers and the incoming batch of freshmen to gather immediate qualitative feedback.
+- Do **not** broadcast generic "Check out my site" messages or spam links everywhere, as this feels invasive and creates a bad reputation. 
+- Instead, when a student asks a specific question in a group chat, drop the **exact URL** as the highly relevant answer:
 ```
 Site.com/CS101/Midterm-Quiz
 ```
@@ -105,7 +125,9 @@ Once the platform hits the tipping point (200-500 users), recruit "Ambassadors" 
 - **Value for the platform:** Decentralized curation and monitoring. The founder transitions to an administrative/oversight role rather than a manual content creator.
 
 ### 6. User-Generated Content (UGC) Pipeline
-V1 relies on manual curation to ensure high quality and trust. However, true scale requires UGC. Future iterations will allow users to upload their own resources, shifting the platform from a personal repository to a true community hub.
+V1 relies on manual curation to ensure high quality and trust. True scale requires UGC (allowing users to upload their own resources). 
+- **Security Hurdle:** The UGC pipeline will require strict MIME-type validation, file size limits (e.g., 10MB), and a monitoring system.
+- **Sanitization:** The existing Ghostscript compression pipeline will act as a security layer, flattening PDFs to strip out embedded malicious payloads (JavaScript/executables) before they reach the public buckets.
 
 ---
 
