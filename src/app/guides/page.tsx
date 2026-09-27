@@ -31,6 +31,27 @@ const GUIDES: Guide[] = [
     emoji: "🎓",
   },
   {
+    slug: "library-guide",
+    title: "دليل مكتبة الجامعة",
+    description:
+      "كيف تبحث عن الكتب، وتستعيرها، وتستفيد من المكتبة للدراسة الهادئة",
+    emoji: "📚",
+  },
+  {
+    slug: "campus-wifi",
+    title: "كيف تتصل بشبكة الـ Wi-Fi",
+    description:
+      "خطوات سريعة لربط هاتفك أو لابتوبك بشبكة الجامعة اللاسلكية",
+    emoji: "📶",
+  },
+  {
+    slug: "campus-cafes",
+    title: "دليل كافتيريات الجامعة",
+    description:
+      "قوائم الطعام (المنيو)، الأماكن، وأفضل الأوقات لتجنب الازدحام",
+    emoji: "☕",
+  },
+  {
     slug: "github-education",
     title: "كيف تحصل على GitHub Education Pack",
     description:

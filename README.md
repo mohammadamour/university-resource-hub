@@ -77,7 +77,13 @@ Scanned notes create massive file sizes that exhaust storage.
 | **In-App Browser Resilience**  | ✅ UI optimized to render PDFs cleanly inside WhatsApp/Telegram embedded browsers.             |
 | **Trust Disclaimer**           | ✅ A clear, non-invasive footer disclaimer stating: "A student-made initiative to help peers. Not officially affiliated with the university." |
 | **"Fake Departments"**         | ✅ The UI will group courses by major (e.g., IT), but will include prominent "fake departments" for *University Electives* and *Placement Exams/Prep* to capture all students. |
-| **Static Bureaucracy Guides**  | ✅ High-value, static Markdown guides explaining how to navigate university portals, get the GitHub Education Pack/Gemini Pro, and general survival tips for freshmen. |
+| **Campus Survival Guides**     | ✅ High-value, static guides solving the "unwritten rules" of campus: Library usage, Wi-Fi connection, Cafe menus, and navigating portals. This bypasses the toxic/unreliable nature of massive WhatsApp groups. *Constraint: Absolutely NO financial advice to avoid liability.* |
+
+### Content Strategy & Liability Mitigation
+To provide maximum value while avoiding legal or academic liability, the platform strictly adheres to these content rules:
+1. **The "What is this course?" Solution:** Instead of subjective reviews, we utilize the database `description` field for a 2-sentence objective summary, and upload the **Official University Syllabus (الخطة الدراسية)** as a PDF resource for each course.
+2. **Professor Offices:** Instead of hardcoding a directory (which raises privacy/maintenance issues), we use a static guide to explain the general building layouts (e.g., "All IT doctors are in Building B").
+3. **Volatile Information Exclusion:** We explicitly exclude data that changes unofficially and frequently (e.g., Campus bus schedules). If a student misses an exam because our bus schedule was wrong, the platform takes the blame. If we can't guarantee the data, we don't host it.
 
 ### The Interactive Quiz Engine
 
@@ -133,10 +139,19 @@ Once the platform hits the tipping point (200-500 users), recruit "Ambassadors" 
 - **Value Proposition for them:** A powerful resume booster ("X Department Admin for campus-wide resource platform").
 - **Value for the platform:** Decentralized curation and monitoring. The founder transitions to an administrative/oversight role rather than a manual content creator.
 
-### 6. User-Generated Content (UGC) Pipeline
-V1 relies on manual curation to ensure high quality and trust. True scale requires UGC (allowing users to upload their own resources). 
-- **Security Hurdle:** The UGC pipeline will require strict MIME-type validation, file size limits (e.g., 10MB), and a monitoring system.
-- **Sanitization:** The existing Ghostscript compression pipeline will act as a security layer, flattening PDFs to strip out embedded malicious payloads (JavaScript/executables) before they reach the public buckets.
+### 6. User-Generated Content (UGC) Pipeline & Architecture
+V1 relies on manual curation to ensure high quality and trust. True scale requires UGC (allowing users to upload their own resources), which introduces architectural risks.
+
+To prevent the platform from becoming an unorganized "dump", V2 will implement the following UGC strategies:
+1. **The "Verified" Badge Pattern:** No separate tabs for user uploads. All resources live inside their specific Course bucket. Resources uploaded by Admins/Founders receive a "Verified (موثّق)" badge. Student uploads live below them, marked as community contributions.
+2. **The "Missing Course" Policy:** Users **cannot** manually type course names during upload (prevents database fragmentation like "CS 101" vs "cs101"). They must select from existing courses. If a course is missing, they submit a "Request Course" form.
+3. **The Approval Queue:** Student uploads default to `status: 'pending'` in the database. They do not appear on the live site until an Ambassador or Founder reviews and marks them as `approved`. This protects the platform's academic reputation from incorrect or malicious files.
+4. **Security & Sanitization:** The pipeline will require strict MIME-type validation, 10MB size limits, and Ghostscript flattening to strip embedded payloads before reaching public R2 buckets.
+
+### 7. The AI Campus Assistant (V2+ Feature)
+To strictly prevent feature creep, V1 will not include a chatbot. However, as the repository of static guides, course descriptions, and syllabi grows, V2 will introduce a Gemini Pro-powered chatbot using the **RAG (Retrieval-Augmented Generation)** pattern. 
+- **The RAG Constraint:** The AI will *only* be allowed to answer questions based on the text existing in the platform's database. This completely eliminates hallucinations about university policies.
+- **Value:** Instead of clicking through 5 menus to find the GPA calculation formula or the library hours, a student can just ask the AI, which will instantly retrieve and summarize the exact paragraph from the static guides.
 
 ---
 

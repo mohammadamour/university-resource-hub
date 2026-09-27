@@ -62,6 +62,18 @@ CREATE TABLE courses (
   UNIQUE(department_id, slug)
 );
 
+-- ─── PROFILES ───────────────────────────────────────────────────────────────
+-- Extends Supabase Auth users with platform-specific data.
+-- The `role` field drives all RBAC policies.
+
+CREATE TABLE profiles (
+  id              UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  display_name    TEXT,
+  role            user_role NOT NULL DEFAULT 'user',
+  department_id   UUID REFERENCES departments(id) ON DELETE SET NULL,  -- For admins: their assigned department
+  created_at      TIMESTAMPTZ DEFAULT now()
+);
+
 -- ─── RESOURCES ──────────────────────────────────────────────────────────────
 
 CREATE TABLE resources (
@@ -72,18 +84,6 @@ CREATE TABLE resources (
   storage_url     TEXT NOT NULL,          -- Full URL to Cloudflare R2 or external link
   file_size_bytes BIGINT,                 -- For displaying file size in the UI
   uploaded_by     UUID REFERENCES profiles(id) ON DELETE SET NULL,
-  created_at      TIMESTAMPTZ DEFAULT now()
-);
-
--- ─── PROFILES ───────────────────────────────────────────────────────────────
--- Extends Supabase Auth users with platform-specific data.
--- The `role` field drives all RBAC policies.
-
-CREATE TABLE profiles (
-  id              UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  display_name    TEXT,
-  role            user_role NOT NULL DEFAULT 'user',
-  department_id   UUID REFERENCES departments(id) ON DELETE SET NULL,  -- For admins: their assigned department
   created_at      TIMESTAMPTZ DEFAULT now()
 );
 
