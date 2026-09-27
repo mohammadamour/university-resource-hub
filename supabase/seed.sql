@@ -32,3 +32,10 @@ INSERT INTO courses (department_id, title, slug, description) VALUES
   ((SELECT id FROM req_dept), 'مقدمة في الأمن السيبراني والذكاء الاصطناعي', 'cybersecurity-ai', 'المفاهيم الأساسية في حماية البيانات، الشبكات، وتقنيات AI الحديثة'),
   ((SELECT id FROM req_dept), 'مهارات الاتصال', 'communication-skills', 'تطوير مهارات التواصل الفعال، التعبير، والكتابة باللغة العربية'),
   ((SELECT id FROM req_dept), 'مقدمة في اللغة الألمانية', 'german-101', 'أساسيات وقواعد اللغة الألمانية للمبتدئين');
+
+-- 4. Insert Placement Exams Courses
+WITH placement_dept AS (SELECT id FROM departments WHERE slug = 'placement-exams')
+INSERT INTO courses (department_id, title, slug, description) VALUES
+  ((SELECT id FROM placement_dept), 'امتحان مستوى اللغة العربية', 'arabic-placement', 'نماذج ومواد تحضيرية لامتحان الكفاءة في اللغة العربية'),
+  ((SELECT id FROM placement_dept), 'امتحان مستوى اللغة الإنجليزية', 'english-placement', 'نماذج ومواد تحضيرية لامتحان الكفاءة في اللغة الإنجليزية'),
+  ((SELECT id FROM placement_dept), 'امتحان مستوى الحاسوب', 'computer-placement', 'نماذج ومواد تحضيرية لامتحان مهارات الحاسوب الأساسية');
