@@ -82,7 +82,7 @@ Scanned notes create massive file sizes that exhaust storage.
 ### Content Strategy & Liability Mitigation
 To provide maximum value while avoiding legal or academic liability, the platform strictly adheres to these content rules:
 1. **The "What is this course?" Solution:** Instead of subjective reviews, we utilize the database `description` field for a 2-sentence objective summary, and upload the **Official University Syllabus (الخطة الدراسية)** as a PDF resource for each course.
-2. **Professor Offices:** Instead of hardcoding a directory (which raises privacy/maintenance issues), we use a static guide to explain the general building layouts (e.g., "All IT doctors are in Building B").
+2. **Professor Offices & Contact Info:** Instead of hardcoding a directory (which raises privacy/maintenance issues), we use a static guide to explain the general building layouts, and we document a "Moodle Hack" (teaching students to check the 'Participants' tab in their e-learning courses to extract official emails/locations directly from the university system). This shifts liability and maintenance entirely back to the university.
 3. **Volatile Information Exclusion:** We explicitly exclude data that changes unofficially and frequently (e.g., Campus bus schedules). If a student misses an exam because our bus schedule was wrong, the platform takes the blame. If we can't guarantee the data, we don't host it.
 
 ### The Interactive Quiz Engine

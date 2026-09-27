@@ -70,6 +70,12 @@ const GUIDES: Guide[] = [
     description: "نصائح من طلاب سابقين — ماذا تدرس، ماذا تتجنب، وكيف تتفوق",
     emoji: "💻",
   },
+  {
+    slug: "contact-professors",
+    title: "كيف تجد إيميل أو مكتب أي دكتور",
+    description: "حيلة بسيطة لاستخراج معلومات التواصل الرسمية للدكاترة من بوابة التعلم الإلكتروني",
+    emoji: "🔍",
+  },
 ];
 
 export default function GuidesPage() {
