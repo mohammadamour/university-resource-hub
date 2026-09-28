@@ -84,6 +84,7 @@ To provide maximum value while avoiding legal or academic liability, the platfor
 1. **The "What is this course?" Solution:** Instead of subjective reviews, we utilize the database `description` field for a 2-sentence objective summary, and upload the **Official University Syllabus (الخطة الدراسية)** as a PDF resource for each course.
 2. **Professor Offices & Contact Info:** Instead of hardcoding a directory (which raises privacy/maintenance issues), we use a static guide to explain the general building layouts, and we document a "Moodle Hack" (teaching students to check the 'Participants' tab in their e-learning courses to extract official emails/locations directly from the university system). This shifts liability and maintenance entirely back to the university.
 3. **Volatile Information Exclusion:** We explicitly exclude data that changes unofficially and frequently (e.g., Campus bus schedules). If a student misses an exam because our bus schedule was wrong, the platform takes the blame. If we can't guarantee the data, we don't host it.
+4. **Universal WhatsApp Directories:** Instead of trying to host every piece of communication, we will provide a curated list of "Universal WhatsApp Groups" (e.g., Book Exchange, Placement Exams prep, University Electives). This centralizes the scattered links into one trusted place without having to build a chat feature.
 
 ### The Interactive Quiz Engine
 
@@ -146,7 +147,7 @@ To prevent the platform from becoming an unorganized "dump", V2 will implement t
 1. **The "Verified" Badge Pattern:** No separate tabs for user uploads. All resources live inside their specific Course bucket. Resources uploaded by Admins/Founders receive a "Verified (موثّق)" badge. Student uploads live below them, marked as community contributions.
 2. **The "Missing Course" Policy:** Users **cannot** manually type course names during upload (prevents database fragmentation like "CS 101" vs "cs101"). They must select from existing courses. If a course is missing, they submit a "Request Course" form.
 3. **The Approval Queue:** Student uploads default to `status: 'pending'` in the database. They do not appear on the live site until an Ambassador or Founder reviews and marks them as `approved`. This protects the platform's academic reputation from incorrect or malicious files.
-4. **Security & Sanitization:** The pipeline will require strict MIME-type validation, 10MB size limits, and Ghostscript flattening to strip embedded payloads before reaching public R2 buckets.
+4. **Security & Sanitization:** The pipeline will require strict MIME-type validation, 10MB size limits, and Ghostscript flattening to strip embedded payloads before reaching public storage buckets (Supabase/R2).
 
 ### 7. The AI Campus Assistant (V2+ Feature)
 To strictly prevent feature creep, V1 will not include a chatbot. However, as the repository of static guides, course descriptions, and syllabi grows, V2 will introduce a Gemini Pro-powered chatbot using the **RAG (Retrieval-Augmented Generation)** pattern. 
@@ -161,8 +162,8 @@ To strictly prevent feature creep, V1 will not include a chatbot. However, as th
 
 ```
 Days 1–5   │ CORE INFRASTRUCTURE & SEEDING
-           │ • Setup Supabase (Schema for future-proof filtering)
-           │ • Setup Cloudflare R2 & manual PDF uploading
+           │ • Setup Supabase Database (Schema for future-proof filtering)
+           │ • Setup Supabase Storage for V1 file hosting (Pivot: Cloudflare R2 delayed to V2)
            │ • Skip Ghostscript/AI automation for V1 (Anti-feature creep)
            │
 Days 6–14  │ FRONTEND MVP (~18–24 hours)
