@@ -1,6 +1,8 @@
-import type { Resource } from "@/types/database";
+"use client";
+
+import { useState } from "react";
+import type { Resource, ResourceType } from "@/types/database";
 import Badge from "@/components/ui/Badge";
-import { formatFileSize } from "@/lib/utils";
 
 interface ResourceListProps {
   resources: Resource[];
@@ -8,9 +10,19 @@ interface ResourceListProps {
 
 /**
  * Renders a list of resources (PDFs, quizzes, links) for a specific course.
- * Each resource is a tappable row with a type badge and file size.
+ * Resources are grouped into tabs by their resource_type.
  */
 export default function ResourceList({ resources }: ResourceListProps) {
+  // We only show tabs for resource types that actually exist in this course
+  const availableTypes = Array.from(
+    new Set(resources.map((r) => r.resource_type))
+  ) as ResourceType[];
+
+  // State to track the currently active tab
+  const [activeTab, setActiveTab] = useState<ResourceType | null>(
+    availableTypes.length > 0 ? availableTypes[0] : null
+  );
+
   if (resources.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border p-8 text-center">
@@ -24,43 +36,87 @@ export default function ResourceList({ resources }: ResourceListProps) {
     );
   }
 
+  // Filter resources for the active tab
+  const activeResources = resources.filter(
+    (r) => r.resource_type === activeTab
+  );
+
+  // Map to get Arabic names for tabs
+  const tabNames: Record<ResourceType, string> = {
+    summary: "ملخصات",
+    quiz: "كويزات",
+    past_exam: "أسئلة سنوات",
+    guide: "أدلة",
+    link: "روابط",
+    other: "أخرى",
+  };
+
   return (
-    <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-      {resources.map((resource) => (
-        <li key={resource.id}>
-          <a
-            href={resource.storage_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 p-4 transition-colors hover:bg-secondary active:bg-secondary/80 sm:gap-4"
+    <div className="space-y-6">
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2">
+        {availableTypes.map((type) => (
+          <button
+            key={type}
+            onClick={() => setActiveTab(type)}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === type
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+            }`}
           >
-            {/* File icon */}
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-lg">
-              {resource.type === "summary" && "📄"}
-              {resource.type === "quiz" && "❓"}
-              {resource.type === "past_exam" && "📝"}
-              {resource.type === "guide" && "📖"}
-              {resource.type === "link" && "🔗"}
-              {resource.type === "other" && "📎"}
-            </div>
+            {tabNames[type]}
+          </button>
+        ))}
+      </div>
 
-            {/* Resource info */}
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="truncate text-sm font-medium text-card-foreground sm:text-base">
-                {resource.title}
-              </span>
-              {resource.file_size_bytes && (
-                <span className="text-xs text-muted-foreground">
-                  {formatFileSize(resource.file_size_bytes)}
+      {/* Active Resource List */}
+      <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+        {activeResources.map((resource) => (
+          <li key={resource.id}>
+            <a
+              href={resource.file_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 p-4 transition-colors hover:bg-secondary active:bg-secondary/80 sm:gap-4"
+            >
+              {/* File icon */}
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-lg">
+                {resource.resource_type === "summary" && "📄"}
+                {resource.resource_type === "quiz" && "❓"}
+                {resource.resource_type === "past_exam" && "📝"}
+                {resource.resource_type === "guide" && "📖"}
+                {resource.resource_type === "link" && "🔗"}
+                {resource.resource_type === "other" && "📎"}
+              </div>
+
+              {/* Resource info */}
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="truncate text-sm font-medium text-card-foreground sm:text-base">
+                  {resource.title}
                 </span>
-              )}
-            </div>
+                
+                {/* Verified Badge / Metadata */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {resource.is_verified && (
+                    <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                      <span>✓</span> موثّق
+                    </span>
+                  )}
+                  {resource.uploaded_by === "admin" && (
+                    <span>• الإدارة</span>
+                  )}
+                </div>
+              </div>
 
-            {/* Badge */}
-            <Badge type={resource.type} />
-          </a>
-        </li>
-      ))}
-    </ul>
+              {/* Download Icon */}
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                ⬇
+              </div>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
