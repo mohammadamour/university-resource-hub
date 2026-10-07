@@ -89,7 +89,50 @@ export default async function CoursePage({ params }: CoursePageProps) {
         </div>
 
         {/* Resource List */}
-        <ResourceList resources={course.resources || []} />
+        <ResourceList 
+          resources={course.resources?.length ? course.resources : [
+            {
+              id: "1",
+              course_id: course.id,
+              title: "ملخص ميد - الشابتر الأول والثاني",
+              type: "summary",
+              storage_url: "#",
+              file_size_bytes: 2500000,
+              uploaded_by: "system",
+              created_at: new Date().toISOString()
+            },
+            {
+              id: "2",
+              course_id: course.id,
+              title: "كويز تجريبي مع الحلول",
+              type: "quiz",
+              storage_url: "#",
+              file_size_bytes: 1200000,
+              uploaded_by: "system",
+              created_at: new Date().toISOString()
+            },
+            {
+              id: "3",
+              course_id: course.id,
+              title: "شرح تفصيلي للمادة - يوتيوب (م. أحمد)",
+              type: "link",
+              storage_url: "https://youtube.com",
+              file_size_bytes: null,
+              uploaded_by: "system",
+              created_at: new Date().toISOString()
+            },
+            {
+              id: "4",
+              course_id: course.id,
+              title: "موقع تفاعلي للتدريب على الأكواد",
+              type: "other",
+              storage_url: "https://example.com",
+              file_size_bytes: null,
+              uploaded_by: "system",
+              created_at: new Date().toISOString()
+            }
+          ] as any} 
+        />
       </main>
       <Footer />
     </>
