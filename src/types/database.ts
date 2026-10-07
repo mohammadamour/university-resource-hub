@@ -53,11 +53,10 @@ export interface Resource {
   id: string;
   course_id: string;
   title: string;
-  resource_type: ResourceType;
-  file_url: string;
+  type: ResourceType;
+  storage_url: string;
+  file_size_bytes: number | null;
   uploaded_by: string | null;
-  is_verified: boolean;
-  status: string;
   created_at: string;
 }
 
