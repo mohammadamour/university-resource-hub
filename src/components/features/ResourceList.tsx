@@ -1,6 +1,3 @@
-"use client";
-
-import { useState } from "react";
 import type { Resource, ResourceType } from "@/types/database";
 
 interface ResourceListProps {
@@ -25,21 +22,11 @@ export default function ResourceList({ resources }: ResourceListProps) {
     new Set(studyMaterials.map((r) => r.type))
   ) as ResourceType[];
 
-  const [activeTab, setActiveTab] = useState<ResourceType | null>(
-    availableStudyTypes.length > 0 ? availableStudyTypes[0] : null
-  );
-
-  const activeStudyResources = studyMaterials.filter(
-    (r) => r.type === activeTab
-  );
-
-  const tabNames: Record<ResourceType, string> = {
+  const sectionNames: Partial<Record<ResourceType, string>> = {
     summary: "ملخصات",
     quiz: "كويزات",
     past_exam: "أسئلة سنوات",
     guide: "أدلة",
-    link: "روابط ومحاضرات",
-    other: "أخرى",
   };
 
   if (resources.length === 0) {
@@ -99,26 +86,20 @@ export default function ResourceList({ resources }: ResourceListProps) {
     <div className="space-y-10">
       {/* 1. Primary Study Materials */}
       {studyMaterials.length > 0 && (
-        <div className="space-y-6">
-          <div className="flex flex-wrap gap-2">
-            {availableStudyTypes.map((type) => (
-              <button
-                key={type}
-                onClick={() => setActiveTab(type)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === type
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                }`}
-              >
-                {tabNames[type]}
-              </button>
-            ))}
-          </div>
-
-          <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-            {activeStudyResources.map(renderResource)}
-          </ul>
+        <div className="space-y-8">
+          {availableStudyTypes.map((type) => {
+            const typeResources = studyMaterials.filter((r) => r.type === type);
+            return (
+              <div key={type} className="space-y-4">
+                <h3 className="text-lg font-semibold text-foreground">
+                  {sectionNames[type]}
+                </h3>
+                <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+                  {typeResources.map(renderResource)}
+                </ul>
+              </div>
+            );
+          })}
         </div>
       )}
 
