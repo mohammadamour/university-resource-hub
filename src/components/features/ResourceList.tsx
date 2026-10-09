@@ -116,11 +116,13 @@ export default function ResourceList({ resources }: ResourceListProps) {
                     <h3 className="text-lg font-semibold text-foreground">
                       {topic}
                     </h3>
-                    <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-                      {topicResources.map((r) =>
-                        renderResource(r, r.displayTitle)
-                      )}
-                    </ul>
+                    <div className="rounded-xl border border-border bg-card overflow-hidden">
+                      <ul className="divide-y divide-border">
+                        {topicResources.map((r) =>
+                          renderResource(r, r.displayTitle)
+                        )}
+                      </ul>
+                    </div>
                   </div>
                 );
               })
@@ -133,9 +135,11 @@ export default function ResourceList({ resources }: ResourceListProps) {
                     <h3 className="text-lg font-semibold text-foreground">
                       {sectionNames[type]}
                     </h3>
-                    <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-                      {typeResources.map((r) => renderResource(r))}
-                    </ul>
+                    <div className="rounded-xl border border-border bg-card overflow-hidden">
+                      <ul className="divide-y divide-border">
+                        {typeResources.map((r) => renderResource(r))}
+                      </ul>
+                    </div>
                   </div>
                 );
               })}
@@ -151,9 +155,11 @@ export default function ResourceList({ resources }: ResourceListProps) {
           <p className="text-sm text-muted-foreground">
             شروحات يوتيوب، دورات، ومراجع خارجية لفهم المادة بشكل أعمق.
           </p>
-          <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-            {deepDiveResources.map((r) => renderResource(r))}
-          </ul>
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <ul className="divide-y divide-border">
+              {deepDiveResources.map((r) => renderResource(r))}
+            </ul>
+          </div>
         </div>
       )}
     </div>

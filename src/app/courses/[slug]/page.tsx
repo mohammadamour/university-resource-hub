@@ -4,7 +4,7 @@ import Footer from "@/components/layout/Footer";
 import ResourceList from "@/components/features/ResourceList";
 import { createClient } from "@/lib/supabase/server";
 import { REVALIDATE_COURSE, SITE_NAME } from "@/lib/constants";
-import type { CourseWithResources } from "@/types/database";
+import type { CourseWithResources, Resource } from "@/types/database";
 import type { Metadata } from "next";
 
 // ISR: Re-fetch data every 60 seconds (new resources appear within a minute)
@@ -114,7 +114,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
           uploaded_by: "system",
           created_at: new Date().toISOString()
         }
-      ] as any
+      ] as Resource[]
     };
   }
 
