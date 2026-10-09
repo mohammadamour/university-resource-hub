@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { Resource, ResourceType } from "@/types/database";
 
 interface ResourceListProps {
@@ -10,6 +13,8 @@ interface ResourceListProps {
  * and external deep-dive resources (links, videos) into a separate section.
  */
 export default function ResourceList({ resources }: ResourceListProps) {
+  const [activeEmbedId, setActiveEmbedId] = useState<string | null>(null);
+
   // Separate resources into primary study materials vs deep dive external links
   const studyMaterials = resources.filter(
     (r) => r.type !== "link" && r.type !== "other"
@@ -62,14 +67,11 @@ export default function ResourceList({ resources }: ResourceListProps) {
   }
 
   // Helper to render a resource item
-  const renderResource = (resource: Resource, displayTitle?: string) => (
-    <li key={resource.id}>
-      <a
-        href={resource.storage_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-3 p-4 transition-colors hover:bg-secondary active:bg-secondary/80 sm:gap-4"
-      >
+  const renderResource = (resource: Resource, displayTitle?: string) => {
+    const isQuiz = resource.type === "quiz";
+
+    const content = (
+      <>
         {/* File icon */}
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-lg">
           {resource.type === "summary" && "📄"}
@@ -87,19 +89,54 @@ export default function ResourceList({ resources }: ResourceListProps) {
           </span>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {resource.uploaded_by && <span>• الإدارة</span>}
-            {resource.file_size_bytes && (
+            {resource.file_size_bytes ? (
               <span>• {(resource.file_size_bytes / 1024 / 1024).toFixed(1)} MB</span>
-            )}
+            ) : null}
           </div>
         </div>
 
-        {/* Download / Link Icon */}
+        {/* Download / Link / Expand Icon */}
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-          {resource.type === "link" || resource.type === "other" ? "↗" : "⬇"}
+          {isQuiz 
+            ? (activeEmbedId === resource.id ? "🔽" : "▶️") 
+            : (resource.type === "link" || resource.type === "other" ? "↗" : "⬇")}
         </div>
-      </a>
-    </li>
-  );
+      </>
+    );
+
+    return (
+      <li key={resource.id} className="flex flex-col">
+        {isQuiz ? (
+          <button
+            onClick={() => setActiveEmbedId(activeEmbedId === resource.id ? null : resource.id)}
+            className="flex w-full items-center gap-3 p-4 text-start transition-colors hover:bg-secondary active:bg-secondary/80 sm:gap-4"
+          >
+            {content}
+          </button>
+        ) : (
+          <a
+            href={resource.storage_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 p-4 transition-colors hover:bg-secondary active:bg-secondary/80 sm:gap-4"
+          >
+            {content}
+          </a>
+        )}
+
+        {/* Embedded Iframe for Quizzes */}
+        {isQuiz && activeEmbedId === resource.id && (
+          <div className="border-t border-border bg-muted/30 p-4 sm:p-6">
+            <iframe
+              src={resource.storage_url}
+              className="min-h-[600px] w-full rounded-lg border border-border bg-background shadow-sm"
+              allowFullScreen
+            />
+          </div>
+        )}
+      </li>
+    );
+  };
 
   return (
     <div className="space-y-10">
