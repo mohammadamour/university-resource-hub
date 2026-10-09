@@ -58,7 +58,65 @@ export async function generateMetadata({
 
 export default async function CoursePage({ params }: CoursePageProps) {
   const { slug } = await params;
-  const course = await getCourse(slug);
+  let course = await getCourse(slug);
+
+  // MOCK FOR PLACEMENT EXAMS (since local DB is not reset)
+  if (slug === 'placement-exams' && !course) {
+    course = {
+      id: "mock-id",
+      department_id: "mock-dept",
+      title: "امتحانات المستوى",
+      slug: "placement-exams",
+      course_code: null,
+      description: "نماذج ومواد تحضيرية لجميع امتحانات الكفاءة (عربي، إنجليزي، حاسوب)",
+      instructor: null,
+      semester: null,
+      display_order: 0,
+      created_at: new Date().toISOString(),
+      resources: [
+        {
+          id: "1",
+          course_id: "mock-id",
+          title: "عربي | ملخص قواعد النحو والصرف",
+          type: "summary",
+          storage_url: "#",
+          file_size_bytes: 2500000,
+          uploaded_by: "system",
+          created_at: new Date().toISOString()
+        },
+        {
+          id: "2",
+          course_id: "mock-id",
+          title: "عربي | كويز تجريبي مع الحلول",
+          type: "quiz",
+          storage_url: "#",
+          file_size_bytes: 1200000,
+          uploaded_by: "system",
+          created_at: new Date().toISOString()
+        },
+        {
+          id: "3",
+          course_id: "mock-id",
+          title: "انجليزي | نماذج امتحانات سابقة",
+          type: "past_exam",
+          storage_url: "#",
+          file_size_bytes: 1200000,
+          uploaded_by: "system",
+          created_at: new Date().toISOString()
+        },
+        {
+          id: "4",
+          course_id: "mock-id",
+          title: "حاسوب | أهم اختصارات الكيبورد والأساسيات",
+          type: "summary",
+          storage_url: "#",
+          file_size_bytes: 1200000,
+          uploaded_by: "system",
+          created_at: new Date().toISOString()
+        }
+      ] as any
+    };
+  }
 
   if (!course) {
     notFound();
@@ -89,50 +147,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
         </div>
 
         {/* Resource List */}
-        <ResourceList 
-          resources={course.resources?.length ? course.resources : [
-            {
-              id: "1",
-              course_id: course.id,
-              title: "ملخص ميد - الشابتر الأول والثاني",
-              type: "summary",
-              storage_url: "#",
-              file_size_bytes: 2500000,
-              uploaded_by: "system",
-              created_at: new Date().toISOString()
-            },
-            {
-              id: "2",
-              course_id: course.id,
-              title: "كويز تجريبي مع الحلول",
-              type: "quiz",
-              storage_url: "#",
-              file_size_bytes: 1200000,
-              uploaded_by: "system",
-              created_at: new Date().toISOString()
-            },
-            {
-              id: "3",
-              course_id: course.id,
-              title: "شرح تفصيلي للمادة - يوتيوب (م. أحمد)",
-              type: "link",
-              storage_url: "https://youtube.com",
-              file_size_bytes: null,
-              uploaded_by: "system",
-              created_at: new Date().toISOString()
-            },
-            {
-              id: "4",
-              course_id: course.id,
-              title: "موقع تفاعلي للتدريب على الأكواد",
-              type: "other",
-              storage_url: "https://example.com",
-              file_size_bytes: null,
-              uploaded_by: "system",
-              created_at: new Date().toISOString()
-            }
-          ] as any} 
-        />
+        <ResourceList resources={course.resources || []} />
       </main>
       <Footer />
     </>

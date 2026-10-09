@@ -29,6 +29,25 @@ export default function ResourceList({ resources }: ResourceListProps) {
     guide: "أدلة",
   };
 
+  // Advanced feature: If titles use "Topic | Title", group by Topic instead of Type
+  // Example: "لغة عربية | كويز تجريبي" -> Groups under "لغة عربية"
+  const parsedStudyMaterials = studyMaterials.map((resource) => {
+    const parts = resource.title.split("|");
+    if (parts.length > 1) {
+      return {
+        ...resource,
+        topic: parts[0].trim(),
+        displayTitle: parts.slice(1).join("|").trim(),
+      };
+    }
+    return { ...resource, topic: "عام", displayTitle: resource.title };
+  });
+
+  const hasTopics = parsedStudyMaterials.some((r) => r.topic !== "عام");
+  const availableTopics = Array.from(
+    new Set(parsedStudyMaterials.map((r) => r.topic))
+  );
+
   if (resources.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border p-8 text-center">
@@ -43,7 +62,7 @@ export default function ResourceList({ resources }: ResourceListProps) {
   }
 
   // Helper to render a resource item
-  const renderResource = (resource: Resource) => (
+  const renderResource = (resource: Resource, displayTitle?: string) => (
     <li key={resource.id}>
       <a
         href={resource.storage_url}
@@ -64,7 +83,7 @@ export default function ResourceList({ resources }: ResourceListProps) {
         {/* Resource info */}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="truncate text-sm font-medium text-card-foreground sm:text-base">
-            {resource.title}
+            {displayTitle || resource.title}
           </span>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {resource.uploaded_by && <span>• الإدارة</span>}
@@ -87,19 +106,39 @@ export default function ResourceList({ resources }: ResourceListProps) {
       {/* 1. Primary Study Materials */}
       {studyMaterials.length > 0 && (
         <div className="space-y-8">
-          {availableStudyTypes.map((type) => {
-            const typeResources = studyMaterials.filter((r) => r.type === type);
-            return (
-              <div key={type} className="space-y-4">
-                <h3 className="text-lg font-semibold text-foreground">
-                  {sectionNames[type]}
-                </h3>
-                <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-                  {typeResources.map(renderResource)}
-                </ul>
-              </div>
-            );
-          })}
+          {hasTopics
+            ? availableTopics.map((topic) => {
+                const topicResources = parsedStudyMaterials.filter(
+                  (r) => r.topic === topic
+                );
+                return (
+                  <div key={topic} className="space-y-4">
+                    <h3 className="text-lg font-semibold text-foreground">
+                      {topic}
+                    </h3>
+                    <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+                      {topicResources.map((r) =>
+                        renderResource(r, r.displayTitle)
+                      )}
+                    </ul>
+                  </div>
+                );
+              })
+            : availableStudyTypes.map((type) => {
+                const typeResources = studyMaterials.filter(
+                  (r) => r.type === type
+                );
+                return (
+                  <div key={type} className="space-y-4">
+                    <h3 className="text-lg font-semibold text-foreground">
+                      {sectionNames[type]}
+                    </h3>
+                    <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+                      {typeResources.map((r) => renderResource(r))}
+                    </ul>
+                  </div>
+                );
+              })}
         </div>
       )}
 
@@ -113,7 +152,7 @@ export default function ResourceList({ resources }: ResourceListProps) {
             شروحات يوتيوب، دورات، ومراجع خارجية لفهم المادة بشكل أعمق.
           </p>
           <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-            {deepDiveResources.map(renderResource)}
+            {deepDiveResources.map((r) => renderResource(r))}
           </ul>
         </div>
       )}

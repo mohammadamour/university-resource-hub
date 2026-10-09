@@ -36,6 +36,4 @@ INSERT INTO courses (department_id, title, slug, description) VALUES
 -- 4. Insert Placement Exams Courses
 WITH placement_dept AS (SELECT id FROM departments WHERE slug = 'placement-exams')
 INSERT INTO courses (department_id, title, slug, description) VALUES
-  ((SELECT id FROM placement_dept), 'امتحان مستوى اللغة العربية', 'arabic-placement', 'نماذج ومواد تحضيرية لامتحان الكفاءة في اللغة العربية'),
-  ((SELECT id FROM placement_dept), 'امتحان مستوى اللغة الإنجليزية', 'english-placement', 'نماذج ومواد تحضيرية لامتحان الكفاءة في اللغة الإنجليزية'),
-  ((SELECT id FROM placement_dept), 'امتحان مستوى الحاسوب', 'computer-placement', 'نماذج ومواد تحضيرية لامتحان مهارات الحاسوب الأساسية');
+  ((SELECT id FROM placement_dept), 'امتحانات المستوى', 'placement-exams', 'نماذج ومواد تحضيرية لجميع امتحانات الكفاءة (عربي، إنجليزي، حاسوب)');

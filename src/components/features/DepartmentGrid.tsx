@@ -28,17 +28,27 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
         <section key={dept.id}>
           <SectionHeader title={dept.name} />
 
-          {dept.courses.length > 0 ? (
+          {dept.courses.length > 0 || dept.slug === 'placement-exams' ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {dept.courses.map((course) => (
+              {dept.slug === 'placement-exams' ? (
                 <Card
-                  key={course.id}
-                  href={`/courses/${course.slug}`}
-                  title={course.title}
-                  courseCode={course.course_code}
-                  description={course.description}
+                  key="mock-placement"
+                  href="/courses/placement-exams"
+                  title="امتحانات المستوى"
+                  courseCode={null}
+                  description="نماذج ومواد تحضيرية لجميع امتحانات الكفاءة (عربي، إنجليزي، حاسوب)"
                 />
-              ))}
+              ) : (
+                dept.courses.map((course) => (
+                  <Card
+                    key={course.id}
+                    href={`/courses/${course.slug}`}
+                    title={course.title}
+                    courseCode={course.course_code}
+                    description={course.description}
+                  />
+                ))
+              )}
             </div>
           ) : (
             <p className="py-4 text-sm text-muted-foreground">
