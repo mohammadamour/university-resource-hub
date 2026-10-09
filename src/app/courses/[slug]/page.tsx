@@ -113,6 +113,16 @@ export default async function CoursePage({ params }: CoursePageProps) {
           file_size_bytes: 1200000,
           uploaded_by: "system",
           created_at: new Date().toISOString()
+        },
+        {
+          id: "5",
+          course_id: "mock-id",
+          title: "حاسوب | امتحان تجريبي تفاعلي",
+          type: "quiz",
+          storage_url: "https://share.gemini.google/KowylEzTUiIe",
+          file_size_bytes: 0,
+          uploaded_by: "system",
+          created_at: new Date().toISOString()
         }
       ] as Resource[]
     };

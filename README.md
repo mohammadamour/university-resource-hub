@@ -86,14 +86,18 @@ To provide maximum value while avoiding legal or academic liability, the platfor
 3. **Volatile Information Exclusion:** We explicitly exclude data that changes unofficially and frequently (e.g., Campus bus schedules). If a student misses an exam because our bus schedule was wrong, the platform takes the blame. If we can't guarantee the data, we don't host it.
 4. **Universal WhatsApp Directories:** Instead of trying to host every piece of communication, we will provide a curated list of "Universal WhatsApp Groups" (e.g., Book Exchange, Placement Exams prep, University Electives). This centralizes the scattered links into one trusted place without having to build a chat feature.
 
-### The Interactive Quiz Engine
+### The Native Interactive Quiz Engine (Planned)
 
-- **Decision:** Use **Static Pre-Generated JSON Quizzes** (not on-demand AI generation).
-- **How:** Feed verified summaries into Gemini Pro locally → generate high-quality, hallucination-free JSON quiz payloads.
+- **Decision:** Build a custom `<NativeQuiz />` React component that renders pre-generated JSON quizzes natively, avoiding fragile external embeds (iframes) and `X-Frame-Options` security blocks.
+- **How:** 
+  1. Feed raw questions into Gemini Pro locally to output a strict JSON format (question, options, correctIndex, explanation).
+  2. Store this JSON inside a new `quiz_data` (JSONB) column in the Supabase `resources` table.
+  3. The frontend `ResourceList.tsx` detects if `quiz_data` exists and dynamically renders the interactive quiz directly inline.
 - **Why:**
-  - Eliminates API key exhaustion risks
-  - Zero-day prompt injection is impossible
-  - No hallucinated incorrect answers that destroy user trust
+  - **Zero Iframe Issues:** Complete immunity to third-party sites blocking their pages from being embedded.
+  - **Perfect UI/UX:** The quiz natively inherits the app's styling, fonts, and dark mode.
+  - **Future-Proof:** Unlocks the ability to track student scores and save progress directly in our own database.
+  - **Reliable:** Eliminates API key exhaustion, prompt injection risks, and live hallucinations.
 
 ---
 
