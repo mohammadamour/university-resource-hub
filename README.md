@@ -1,7 +1,21 @@
 # Platform Architecture & Strategy Blueprint
+
 ## Molakhasat (ملخصات) - University Academic Resource Hub
 
 > A fast, mobile-first, and curated single source of truth for university course materials and placement exams — replacing the chaos of ephemeral WhatsApp group chats.
+
+---
+
+## 🛠️ Quick Start: How to Run Locally
+
+1. Open a terminal in the project root directory (`university resource hub`).
+2. Run the development server:
+   ```bash
+   npm run dev
+   ```
+   _(If you've cloned fresh or added new packages, run `npm install` first)._
+3. Open your browser and navigate to:
+   👉 **http://localhost:3000**
 
 ---
 
@@ -13,7 +27,7 @@
 - **Target Audience:** Newcomers and freshmen (Sanafer / سنافر), acting as their ultimate resource and guide for placement exams and introductory courses.
 - **Timeline Constraints:** Aggressive 20-day timeline to launch before the first semester starts.
 - **Budget Constraint:** $0/month deployment leveraging free-tier infrastructure.
-- **Strategic Positioning:** Compliment, do not compete. The platform acts as a permanent link repository shared *inside* WhatsApp.
+- **Strategic Positioning:** Compliment, do not compete. The platform acts as a permanent link repository shared _inside_ WhatsApp.
 - **Scaling Goal:** Capture 200-500 active users from Jadara University (out of 12k total) to hit a network-effect tipping point.
 
 ---
@@ -22,15 +36,16 @@
 
 ### Infrastructure Stack (Zero-Cost Focus)
 
-| Layer              | Technology                          | Why                                              |
-| ------------------ | ----------------------------------- | ------------------------------------------------ |
-| **Database & Auth** | Supabase (PostgreSQL)              | Indexed relational data + magic-link auth        |
-| **Object Storage**  | Cloudflare R2                      | Zero-egress cost hosting of compressed PDF assets |
-| **Hosting & Frontend** | Vercel or Render + Next.js/React | SSR, fast deploys, generous free tier             |
-| **Styling**         | Tailwind CSS                       | Rapid UI development                             |
-| **CI/CD & DevOps**  | GitHub Actions / Vercel CI         | Automated deployments and future integrations (Sentry for error tracking, Azure for AI). |
+| Layer                  | Technology                       | Why                                                                                      |
+| ---------------------- | -------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Database & Auth**    | Supabase (PostgreSQL)            | Indexed relational data + magic-link auth                                                |
+| **Object Storage**     | Cloudflare R2                    | Zero-egress cost hosting of compressed PDF assets                                        |
+| **Hosting & Frontend** | Vercel or Render + Next.js/React | SSR, fast deploys, generous free tier                                                    |
+| **Styling**            | Tailwind CSS                     | Rapid UI development                                                                     |
+| **CI/CD & DevOps**     | GitHub Actions / Vercel CI       | Automated deployments and future integrations (Sentry for error tracking, Azure for AI). |
 
 ### Infrastructure Edge Cases & Decisions
+
 - **Storage Privacy:** Cloudflare R2 will remain **Public** for V1 to ensure maximum speed and simplicity. The risk of scrapers is deemed low initially.
 - **Anonymous Access:** The platform must be completely frictionless. Guest users can read/download any file without an account. We will rely on Next.js API rate-limiting rather than forced auth to prevent abuse.
 - **Rendering Strategy (Next.js):** To survive exam-night traffic spikes without exhausting the Supabase free tier, we will use **Incremental Static Regeneration (ISR)**. Next.js will cache pages statically and re-validate them periodically in the background.
@@ -38,19 +53,23 @@
 
 ### Data Model, "Doctor Shift" Mitigation & Scalability
 
-The database schema uses an **extended hierarchy** (University → Department → Course Code → Instructor/Doctor → Semester/Year). 
+The database schema uses an **extended hierarchy** (University → Department → Course Code → Instructor/Doctor → Semester/Year).
 
 - **Hidden Complexity (V1 Backend):** The backend MUST be fully built out for multi-university and multi-department scaling from Day 1 (schema, foreign keys, routing logic). We will not retroactively refactor the backend when things change.
 - **V1 Simplification (Frontend):** The UI will completely hide this backend complexity. The frontend will hard-assume "Jadara University" and show a flat list or basic filtering for courses initially. We just expose the UI filters later when volume dictates it.
 
 ### Auth, User Profiles & Bookmarks (Schema Foundation)
+
 To transition from a "repository" to a "platform," the schema will include tables for users and personalization from Day 1, even if the UI for registration is hidden in V1:
+
 - `users` (Managed by Supabase Auth).
 - `profiles` (Linked to Auth, storing Major/Department).
 - `bookmarks` (Join table linking `user_id` to `course_id` or `resource_id` for quick access).
 
 ### Security & Role-Based Access Control (RBAC)
+
 We will implement strict Supabase Row Level Security (RLS) from the beginning using a multi-tiered role system:
+
 - **Super Admin (Founder):** Can manage universities, departments, users, and all resources.
 - **Admin (Future Ambassadors):** Can only upload, edit, and delete resources within their assigned department.
 - **User (Students):** Can only read resources and manage their personal bookmarks.
@@ -68,19 +87,21 @@ Scanned notes create massive file sizes that exhaust storage.
 
 ### Phase 1 MVP (The "Anti-Feature Creep" Strategy)
 
-| Feature                        | Decision                                                                                      |
-| ------------------------------ | --------------------------------------------------------------------------------------------- |
-| **Admin Panel**                | ❌ No custom CMS in V1. Saves 60% of dev time. All V1 resource uploads and management will be done directly through the **Supabase Dashboard UI** (drag-and-drop storage + table editor) to avoid hardcoding files in the frontend.      |
-| **UI/UX Philosophy**           | ✅ Simple, lightweight, fast (optimized for mobile data). Layout mimics the official university portal for instant familiarity, but distinct enough to avoid looking like a scam. |
-| **Mobile-First Design**        | ✅ Built explicitly for smartphones and iPads, as this is how 90% of students access resources on campus. |
-| **Unified Hierarchy**          | ✅ Single `CourseView` page dynamically renders folders (Summaries, Quizzes, Past Exams) from DB rows. Empty states handled gracefully. |
-| **In-App Browser Resilience**  | ✅ UI optimized to render PDFs cleanly inside WhatsApp/Telegram embedded browsers.             |
-| **Trust Disclaimer**           | ✅ A clear, non-invasive footer disclaimer stating: "A student-made initiative to help peers. Not officially affiliated with the university." |
-| **"Fake Departments"**         | ✅ The UI will group courses by major (e.g., IT), but will include prominent "fake departments" for *University Electives* and *Placement Exams/Prep* to capture all students. |
-| **Campus Survival Guides**     | ✅ High-value, static guides solving the "unwritten rules" of campus: Library usage, Wi-Fi connection, Cafe menus, and navigating portals. This bypasses the toxic/unreliable nature of massive WhatsApp groups. *Constraint: Absolutely NO financial advice to avoid liability.* |
+| Feature                       | Decision                                                                                                                                                                                                                                                                          |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Admin Panel**               | ❌ No custom CMS in V1. Saves 60% of dev time. All V1 resource uploads and management will be done directly through the **Supabase Dashboard UI** (drag-and-drop storage + table editor) to avoid hardcoding files in the frontend.                                               |
+| **UI/UX Philosophy**          | ✅ Simple, lightweight, fast (optimized for mobile data). Layout mimics the official university portal for instant familiarity, but distinct enough to avoid looking like a scam.                                                                                                 |
+| **Mobile-First Design**       | ✅ Built explicitly for smartphones and iPads, as this is how 90% of students access resources on campus.                                                                                                                                                                         |
+| **Unified Hierarchy**         | ✅ Single `CourseView` page dynamically renders folders (Summaries, Quizzes, Past Exams) from DB rows. Empty states handled gracefully.                                                                                                                                           |
+| **In-App Browser Resilience** | ✅ UI optimized to render PDFs cleanly inside WhatsApp/Telegram embedded browsers.                                                                                                                                                                                                |
+| **Trust Disclaimer**          | ✅ A clear, non-invasive footer disclaimer stating: "A student-made initiative to help peers. Not officially affiliated with the university."                                                                                                                                     |
+| **"Fake Departments"**        | ✅ The UI will group courses by major (e.g., IT), but will include prominent "fake departments" for _University Electives_ and _Placement Exams/Prep_ to capture all students.                                                                                                    |
+| **Campus Survival Guides**    | ✅ High-value, static guides solving the "unwritten rules" of campus: Library usage, Wi-Fi connection, Cafe menus, and navigating portals. This bypasses the toxic/unreliable nature of massive WhatsApp groups. _Constraint: Absolutely NO financial advice to avoid liability._ |
 
 ### Content Strategy & Liability Mitigation
+
 To provide maximum value while avoiding legal or academic liability, the platform strictly adheres to these content rules:
+
 1. **The "What is this course?" Solution:** Instead of subjective reviews, we utilize the database `description` field for a 2-sentence objective summary, and upload the **Official University Syllabus (الخطة الدراسية)** as a PDF resource for each course.
 2. **Professor Offices & Contact Info:** Instead of hardcoding a directory (which raises privacy/maintenance issues), we use a static guide to explain the general building layouts, and we document a "Moodle Hack" (teaching students to check the 'Participants' tab in their e-learning courses to extract official emails/locations directly from the university system). This shifts liability and maintenance entirely back to the university.
 3. **Volatile Information Exclusion:** We explicitly exclude data that changes unofficially and frequently (e.g., Campus bus schedules). If a student misses an exam because our bus schedule was wrong, the platform takes the blame. If we can't guarantee the data, we don't host it.
@@ -89,7 +110,7 @@ To provide maximum value while avoiding legal or academic liability, the platfor
 ### The Native Interactive Quiz Engine (Planned)
 
 - **Decision:** Build a custom `<NativeQuiz />` React component that renders pre-generated JSON quizzes natively, avoiding fragile external embeds (iframes) and `X-Frame-Options` security blocks.
-- **How:** 
+- **How:**
   1. Feed raw questions into Gemini Pro locally to output a strict JSON format (question, options, correctIndex, explanation).
   2. Store this JSON inside a new `quiz_data` (JSONB) column in the Supabase `resources` table.
   3. The frontend `ResourceList.tsx` detects if `quiz_data` exists and dynamically renders the interactive quiz directly inline.
@@ -103,59 +124,74 @@ To provide maximum value while avoiding legal or academic liability, the platfor
 
 ## 4. Operational Hurdles & Mitigation Strategy
 
-| Existential Risk              | Root Cause                                 | Systemic Solution                                                                                                       |
-| ----------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| **Trust Liability / Bad Notes** | Unverified files cause failed exams       | **Curated Excellence:** Publish only *one* definitive guide per subject. Enforce strict **Scope Disclaimers** detailing exactly what chapters are/aren't covered. |
-| **Cold-Start Seeding**         | Manually uploading 100+ files is exhausting | **Batch Ingestion Script:** Node/Python script to process a local `/seed_files` folder and bulk-upload metadata to Supabase. |
-| **Endless UX Tweaking**        | Getting trapped in "fake work" before launch | **The 80/20 Rule:** If the site loads fast and a user can find their Doctor's PDF in under 3 clicks, stop tweaking and ship. |
+| Existential Risk                | Root Cause                                   | Systemic Solution                                                                                                                                                 |
+| ------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Trust Liability / Bad Notes** | Unverified files cause failed exams          | **Curated Excellence:** Publish only _one_ definitive guide per subject. Enforce strict **Scope Disclaimers** detailing exactly what chapters are/aren't covered. |
+| **Cold-Start Seeding**          | Manually uploading 100+ files is exhausting  | **Batch Ingestion Script:** Node/Python script to process a local `/seed_files` folder and bulk-upload metadata to Supabase.                                      |
+| **Endless UX Tweaking**         | Getting trapped in "fake work" before launch | **The 80/20 Rule:** If the site loads fast and a user can find their Doctor's PDF in under 3 clicks, stop tweaking and ship.                                      |
 
 ---
 
 ## 5. Growth, Launch & User Acquisition
 
 ### 1. The Freshmen Placement Hook
+
 Capture users **before** the semester begins. Launch a "Freshmen Starter Kit" containing interactive prep quizzes for Arabic, English, and Computer Skills. This secures a captive audience looking for immediate value.
 
 ### 2. Organic Footers (The Referral Engine)
+
 Every PDF processed through the pipeline receives a subtle footer watermark:
+
 ```
 Indexed via [YourSite.com] • Original Author: [Name] / Batch '[Year]
 ```
+
 When students share the raw PDF in private chats, the document itself acts as an organic referral link back to the platform.
 
 ### 3. High-Touch Manual Distribution & Targeted Drop-Links
-Growth in V1 will be completely manual, organic, and face-to-face. 
+
+Growth in V1 will be completely manual, organic, and face-to-face.
+
 - Pitch the platform directly to peers and the incoming batch of freshmen to gather immediate qualitative feedback.
-- Do **not** broadcast generic "Check out my site" messages or spam links everywhere, as this feels invasive and creates a bad reputation. 
+- Do **not** broadcast generic "Check out my site" messages or spam links everywhere, as this feels invasive and creates a bad reputation.
 - Instead, when a student asks a specific question in a group chat, drop the **exact URL** as the highly relevant answer:
+
 ```
 Site.com/CS101/Midterm-Quiz
 ```
 
 ### 4. The Front-Loaded Study Loop
+
 Use the platform as an academic weapon for yourself:
+
 1. When course registration opens, grab the syllabi
 2. Summarize the first 3 chapters
-3. Generate quizzes *before* the semester starts
+3. Generate quizzes _before_ the semester starts
 4. Lock in high grades while stocking the site with Day 1 inventory
 
 ### 5. The Ambassador Program (Long-Term Scaling)
-Once the platform hits the tipping point (200-500 users), recruit "Ambassadors" from other departments (and eventually other universities). 
+
+Once the platform hits the tipping point (200-500 users), recruit "Ambassadors" from other departments (and eventually other universities).
+
 - **Value Proposition for them:** A powerful resume booster ("X Department Admin for campus-wide resource platform").
 - **Value for the platform:** Decentralized curation and monitoring. The founder transitions to an administrative/oversight role rather than a manual content creator.
 
 ### 6. User-Generated Content (UGC) Pipeline & Architecture
+
 V1 relies on manual curation to ensure high quality and trust. True scale requires UGC (allowing users to upload their own resources), which introduces architectural risks.
 
 To prevent the platform from becoming an unorganized "dump", V2 will implement the following UGC strategies:
+
 1. **The "Verified" Badge Pattern:** No separate tabs for user uploads. All resources live inside their specific Course bucket. Resources uploaded by Admins/Founders receive a "Verified (موثّق)" badge. Student uploads live below them, marked as community contributions.
 2. **The "Missing Course" Policy:** Users **cannot** manually type course names during upload (prevents database fragmentation like "CS 101" vs "cs101"). They must select from existing courses. If a course is missing, they submit a "Request Course" form.
 3. **The Approval Queue:** Student uploads default to `status: 'pending'` in the database. They do not appear on the live site until an Ambassador or Founder reviews and marks them as `approved`. This protects the platform's academic reputation from incorrect or malicious files.
 4. **Security & Sanitization:** The pipeline will require strict MIME-type validation, 10MB size limits, and Ghostscript flattening to strip embedded payloads before reaching public storage buckets (Supabase/R2).
 
 ### 7. The AI Campus Assistant (V2+ Feature)
-To strictly prevent feature creep, V1 will not include a chatbot. However, as the repository of static guides, course descriptions, and syllabi grows, V2 will introduce a Gemini Pro-powered chatbot using the **RAG (Retrieval-Augmented Generation)** pattern. 
-- **The RAG Constraint:** The AI will *only* be allowed to answer questions based on the text existing in the platform's database. This completely eliminates hallucinations about university policies.
+
+To strictly prevent feature creep, V1 will not include a chatbot. However, as the repository of static guides, course descriptions, and syllabi grows, V2 will introduce a Gemini Pro-powered chatbot using the **RAG (Retrieval-Augmented Generation)** pattern.
+
+- **The RAG Constraint:** The AI will _only_ be allowed to answer questions based on the text existing in the platform's database. This completely eliminates hallucinations about university policies.
 - **Value:** Instead of clicking through 5 menus to find the GPA calculation formula or the library hours, a student can just ask the AI, which will instantly retrieve and summarize the exact paragraph from the static guides.
 
 ---
@@ -189,11 +225,13 @@ Days 15–20 │ QA & LAUNCH
 > Building this platform shifts your reputation from "student" to "execution-oriented engineer."
 
 ### Avoiding the "Utility Trap"
+
 - **The Trap:** Becoming an unpaid 24/7 tutor or custom-making notes to win social approval.
 - **The Pivot:** Use the platform to deliver value at scale. When users message with thanks, acknowledge briefly, then pivot to peer-to-peer conversation.
 - **Maintain Boundaries:** Speak as an equal, not a customer service rep.
 
 ### The Integrity Firewall & Screenshot Immunity
+
 - Treat every user — male or female — with the **exact same** direct, polite, and professional baseline.
 - This guarantees zero vulnerability to out-of-context screenshots, protects your brand, and acts as a natural filter.
 - Let the platform handle your "exposure area." High campus visibility + absolute professionalism = unassailable social standing.
@@ -212,4 +250,4 @@ Days 15–20 │ QA & LAUNCH
 
 ---
 
-*This README serves as the living master reference for the project. It will be updated as decisions evolve and development progresses.*
+_This README serves as the living master reference for the project. It will be updated as decisions evolve and development progresses._

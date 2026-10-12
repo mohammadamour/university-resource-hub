@@ -12,7 +12,15 @@ interface DepartmentGridProps {
  * Departments are rendered in `display_order` (set in the database).
  */
 export default function DepartmentGrid({ departments }: DepartmentGridProps) {
-  if (departments.length === 0) {
+  // Placement exams were conducted on Day 1 for freshmen.
+  // Code and route (/courses/placement-exams) are kept intact,
+  // but hidden from the homepage to avoid cluttering the UI.
+  const SHOW_PLACEMENT_EXAMS = false;
+  const visibleDepartments = departments.filter(
+    (dept) => SHOW_PLACEMENT_EXAMS || dept.slug !== "placement-exams"
+  );
+
+  if (visibleDepartments.length === 0) {
     return (
       <div className="py-12 text-center">
         <p className="text-muted-foreground">
@@ -24,7 +32,7 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
 
   return (
     <div className="space-y-8">
-      {departments.map((dept) => (
+      {visibleDepartments.map((dept) => (
         <section key={dept.id}>
           <SectionHeader title={dept.name} />
 
