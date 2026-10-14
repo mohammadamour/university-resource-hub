@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import UploadForm from "@/components/features/UploadForm";
+import { createClient } from "@/lib/supabase/server";
+import UploadForm, { type UploadCourse } from "@/components/features/UploadForm";
 
 export const metadata: Metadata = {
   title: "بوابة رفع الموارد | ملخصات",
@@ -24,6 +25,19 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
     notFound();
   }
 
+  // Pre-fetch all courses with their existing resources for instant optimistic UX
+  const supabase = await createClient();
+  const { data: courses } = await supabase
+    .from("courses")
+    .select(`
+      id,
+      title,
+      course_code,
+      department:departments (name),
+      resources (id, title, type, file_size_bytes)
+    `)
+    .order("title");
+
   return (
     <>
       <Header />
@@ -44,7 +58,7 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
 
         {/* Upload Form Card */}
         <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
-          <UploadForm />
+          <UploadForm initialCourses={(courses as unknown as UploadCourse[]) || []} />
         </div>
       </main>
       <Footer />
