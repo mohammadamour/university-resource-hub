@@ -196,6 +196,10 @@ To prevent the platform from becoming an unorganized "dump", V2 will implement t
      3. The server automatically attaches this JSON to a companion resource (`type: 'quiz'`) stored in the `quiz_data` (JSONB) column in Supabase.
    - **The "2-for-1" Value Multiplier:** A single student upload yields two distinct assets: the readable PDF summary + an instant, native interactive quiz for peers.
    - **Moderation:** Both the summary and its generated companion quiz enter the approval queue (`status: 'pending'`), allowing admins to review and publish both in a single click.
+6. **Adaptive Question Banks & Diagnostic Quizzes (V2 Roadmap):**
+   - **From Static Quizzes to Question Banks:** Instead of locking resources to a single static 10-question quiz, the system supports 30–50 question pools tagged with rich metadata (`difficulty: 'easy' | 'medium' | 'hard'`, `topic`, `subtopic`, `tags`).
+   - **Dynamic Sampling & Infinite Replayability:** Every attempt samples a unique randomized subset (e.g. 10 questions) tailored to difficulty modes (e.g., Quick Warm-up vs. Full Exam Simulation).
+   - **Personalized Mistake Targeting (Diagnostic Drill):** Once user authentication and profiles are live, mistake history per topic/tag allows the system to generate targeted remedial quizzes ("Train My Weaknesses") focusing specifically on concepts where the student previously struggled.
 
 ### 7. The AI Campus Assistant (V2+ Feature)
 

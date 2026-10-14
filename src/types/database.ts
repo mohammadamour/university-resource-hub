@@ -56,6 +56,11 @@ export interface QuizQuestion {
   options: string[]; // Always exactly 4 options
   correctIndex: number; // 0-indexed (0 to 3)
   explanation: string; // Explanation of the correct answer
+  // Optional metadata for adaptive testing and diagnostic categorization
+  difficulty?: "easy" | "medium" | "hard";
+  topic?: string;
+  subtopic?: string;
+  tags?: string[];
 }
 
 export interface QuizData {
