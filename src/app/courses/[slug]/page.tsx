@@ -8,7 +8,7 @@ import type { CourseWithResources, Resource } from "@/types/database";
 import type { Metadata } from "next";
 
 // ISR: Re-fetch data every 60 seconds (new resources appear within a minute)
-export const revalidate = REVALIDATE_COURSE;
+export const revalidate = 60;
 
 interface CoursePageProps {
   params: Promise<{ slug: string }>;

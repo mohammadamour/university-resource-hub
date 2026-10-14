@@ -153,7 +153,9 @@ async function processFileInBackground(
           console.log(
             `[pipeline] No pre-extracted text — running server-side pdf-parse for ${resourceId}`
           );
-          const pdfParse = (await import("pdf-parse")).default;
+          const pdfParseModule = await import("pdf-parse");
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const pdfParse = (pdfParseModule as any).default || pdfParseModule;
           const pdfData = await pdfParse(Buffer.from(finalBuffer));
           sourceText = pdfData.text?.trim() ?? null;
         } else {

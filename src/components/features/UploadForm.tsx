@@ -72,13 +72,12 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Eager PDF text extraction (speculative) ───────────────────────────────
-  // Fires whenever both: a valid PDF is selected AND the quiz toggle is on.
-  // Result is held in `extractedSourceText` and attached to FormData on submit.
-  // This means by the time the user clicks "Upload", text is already ready —
-  // the server can skip its own pdf-parse step entirely.
+  // Fires as soon as a valid PDF file is selected.
+  // Result is held in `extractedSourceText` and attached to FormData on submit if generateQuiz is true.
+  // This means by the time the user types the title or toggles quiz, text is already ready —
+  // eliminating any waiting time for client-side extraction.
   useEffect(() => {
-    if (!file || !generateQuiz) {
-      // Reset when either condition is removed
+    if (!file) {
       setExtractedSourceText(null);
       setExtractionStatus("idle");
       return;
@@ -86,7 +85,6 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
 
     let cancelled = false;
     setExtractionStatus("extracting");
-    setExtractedSourceText(null);
 
     import("@/lib/pipeline/client-pdf-extractor")
       .then(({ extractTextFromPdf }) => extractTextFromPdf(file))
@@ -104,8 +102,10 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
         if (!cancelled) setExtractionStatus("failed");
       });
 
-    return () => { cancelled = true; };
-  }, [file, generateQuiz]);
+    return () => {
+      cancelled = true;
+    };
+  }, [file]);
 
   // If initialCourses was empty, try fetching client-side as fallback
   useEffect(() => {
@@ -513,12 +513,16 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
             توليد كويز تفاعلي بالذكاء الاصطناعي ✨
           </span>
           <span className="text-xs text-muted-foreground">
-            {extractionStatus === "extracting"
-              ? "⏳ جارٍ استخراج النص من الـ PDF..."
+            {generateQuiz
+              ? extractionStatus === "extracting"
+                ? "⏳ جارٍ استخراج النص من الـ PDF..."
+                : extractionStatus === "done"
+                ? "✅ تم استخراج النص مسبقاً — سيكون الرفع أسرع"
+                : extractionStatus === "failed"
+                ? "⚠️ PDF مسحوب ضوئياً — سيتم الاستخراج على الخادم"
+                : "يستخدم Gemini لصياغة أسئلة اختيار من متعدد مستخلصة من الشرح"
               : extractionStatus === "done"
-              ? "✅ تم استخراج النص مسبقاً — سيكون الرفع أسرع"
-              : extractionStatus === "failed"
-              ? "⚠️ PDF مسحوب ضوئياً — سيتم الاستخراج على الخادم"
+              ? "✨ النص مستخرج وجاهز إذا أردت تفعيل الكويز"
               : "يستخدم Gemini لصياغة أسئلة اختيار من متعدد مستخلصة من الشرح"}
           </span>
         </div>

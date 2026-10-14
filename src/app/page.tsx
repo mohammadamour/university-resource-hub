@@ -10,7 +10,7 @@ import {
 import type { DepartmentWithCourses } from "@/types/database";
 
 // ISR: Re-fetch data every hour (departments/courses rarely change)
-export const revalidate = REVALIDATE_LANDING;
+export const revalidate = 3600;
 
 /**
  * Fetches all departments (with their courses) for the default university.

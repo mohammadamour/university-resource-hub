@@ -1,9 +1,15 @@
 import type { QuizData } from "@/types/database";
 
 const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent";
 
 const NUM_QUESTIONS = 10;
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1500;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * Builds the strict-JSON prompt for Gemini.
@@ -98,23 +104,44 @@ export async function generateQuizWithGemini(
 
   const prompt = buildPrompt(extractedText, sourceTitle);
 
-  const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.3, // Low temp = deterministic JSON output
-        responseMimeType: "application/json", // Gemini 1.5+ strict JSON mode
-      },
-    }),
-  });
+  let response: Response | null = null;
+  let lastError: string = "";
 
-  if (!response.ok) {
-    const errorBody = await response.text();
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3, // Low temp = deterministic JSON output
+          responseMimeType: "application/json", // Strict JSON mode
+        },
+      }),
+    });
+
+    if (response.ok) {
+      break;
+    }
+
+    lastError = await response.text();
+    // Retry on transient high load (503) or rate limit (429)
+    if ((response.status === 503 || response.status === 429) && attempt < MAX_RETRIES) {
+      const delay = RETRY_DELAY_MS * (attempt + 1);
+      console.warn(
+        `[gemini-quiz] Attempt ${attempt + 1} got ${response.status}. Retrying in ${delay}ms...`
+      );
+      await sleep(delay);
+      continue;
+    }
+
     throw new Error(
-      `Gemini API error [${response.status}]: ${errorBody.slice(0, 300)}`
+      `Gemini API error [${response.status}]: ${lastError.slice(0, 300)}`
     );
+  }
+
+  if (!response || !response.ok) {
+    throw new Error(`Gemini API call failed: ${lastError.slice(0, 300)}`);
   }
 
   const json = await response.json();
