@@ -58,7 +58,10 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
 
         {/* Upload Form Card */}
         <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
-          <UploadForm initialCourses={(courses as unknown as UploadCourse[]) || []} />
+          <UploadForm
+            initialCourses={(courses as unknown as UploadCourse[]) || []}
+            adminSecret={key!}
+          />
         </div>
       </main>
       <Footer />

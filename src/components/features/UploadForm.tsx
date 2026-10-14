@@ -43,9 +43,11 @@ const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface UploadFormProps {
   initialCourses?: UploadCourse[];
+  /** Passed from the server-rendered page (already validated). Used as API auth header. */
+  adminSecret: string;
 }
 
-export default function UploadForm({ initialCourses = [] }: UploadFormProps) {
+export default function UploadForm({ initialCourses = [], adminSecret }: UploadFormProps) {
   // Form state
   const [courses, setCourses] = useState<UploadCourse[]>(initialCourses);
   const [selectedCourseId, setSelectedCourseId] = useState("");
@@ -151,6 +153,7 @@ export default function UploadForm({ initialCourses = [] }: UploadFormProps) {
 
       const response = await fetch("/api/upload", {
         method: "POST",
+        headers: { "x-admin-secret": adminSecret },
         body: formData,
       });
 
