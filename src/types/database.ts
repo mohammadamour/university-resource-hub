@@ -49,6 +49,22 @@ export interface Course {
   created_at: string;
 }
 
+export type ResourceStatus = "processing" | "active" | "pending" | "rejected";
+
+export interface QuizQuestion {
+  question: string;
+  options: string[]; // Always exactly 4 options
+  correctIndex: number; // 0-indexed (0 to 3)
+  explanation: string; // Explanation of the correct answer
+}
+
+export interface QuizData {
+  version: 1; // For future schema migrations
+  questions: QuizQuestion[];
+  generatedAt: string; // ISO timestamp
+  sourceTitle?: string; // Title of the source material
+}
+
 export interface Resource {
   id: string;
   course_id: string;
@@ -58,6 +74,11 @@ export interface Resource {
   file_size_bytes: number | null;
   uploaded_by: string | null;
   created_at: string;
+  // Ingestion pipeline & quiz fields
+  status?: ResourceStatus;
+  quiz_data?: QuizData | null;
+  source_text?: string | null;
+  is_admin_uploaded?: boolean;
 }
 
 export interface Profile {
