@@ -110,15 +110,17 @@ To provide maximum value while avoiding legal or academic liability, the platfor
 ### The Native Interactive Quiz Engine (Planned)
 
 - **Decision:** Build a custom `<NativeQuiz />` React component that renders pre-generated JSON quizzes natively, avoiding fragile external embeds (iframes) and `X-Frame-Options` security blocks.
-- **How:**
-  1. Feed raw questions into Gemini Pro locally to output a strict JSON format (question, options, correctIndex, explanation).
-  2. Store this JSON inside a new `quiz_data` (JSONB) column in the Supabase `resources` table.
-  3. The frontend `ResourceList.tsx` detects if `quiz_data` exists and dynamically renders the interactive quiz directly inline.
+- **Data Flow & Lifecycle:**
+  1. **Phase 1 (Admin Seeding):** Feed lecture notes/questions into Gemini Pro to output strict JSON (`question`, `options`, `correctIndex`, `explanation`).
+  2. **Phase 2 (Automated UGC Pipeline):** When students upload a summary, the backend extracts the text, prompts the Gemini Pro API asynchronously, and automatically generates a companion quiz JSON.
+  3. **Storage:** Stored in a `quiz_data` (JSONB) column in the Supabase `resources` table.
+  4. **Frontend Rendering:** `ResourceList.tsx` detects `quiz_data` and mounts `<NativeQuiz />` directly inline.
 - **Why:**
   - **Zero Iframe Issues:** Complete immunity to third-party sites blocking their pages from being embedded.
+  - **Zero User Friction:** Students only upload their summary; the system handles the tedious job of writing and formatting multiple-choice questions via AI.
   - **Perfect UI/UX:** The quiz natively inherits the app's styling, fonts, and dark mode.
-  - **Future-Proof:** Unlocks the ability to track student scores and save progress directly in our own database.
-  - **Reliable:** Eliminates API key exhaustion, prompt injection risks, and live hallucinations.
+  - **Future-Proof:** Unlocks score tracking, progress saving, and student analytics in Supabase.
+  - **Reliable:** Pre-synthesized JSON eliminates runtime API latency, token exhaustion, and live hallucinations during exam study sessions.
 
 ---
 
@@ -186,6 +188,14 @@ To prevent the platform from becoming an unorganized "dump", V2 will implement t
 2. **The "Missing Course" Policy:** Users **cannot** manually type course names during upload (prevents database fragmentation like "CS 101" vs "cs101"). They must select from existing courses. If a course is missing, they submit a "Request Course" form.
 3. **The Approval Queue:** Student uploads default to `status: 'pending'` in the database. They do not appear on the live site until an Ambassador or Founder reviews and marks them as `approved`. This protects the platform's academic reputation from incorrect or malicious files.
 4. **Security & Sanitization:** The pipeline will require strict MIME-type validation, 10MB size limits, and Ghostscript flattening to strip embedded payloads before reaching public storage buckets (Supabase/R2).
+5. **The Automated Quiz Synthesis Pipeline (Summary → AI Quiz):**
+   - **The Friction Bottleneck:** Students cannot and will not manually type out 20 questions, answer options, and explanations into an upload form. Forcing manual quiz creation guarantees zero quiz submissions.
+   - **The Solution:** Students upload what they already own: **Summaries (ملخصات)** and lecture notes. During the backend ingestion pipeline:
+     1. The server extracts the text from the uploaded summary PDF/document.
+     2. An asynchronous background worker calls the **Gemini Pro API** with a strict prompt: extract 10–15 key concepts and output structured JSON (`question`, `options`, `correctIndex`, `explanation`).
+     3. The server automatically attaches this JSON to a companion resource (`type: 'quiz'`) stored in the `quiz_data` (JSONB) column in Supabase.
+   - **The "2-for-1" Value Multiplier:** A single student upload yields two distinct assets: the readable PDF summary + an instant, native interactive quiz for peers.
+   - **Moderation:** Both the summary and its generated companion quiz enter the approval queue (`status: 'pending'`), allowing admins to review and publish both in a single click.
 
 ### 7. The AI Campus Assistant (V2+ Feature)
 
