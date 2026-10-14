@@ -153,7 +153,7 @@ export async function POST(req: Request) {
   const type = formData.get("type") as ResourceType | null;
   const generateQuiz = formData.get("generateQuiz") === "true";
 
-  // ── Stage 1: Input Validation (SYNC, ~5ms) ──────────────────────────────────
+  // ── Stage 1: Input Validation & Magic Byte Check (SYNC, <10ms) ───────────────
   if (!file || !courseId || !title || !type) {
     return Response.json(
       { error: "Missing required fields: file, courseId, title, type." },
@@ -161,9 +161,10 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!ALLOWED_MIMES.includes(file.type)) {
+  // File size gate: reject 0-byte or oversized files
+  if (file.size === 0) {
     return Response.json(
-      { error: "INVALID_MIME: Only PDF files are accepted." },
+      { error: "FILE_EMPTY: The uploaded file is empty." },
       { status: 422 }
     );
   }
@@ -171,6 +172,14 @@ export async function POST(req: Request) {
   if (file.size > MAX_SIZE_BYTES) {
     return Response.json(
       { error: `FILE_TOO_LARGE: Max allowed size is ${MAX_SIZE_BYTES / 1024 / 1024}MB.` },
+      { status: 422 }
+    );
+  }
+
+  // Declared MIME check
+  if (!ALLOWED_MIMES.includes(file.type)) {
+    return Response.json(
+      { error: "INVALID_MIME: Only PDF files are accepted." },
       { status: 422 }
     );
   }
@@ -186,6 +195,19 @@ export async function POST(req: Request) {
   if (!validTypes.includes(type)) {
     return Response.json(
       { error: "INVALID_TYPE: Unrecognized resource type." },
+      { status: 422 }
+    );
+  }
+
+  // Read file buffer upfront (required before request stream terminates)
+  const rawBuffer = await file.arrayBuffer();
+
+  // Magic bytes check (%PDF- in first 1024 bytes per ISO 32000-1 standard)
+  const headerSlice = new Uint8Array(rawBuffer.slice(0, 1024));
+  const headerText = new TextDecoder("ascii").decode(headerSlice);
+  if (!headerText.includes("%PDF-")) {
+    return Response.json(
+      { error: "INVALID_PDF_SIGNATURE: File content is not a valid PDF document." },
       { status: 422 }
     );
   }
@@ -219,12 +241,7 @@ export async function POST(req: Request) {
 
   const resourceId = newResource.id;
 
-  // ── Stage 3: Read file buffer and hand off to background (ASYNC) ─────────────
-  // We must read the buffer NOW (before the request stream closes),
-  // then fire-and-forget the background pipeline.
-  const rawBuffer = await file.arrayBuffer();
-
-  // Fire and forget — no await. Response is sent immediately after this line.
+  // ── Stage 3: Hand off to background pipeline (ASYNC fire-and-forget) ─────────
   processFileInBackground(rawBuffer, resourceId, courseId, generateQuiz);
 
   // ── Respond immediately ───────────────────────────────────────────────────────
