@@ -39,7 +39,11 @@ async function processFileInBackground(
   rawBuffer: ArrayBuffer,
   resourceId: string,
   courseId: string,
-  generateQuiz: boolean
+  generateQuiz: boolean,
+  /** Pre-extracted text from client-side pdfjs. If provided, skips server-side pdf-parse. */
+  preExtractedText: string | null = null,
+  /** Resource title — used as sourceTitle in quiz metadata */
+  title: string = ""
 ) {
   const supabase = createAdminClient();
 
@@ -135,6 +139,69 @@ async function processFileInBackground(
     console.log(
       `[pipeline] ✅ Resource ${resourceId} is now active. URL: ${publicUrl}`
     );
+
+    // ── Stage 4: AI Quiz Generation (OPTIONAL) ─────────────────────────────
+    // Only runs if generateQuiz=true. Uses pre-extracted text from the client
+    // if available (eager extraction); otherwise falls back to server-side pdf-parse.
+    if (generateQuiz) {
+      try {
+        let sourceText = preExtractedText;
+
+        if (!sourceText) {
+          // Client extraction wasn't available (scanned PDF or toggle added late)
+          // Fall back to server-side pdf-parse
+          console.log(
+            `[pipeline] No pre-extracted text — running server-side pdf-parse for ${resourceId}`
+          );
+          const pdfParse = (await import("pdf-parse")).default;
+          const pdfData = await pdfParse(Buffer.from(finalBuffer));
+          sourceText = pdfData.text?.trim() ?? null;
+        } else {
+          console.log(
+            `[pipeline] Using pre-extracted client text for ${resourceId} (skipping pdf-parse)`
+          );
+        }
+
+        if (!sourceText || sourceText.length < 50) {
+          console.warn(
+            `[pipeline] Text too short to generate a useful quiz for ${resourceId}. Skipping.`
+          );
+        } else {
+          const { generateQuizWithGemini } = await import("@/lib/pipeline/gemini-quiz");
+          const quizData = await generateQuizWithGemini(sourceText, title);
+
+          const { error: quizUpdateError } = await supabase
+            .from("resources")
+            .update({
+              quiz_data: quizData,
+              source_text: sourceText.slice(0, 15_000),
+            })
+            .eq("id", resourceId);
+
+          if (quizUpdateError) {
+            console.error(
+              `[pipeline] Failed to save quiz_data for ${resourceId}:`,
+              quizUpdateError.message
+            );
+          } else {
+            console.log(
+              `[pipeline] ✅ Quiz generated: ${quizData.questions.length} questions saved for ${resourceId}.`
+            );
+          }
+        }
+      } catch (quizError) {
+        // Quiz failure is non-fatal — resource stays active without a quiz
+        console.error(
+          `[pipeline] Quiz generation failed for ${resourceId} (resource remains active):`,
+          quizError
+        );
+        // Clear the sentinel value so it doesn't show as pending in the DB
+        await supabase
+          .from("resources")
+          .update({ source_text: null })
+          .eq("id", resourceId);
+      }
+    }
   } catch (error) {
     // Mark the row as rejected so the admin can identify failed uploads
     console.error(
@@ -187,6 +254,8 @@ export async function POST(req: Request) {
   const title = formData.get("title") as string | null;
   const type = formData.get("type") as ResourceType | null;
   const generateQuiz = formData.get("generateQuiz") === "true";
+  // Optional: pre-extracted text from client-side pdfjs (eager extraction optimization)
+  const sourceText = (formData.get("sourceText") as string | null) || null;
 
   // ── Stage 1: Input Validation & Magic Byte Check (SYNC, <10ms) ───────────────
   if (!file || !courseId || !title || !type) {
@@ -277,7 +346,7 @@ export async function POST(req: Request) {
   const resourceId = newResource.id;
 
   // ── Stage 3: Hand off to background pipeline (ASYNC fire-and-forget) ─────────
-  processFileInBackground(rawBuffer, resourceId, courseId, generateQuiz);
+  processFileInBackground(rawBuffer, resourceId, courseId, generateQuiz, sourceText, title);
 
   // ── Respond immediately ───────────────────────────────────────────────────────
   // The client's progressive stepper will continue showing the pipeline states.
@@ -289,6 +358,7 @@ export async function POST(req: Request) {
       status: "processing",
       message:
         "Resource record created. Background pipeline has been started — file will be available shortly.",
+      quizPending: generateQuiz, // Let the client know to expect quiz data
     },
     { status: 202 } // 202 Accepted = "we received it, work is in progress"
   );

@@ -56,6 +56,10 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
   const [generateQuiz, setGenerateQuiz] = useState(false);
   const [file, setFile] = useState<File | null>(null);
 
+  // Eager text extraction state (speculative: runs as soon as file + quiz toggle are set)
+  const [extractedSourceText, setExtractedSourceText] = useState<string | null>(null);
+  const [extractionStatus, setExtractionStatus] = useState<"idle" | "extracting" | "done" | "failed">("idle");
+
   // Progressive UX state
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,6 +70,42 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
   const [successResourceId, setSuccessResourceId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── Eager PDF text extraction (speculative) ───────────────────────────────
+  // Fires whenever both: a valid PDF is selected AND the quiz toggle is on.
+  // Result is held in `extractedSourceText` and attached to FormData on submit.
+  // This means by the time the user clicks "Upload", text is already ready —
+  // the server can skip its own pdf-parse step entirely.
+  useEffect(() => {
+    if (!file || !generateQuiz) {
+      // Reset when either condition is removed
+      setExtractedSourceText(null);
+      setExtractionStatus("idle");
+      return;
+    }
+
+    let cancelled = false;
+    setExtractionStatus("extracting");
+    setExtractedSourceText(null);
+
+    import("@/lib/pipeline/client-pdf-extractor")
+      .then(({ extractTextFromPdf }) => extractTextFromPdf(file))
+      .then((text) => {
+        if (cancelled) return;
+        if (text) {
+          setExtractedSourceText(text);
+          setExtractionStatus("done");
+        } else {
+          // Scanned image PDF — server will handle it with pdf-parse fallback
+          setExtractionStatus("failed");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setExtractionStatus("failed");
+      });
+
+    return () => { cancelled = true; };
+  }, [file, generateQuiz]);
 
   // If initialCourses was empty, try fetching client-side as fallback
   useEffect(() => {
@@ -104,6 +144,9 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
       return;
     }
     setFile(incoming);
+    // Reset extraction when a new file is chosen
+    setExtractedSourceText(null);
+    setExtractionStatus("idle");
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -146,10 +189,19 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
       formData.append("type", resourceType);
       formData.append("generateQuiz", String(generateQuiz));
 
+      // Attach eagerly-extracted text if available — server skips its own extraction
+      if (generateQuiz && extractedSourceText) {
+        formData.append("sourceText", extractedSourceText);
+      }
+
       // Update to Step 1 (Upload)
       setCurrentStepIndex(0);
       setProgressPercent(30);
-      setStatusLog("جارٍ رفع الملف إلى خوادم التخزين...");
+      const extractHint =
+        generateQuiz && extractedSourceText
+          ? " (النص مُستخرَج مسبقاً ✓)"
+          : "";
+      setStatusLog(`جارٍ رفع الملف إلى خوادم التخزين...${extractHint}`);
 
       const response = await fetch("/api/upload", {
         method: "POST",
@@ -461,7 +513,13 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
             توليد كويز تفاعلي بالذكاء الاصطناعي ✨
           </span>
           <span className="text-xs text-muted-foreground">
-            يستخدم Gemini لصياغة أسئلة اختيار من متعدد مستخلصة من الشرح
+            {extractionStatus === "extracting"
+              ? "⏳ جارٍ استخراج النص من الـ PDF..."
+              : extractionStatus === "done"
+              ? "✅ تم استخراج النص مسبقاً — سيكون الرفع أسرع"
+              : extractionStatus === "failed"
+              ? "⚠️ PDF مسحوب ضوئياً — سيتم الاستخراج على الخادم"
+              : "يستخدم Gemini لصياغة أسئلة اختيار من متعدد مستخلصة من الشرح"}
           </span>
         </div>
         <button
@@ -484,9 +542,9 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
         </button>
       </div>
 
-      {generateQuiz && (
+      {generateQuiz && extractionStatus !== "extracting" && (
         <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
-          ⚠️ الكويز التلقائي تجريبي. سيقوم النظام باستخراج النص وإرساله إلى Gemini Pro لإنشاء الأسئلة.
+          ⚠️ الكويز التلقائي تجريبي. سيقوم النظام باستخراج النص وإرساله إلى Gemini لإنشاء الأسئلة.
         </p>
       )}
 
