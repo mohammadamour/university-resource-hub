@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# private internal planning & technical analysis
+TECHNICAL_ANALYSIS.md
+technical_analysis.md
