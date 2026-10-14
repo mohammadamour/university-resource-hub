@@ -209,12 +209,28 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
         body: formData,
       });
 
-      // Handle streaming responses (SSE or newline-delimited events)
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "فشل رفع الملف.");
+      }
+
+      const resourceId = data.resourceId;
+
+      // ── Connect to SSE telemetry stream for live pipeline updates ───────────
+      setStatusLog("تم تسجيل الملف، وجارٍ متابعة المعالجة الحية من الخادم...");
+      setProgressPercent(20);
+
+      const sseResponse = await fetch(`/api/upload/progress/${resourceId}`, {
+        headers: { "x-admin-secret": adminSecret },
+      });
+
       if (
-        response.body &&
-        response.headers.get("content-type")?.includes("text/event-stream")
+        sseResponse.ok &&
+        sseResponse.body &&
+        sseResponse.headers.get("content-type")?.includes("text/event-stream")
       ) {
-        const reader = response.body.getReader();
+        const reader = sseResponse.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
 
@@ -223,35 +239,37 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n\n");
-          buffer = lines.pop() || "";
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() || "";
 
-          for (const line of lines) {
+          for (const part of parts) {
+            const line = part.trim();
             if (line.startsWith("data: ")) {
               try {
-                const data = JSON.parse(line.slice(6));
-                if (data.stage === "uploading") {
+                const eventData = JSON.parse(line.slice(6));
+
+                if (eventData.stage === "uploading") {
                   setCurrentStepIndex(0);
-                  setProgressPercent(35);
-                  if (data.message) setStatusLog(data.message);
-                } else if (data.stage === "processing") {
+                  setProgressPercent(eventData.percent ?? 25);
+                  if (eventData.message) setStatusLog(eventData.message);
+                } else if (eventData.stage === "processing") {
                   setCurrentStepIndex(1);
-                  setProgressPercent(55);
-                  if (data.message) setStatusLog(data.message);
-                } else if (data.stage === "synthesizing") {
+                  setProgressPercent(eventData.percent ?? 50);
+                  if (eventData.message) setStatusLog(eventData.message);
+                } else if (eventData.stage === "synthesizing") {
                   setCurrentStepIndex(2);
-                  setProgressPercent(80);
-                  if (data.message) setStatusLog(data.message);
-                } else if (data.stage === "done") {
+                  setProgressPercent(eventData.percent ?? 75);
+                  if (eventData.message) setStatusLog(eventData.message);
+                } else if (eventData.stage === "done") {
                   setCurrentStepIndex(3);
                   setProgressPercent(100);
-                  setStatusLog(data.message || "اكتملت جميع مراحل المعالجة بنجاح!");
-                  setSuccessResourceId(data.resourceId || "saved");
-                } else if (data.stage === "error") {
-                  throw new Error(data.error || "فشل خط معالجة الملف.");
+                  setStatusLog(eventData.message || "اكتملت جميع مراحل المعالجة بنجاح!");
+                  setSuccessResourceId(eventData.resourceId || resourceId);
+                } else if (eventData.stage === "error") {
+                  throw new Error(eventData.error || eventData.message || "فشل خط معالجة الملف.");
                 }
               } catch (parseErr) {
-                if (parseErr instanceof Error && parseErr.message !== "Unexpected end of JSON input") {
+                if (parseErr instanceof Error && !parseErr.message.includes("JSON")) {
                   throw parseErr;
                 }
               }
@@ -259,28 +277,11 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
           }
         }
       } else {
-        // Fallback for standard JSON API response
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "فشل رفع الملف.");
-        }
-
-        // Simulate progressive pipeline steps smoothly if non-streamed
-        setCurrentStepIndex(1);
-        setProgressPercent(60);
-        setStatusLog("تم ضغط وتنقية المستند...");
-
-        if (generateQuiz) {
-          setCurrentStepIndex(2);
-          setProgressPercent(85);
-          setStatusLog("تم توليد الكويز التفاعلي بـ Gemini...");
-        }
-
+        // Fallback if SSE stream could not be established
         setCurrentStepIndex(3);
         setProgressPercent(100);
-        setStatusLog("تم نشر المورد بنجاح في قاعدة البيانات!");
-        setSuccessResourceId(data.resourceId || "success");
+        setStatusLog("تم تسجيل المورد وجارٍ إتاحته في المنصة.");
+        setSuccessResourceId(resourceId);
       }
 
       // Reset form after 5 seconds on success

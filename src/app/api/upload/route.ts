@@ -25,15 +25,18 @@ function createAdminClient() {
 
 // ─── Background Pipeline (fire-and-forget) ────────────────────────────────────
 
+import { progressBus } from "@/lib/pipeline/progress-bus";
+
 /**
  * Runs after the initial DB row is inserted.
  * Steps:
  *   1. (Optional) Ghostscript compression — gated by NEXT_PUBLIC_ENABLE_COMPRESSION
  *   2. Upload the (possibly compressed) PDF to Supabase Storage
- *   3. Update DB row with final storage_url, file_size_bytes, status='active'
+ *   3. If generateQuiz=true: keep status='processing', synthesize quiz via Gemini 3.8 Flash, then mark status='active'
+ *   4. If generateQuiz=false: mark status='active' immediately after storage upload
  *
- * Step 4 (quiz generation) is NOT implemented here yet — that is Phase 2, Step 2.5.
- * For now, if generateQuiz=true, the flag is stored for future use.
+ * Telemetry: At every transition, events are published to `progressBus` so clients connected
+ * to the SSE route receive instant live feedback.
  */
 async function processFileInBackground(
   rawBuffer: ArrayBuffer,
@@ -48,6 +51,12 @@ async function processFileInBackground(
   const supabase = createAdminClient();
 
   try {
+    progressBus.publish(resourceId, {
+      stage: "uploading",
+      percent: 20,
+      message: "تم التحقق من سلامة الملف، وجارٍ بدء مراحل المعالجة...",
+    });
+
     let finalBuffer: ArrayBuffer = rawBuffer;
     let finalSize = rawBuffer.byteLength;
 
@@ -60,6 +69,12 @@ async function processFileInBackground(
 
     if (compressionEnabled) {
       try {
+        progressBus.publish(resourceId, {
+          stage: "processing",
+          percent: 35,
+          message: "جارٍ ضغط وتنقية المستند لتقليص الحجم وإزالة التهديدات (150 DPI)...",
+        });
+
         // Dynamic import so this module is not bundled unless needed
         const { compressWithGhostscript } = await import(
           "@/lib/pipeline/ghostscript"
@@ -80,6 +95,12 @@ async function processFileInBackground(
     }
 
     // ── Stage 3: Upload to Supabase Storage ─────────────────────────────────
+    progressBus.publish(resourceId, {
+      stage: "uploading",
+      percent: 55,
+      message: "جارٍ رفع المستند إلى خوادم التخزين السحابي الموثوقة...",
+    });
+
     const filePath = `courses/${courseId}/${resourceId}.pdf`;
 
     // Convert ArrayBuffer → Node.js Buffer so Supabase sends raw binary correctly.
@@ -119,15 +140,17 @@ async function processFileInBackground(
         `Size: ${rawBuffer.byteLength} → ${finalSize} bytes (${compressionRatio})`
     );
 
-    // ── Stage 4: Update DB row — storage_url, file size, mark active ─────────
+    // ── Stage 4: Update DB row with storage URL ─────────────────────────────
+    // If a quiz is requested, keep status='processing' so clients know work is still ongoing.
+    // Otherwise, transition straight to status='active'.
+    const initialStatus = generateQuiz ? "processing" : "active";
+
     const { error: updateError } = await supabase
       .from("resources")
       .update({
         storage_url: publicUrl,
         file_size_bytes: finalSize,
-        status: "active",
-        // source_text sentinel: Step 2.5 will extract real text from the PDF and overwrite.
-        // null = quiz generation not requested for this resource.
+        status: initialStatus,
         source_text: generateQuiz ? "__PENDING_EXTRACTION__" : null,
       })
       .eq("id", resourceId);
@@ -136,20 +159,18 @@ async function processFileInBackground(
       throw new Error(`DB status update failed: ${updateError.message}`);
     }
 
-    console.log(
-      `[pipeline] ✅ Resource ${resourceId} is now active. URL: ${publicUrl}`
-    );
-
-    // ── Stage 4: AI Quiz Generation (OPTIONAL) ─────────────────────────────
-    // Only runs if generateQuiz=true. Uses pre-extracted text from the client
-    // if available (eager extraction); otherwise falls back to server-side pdf-parse.
+    // ── Stage 5: AI Quiz Generation (OPTIONAL) ──────────────────────────────
     if (generateQuiz) {
+      progressBus.publish(resourceId, {
+        stage: "synthesizing",
+        percent: 75,
+        message: "جارٍ تحليل المحتوى وتوليد كويز تفاعلي عبر Gemini 3.8 Flash...",
+      });
+
       try {
         let sourceText = preExtractedText;
 
         if (!sourceText) {
-          // Client extraction wasn't available (scanned PDF or toggle added late)
-          // Fall back to server-side pdf-parse
           console.log(
             `[pipeline] No pre-extracted text — running server-side pdf-parse for ${resourceId}`
           );
@@ -168,6 +189,18 @@ async function processFileInBackground(
           console.warn(
             `[pipeline] Text too short to generate a useful quiz for ${resourceId}. Skipping.`
           );
+          // Mark active even if text was too short for a quiz
+          await supabase
+            .from("resources")
+            .update({ status: "active", source_text: null })
+            .eq("id", resourceId);
+
+          progressBus.publish(resourceId, {
+            stage: "done",
+            percent: 100,
+            message: "تم حفظ ونشر المورد بنجاح (المحتوى النصي غير كافٍ لإنشاء كويز تلقائي).",
+            resourceId,
+          });
         } else {
           const { generateQuizWithGemini } = await import("@/lib/pipeline/gemini-quiz");
           const quizData = await generateQuizWithGemini(sourceText, title);
@@ -175,6 +208,7 @@ async function processFileInBackground(
           const { error: quizUpdateError } = await supabase
             .from("resources")
             .update({
+              status: "active",
               quiz_data: quizData,
               source_text: sourceText.slice(0, 15_000),
             })
@@ -185,25 +219,55 @@ async function processFileInBackground(
               `[pipeline] Failed to save quiz_data for ${resourceId}:`,
               quizUpdateError.message
             );
+            // Still mark active
+            await supabase
+              .from("resources")
+              .update({ status: "active" })
+              .eq("id", resourceId);
           } else {
             console.log(
               `[pipeline] ✅ Quiz generated: ${quizData.questions.length} questions saved for ${resourceId}.`
             );
           }
+
+          progressBus.publish(resourceId, {
+            stage: "done",
+            percent: 100,
+            message: "اكتملت جميع المراحل بنجاح وتم توليد الكويز التفاعلي!",
+            resourceId,
+          });
         }
       } catch (quizError) {
-        // Quiz failure is non-fatal — resource stays active without a quiz
+        // Quiz failure is non-fatal — resource is promoted to active without a quiz
         console.error(
           `[pipeline] Quiz generation failed for ${resourceId} (resource remains active):`,
           quizError
         );
-        // Clear the sentinel value so it doesn't show as pending in the DB
         await supabase
           .from("resources")
-          .update({ source_text: null })
+          .update({ status: "active", source_text: null })
           .eq("id", resourceId);
+
+        progressBus.publish(resourceId, {
+          stage: "done",
+          percent: 100,
+          message: "تم نشر المستند بنجاح (تعذر توليد الكويز تلقائياً).",
+          resourceId,
+        });
       }
+    } else {
+      // No quiz requested — fully complete
+      progressBus.publish(resourceId, {
+        stage: "done",
+        percent: 100,
+        message: "تم حفظ المورد ونشره بنجاح في قاعدة البيانات!",
+        resourceId,
+      });
     }
+
+    console.log(
+      `[pipeline] ✅ Resource ${resourceId} is now active. URL: ${publicUrl}`
+    );
   } catch (error) {
     // Mark the row as rejected so the admin can identify failed uploads
     console.error(
@@ -211,7 +275,16 @@ async function processFileInBackground(
       error
     );
 
-    // Use await (not .then) so failures in the rollback are also surfaced
+    const errorMessage =
+      error instanceof Error ? error.message : "خطأ غير متوقع في المعالجة.";
+
+    progressBus.publish(resourceId, {
+      stage: "error",
+      percent: 100,
+      message: `فشلت معالجة الملف: ${errorMessage}`,
+      error: errorMessage,
+    });
+
     const { error: rollbackError } = await supabase
       .from("resources")
       .update({ status: "rejected" })
@@ -346,6 +419,13 @@ export async function POST(req: Request) {
   }
 
   const resourceId = newResource.id;
+
+  // Publish initial progress event
+  progressBus.publish(resourceId, {
+    stage: "uploading",
+    percent: 10,
+    message: "تم إنشاء السجل في قاعدة البيانات وبدء المعالجة في الخلفية...",
+  });
 
   // ── Stage 3: Hand off to background pipeline (ASYNC fire-and-forget) ─────────
   processFileInBackground(rawBuffer, resourceId, courseId, generateQuiz, sourceText, title);
