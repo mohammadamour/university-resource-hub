@@ -78,20 +78,42 @@ async function processFileInBackground(
     // ── Stage 3: Upload to Supabase Storage ─────────────────────────────────
     const filePath = `courses/${courseId}/${resourceId}.pdf`;
 
+    // Convert ArrayBuffer → Node.js Buffer so Supabase sends raw binary correctly.
+    // Passing an ArrayBuffer directly can silently corrupt the file in some runtimes.
+    const fileBuffer = Buffer.from(finalBuffer);
+
     const { error: storageError } = await supabase.storage
       .from("resources")
-      .upload(filePath, finalBuffer, {
+      .upload(filePath, fileBuffer, {
         contentType: "application/pdf",
+        cacheControl: "public, max-age=31536000, immutable", // 1 yr — UUIDs never collide
         upsert: false,
       });
 
     if (storageError) {
-      throw new Error(`Storage upload failed: ${storageError.message}`);
+      // Detect duplicate path — Supabase returns 409 / "already exists"
+      const code = (storageError as { statusCode?: string }).statusCode;
+      if (code === "409" || storageError.message.toLowerCase().includes("already exists")) {
+        console.error(`[pipeline] Duplicate storage path: ${filePath}`);
+      }
+      throw new Error(
+        `Storage upload failed [${code ?? "?"}]: ${storageError.message}`
+      );
     }
 
     const {
       data: { publicUrl },
     } = supabase.storage.from("resources").getPublicUrl(filePath);
+
+    const compressionRatio =
+      finalSize < rawBuffer.byteLength
+        ? `${((1 - finalSize / rawBuffer.byteLength) * 100).toFixed(1)}% reduction`
+        : "no reduction (original kept)";
+
+    console.log(
+      `[pipeline] Uploaded ${resourceId}. ` +
+        `Size: ${rawBuffer.byteLength} → ${finalSize} bytes (${compressionRatio})`
+    );
 
     // ── Stage 4: Update DB row — storage_url, file size, mark active ─────────
     const { error: updateError } = await supabase
@@ -100,27 +122,40 @@ async function processFileInBackground(
         storage_url: publicUrl,
         file_size_bytes: finalSize,
         status: "active",
-        // Quiz generation (Stage 5) will be added in Step 2.5
-        // For now we store the flag so we know to generate later
+        // source_text sentinel: Step 2.5 will extract real text from the PDF and overwrite.
+        // null = quiz generation not requested for this resource.
         source_text: generateQuiz ? "__PENDING_EXTRACTION__" : null,
       })
       .eq("id", resourceId);
 
     if (updateError) {
-      throw new Error(`DB update failed: ${updateError.message}`);
+      throw new Error(`DB status update failed: ${updateError.message}`);
     }
 
-    console.log(`[pipeline] Resource ${resourceId} fully processed and active.`);
+    console.log(
+      `[pipeline] ✅ Resource ${resourceId} is now active. URL: ${publicUrl}`
+    );
   } catch (error) {
-    // Mark the row as rejected so admin can see it failed
-    console.error(`[pipeline] Error processing resource ${resourceId}:`, error);
-    await supabase
+    // Mark the row as rejected so the admin can identify failed uploads
+    console.error(
+      `[pipeline] ❌ Error processing resource ${resourceId}:`,
+      error
+    );
+
+    // Use await (not .then) so failures in the rollback are also surfaced
+    const { error: rollbackError } = await supabase
       .from("resources")
       .update({ status: "rejected" })
-      .eq("id", resourceId)
-      .then(() => {
-        console.log(`[pipeline] Marked resource ${resourceId} as rejected.`);
-      });
+      .eq("id", resourceId);
+
+    if (rollbackError) {
+      console.error(
+        `[pipeline] Also failed to mark resource ${resourceId} as rejected:`,
+        rollbackError.message
+      );
+    } else {
+      console.log(`[pipeline] Resource ${resourceId} marked as rejected.`);
+    }
   }
 }
 
