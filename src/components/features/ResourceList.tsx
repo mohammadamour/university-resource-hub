@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Resource, ResourceType } from "@/types/database";
+import NativeQuiz from "@/components/features/NativeQuiz";
 
 interface ResourceListProps {
   resources: Resource[];
@@ -106,7 +107,7 @@ export default function ResourceList({ resources }: ResourceListProps) {
 
     return (
       <li key={resource.id} className="flex flex-col">
-        {isQuiz ? (
+        {isQuiz && !resource.quiz_data ? (
           <button
             onClick={() => setActiveEmbedId(activeEmbedId === resource.id ? null : resource.id)}
             className="flex w-full items-center gap-3 p-4 text-start transition-colors hover:bg-secondary active:bg-secondary/80 sm:gap-4"
@@ -124,12 +125,23 @@ export default function ResourceList({ resources }: ResourceListProps) {
           </a>
         )}
 
-        {/* Embedded Iframe for Quizzes */}
-        {isQuiz && activeEmbedId === resource.id && (
+        {/* Native Quiz Player (if quiz_data is present) */}
+        {resource.quiz_data && (
+          <div className="border-t border-border/50 bg-secondary/20 p-3 sm:p-4">
+            <NativeQuiz
+              quizData={resource.quiz_data}
+              sourceTitle={resource.title}
+              defaultOpen={isQuiz}
+            />
+          </div>
+        )}
+
+        {/* Embedded Iframe for legacy URL-based Quizzes (without structured quiz_data) */}
+        {isQuiz && !resource.quiz_data && activeEmbedId === resource.id && (
           <div className="border-t border-border bg-muted/30 p-4 sm:p-6">
             <iframe
               src={resource.storage_url}
-              className="min-h-[600px] w-full rounded-lg border border-border bg-background shadow-sm"
+              className="min-h-150 w-full rounded-lg border border-border bg-background shadow-sm"
               allowFullScreen
             />
           </div>
