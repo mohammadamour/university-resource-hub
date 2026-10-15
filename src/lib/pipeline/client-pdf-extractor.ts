@@ -7,11 +7,11 @@
  * and hits Upload, the text is ready and can be sent alongside the file — so
  * the server skips its own extraction step entirely.
  *
- * We cap at 15,000 characters (same limit as the Gemini prompt) to keep the
- * FormData payload small.
+ * We cap at 300,000 characters (~50,000 words) to capture complete course summaries
+ * across all chapters, fitting comfortably within Gemini 3.8 Flash's 1M token context.
  */
 
-const MAX_CHARS = 15_000;
+const MAX_CHARS = 300_000;
 
 /**
  * Extracts raw text from a PDF File using pdf.js running in the browser.

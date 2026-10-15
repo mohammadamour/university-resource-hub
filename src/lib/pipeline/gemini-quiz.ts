@@ -12,20 +12,26 @@ function sleep(ms: number) {
 }
 
 /**
+/**
  * Builds the strict-JSON prompt for Gemini.
- * We cap the input at 15,000 chars to stay within context limits.
+ * Caps at 300,000 characters (~50,000 words), easily ingesting entire course summaries
+ * while staying far below Gemini 3.8 Flash's 1-million-token context window.
  */
 function buildPrompt(extractedText: string, sourceTitle: string): string {
-  const material = extractedText.slice(0, 15_000);
+  const material = extractedText.slice(0, 300_000);
   return `You are an educational quiz generator for university students.
 Given the following Arabic/English study material, generate exactly ${NUM_QUESTIONS} multiple choice questions.
 
 RULES:
+- Scan and analyze the ENTIRE study material from page 1 to the final page.
+- Distribute the ${NUM_QUESTIONS} questions EVENLY across the different chapters, sections, or topics covered in the document (do NOT cluster all questions in the introductory pages).
 - Each question must have exactly 4 options (A, B, C, D)
 - The correct answer index is 0-based (0 = A, 1 = B, 2 = C, 3 = D)
-- Explanations should be in Arabic
-- Questions should test deep understanding, not just memorization
+- Explanations must be in Arabic, clarifying why the chosen answer is correct
+- Questions should test conceptual understanding and problem-solving, not just trivial memorization
 - Distribute difficulty: 40% easy, 40% medium, 20% hard
+- Assign each question a concise Arabic "topic" (e.g. the chapter or concept name, like "النهايات المثلثية", "المصفوفات", "قواعد الاشتقاق")
+- Assign each question a "difficulty" ("easy", "medium", or "hard")
 - Do NOT repeat questions or options
 
 RETURN ONLY valid JSON with NO markdown fences, NO extra text — exactly this shape:
@@ -38,7 +44,9 @@ RETURN ONLY valid JSON with NO markdown fences, NO extra text — exactly this s
       "question": "...",
       "options": ["...", "...", "...", "..."],
       "correctIndex": 0,
-      "explanation": "..."
+      "explanation": "...",
+      "difficulty": "medium",
+      "topic": "اسم الفصل أو الموضوع"
     }
   ]
 }
@@ -78,6 +86,20 @@ function validateQuizData(raw: unknown): QuizData {
       typeof question.explanation !== "string"
     ) {
       throw new Error(`Question at index ${i} is malformed`);
+    }
+
+    // Sanitize optional difficulty
+    if (
+      question.difficulty !== "easy" &&
+      question.difficulty !== "medium" &&
+      question.difficulty !== "hard"
+    ) {
+      question.difficulty = "medium";
+    }
+
+    // Sanitize optional topic
+    if (typeof question.topic !== "string") {
+      question.topic = undefined;
     }
   }
 

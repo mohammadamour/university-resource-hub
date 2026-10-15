@@ -211,7 +211,7 @@ async function processFileInBackground(
             .update({
               status: "active",
               quiz_data: quizData,
-              source_text: sourceText.slice(0, 15_000),
+              source_text: sourceText.slice(0, 100_000),
             })
             .eq("id", resourceId);
 
