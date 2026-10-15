@@ -176,6 +176,33 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
       return;
     }
 
+    const submittedCourseId = selectedCourseId;
+    const submittedTitle = title.trim();
+    const submittedType = resourceType;
+    const submittedFileSize = file.size;
+
+    const optimisticallyAddResource = (newId: string) => {
+      setCourses((prevCourses) =>
+        prevCourses.map((c) => {
+          if (c.id !== submittedCourseId) return c;
+          const existing = c.resources || [];
+          if (existing.some((r) => r.id === newId)) return c;
+          return {
+            ...c,
+            resources: [
+              ...existing,
+              {
+                id: newId,
+                title: submittedTitle,
+                type: submittedType,
+                file_size_bytes: submittedFileSize,
+              },
+            ],
+          };
+        })
+      );
+    };
+
     setIsSubmitting(true);
     setCurrentStepIndex(0);
     setProgressPercent(15);
@@ -264,7 +291,9 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
                   setCurrentStepIndex(3);
                   setProgressPercent(100);
                   setStatusLog(eventData.message || "اكتملت جميع مراحل المعالجة بنجاح!");
-                  setSuccessResourceId(eventData.resourceId || resourceId);
+                  const finalId = eventData.resourceId || resourceId;
+                  setSuccessResourceId(finalId);
+                  optimisticallyAddResource(finalId);
                 } else if (eventData.stage === "error") {
                   throw new Error(eventData.error || eventData.message || "فشل خط معالجة الملف.");
                 }
@@ -282,13 +311,14 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
         setProgressPercent(100);
         setStatusLog("تم تسجيل المورد وجارٍ إتاحته في المنصة.");
         setSuccessResourceId(resourceId);
+        optimisticallyAddResource(resourceId);
       }
 
-      // Reset form after 5 seconds on success
+      // Reset form after 5 seconds on success (keep selectedCourseId for rapid batch uploads)
       setTimeout(() => {
         setFile(null);
         setTitle("");
-        setSelectedCourseId("");
+        // Keep selectedCourseId so admin can upload multiple resources for the same course smoothly
         setResourceType("summary");
         setGenerateQuiz(false);
         setIsSubmitting(false);
@@ -296,6 +326,9 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
         setProgressPercent(0);
         setStatusLog("");
         setSuccessResourceId(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
       }, 5000);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "حدث خطأ غير متوقع أثناء الرفع.");
@@ -358,20 +391,32 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
 
             {selectedCourse.resources && selectedCourse.resources.length > 0 ? (
               <div className="flex flex-wrap gap-1.5 pt-1">
-                {selectedCourse.resources.map((res) => (
-                  <span
-                    key={res.id}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs text-card-foreground shadow-2xs"
-                  >
-                    <span>
-                      {res.type === "summary" && "📄"}
-                      {res.type === "quiz" && "❓"}
-                      {res.type === "past_exam" && "📝"}
-                      {res.type === "guide" && "📖"}
+                {selectedCourse.resources.map((res) => {
+                  const isJustAdded = res.id === successResourceId;
+                  return (
+                    <span
+                      key={res.id}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-all duration-300 shadow-2xs ${
+                        isJustAdded
+                          ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-300 font-semibold ring-1 ring-emerald-500/30 scale-105"
+                          : "border-border bg-card text-card-foreground"
+                      }`}
+                    >
+                      <span>
+                        {res.type === "summary" && "📄"}
+                        {res.type === "quiz" && "❓"}
+                        {res.type === "past_exam" && "📝"}
+                        {res.type === "guide" && "📖"}
+                      </span>
+                      <span className="max-w-[200px] truncate">{res.title}</span>
+                      {isJustAdded && (
+                        <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-[10px] text-emerald-300 font-bold">
+                          جديد ✨
+                        </span>
+                      )}
                     </span>
-                    <span className="max-w-[200px] truncate">{res.title}</span>
-                  </span>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-xs text-muted-foreground/80">
