@@ -95,6 +95,25 @@ async function processFileInBackground(
       }
     }
 
+    // ── Stage 2.5: Auto-Watermarking (Organic Referral Stamp) ────────────────
+    // Stamps "Indexed via Molakhasat • molakhasat.com" on the bottom margin of each page.
+    // When students share the PDF on WhatsApp, it drives organic peer referrals back to the hub.
+    try {
+      progressBus.publish(resourceId, {
+        stage: "processing",
+        percent: 45,
+        message: "جارٍ تضمين العلامة المرجعية للمنصة في تذييل الصفحات...",
+      });
+      const { watermarkPdf } = await import("@/lib/pipeline/watermark");
+      finalBuffer = await watermarkPdf(finalBuffer);
+      finalSize = finalBuffer.byteLength;
+    } catch (wmError) {
+      console.warn(
+        "[pipeline] Watermark failed, proceeding with un-watermarked buffer:",
+        wmError
+      );
+    }
+
     // ── Stage 3: Upload to Supabase Storage ─────────────────────────────────
     progressBus.publish(resourceId, {
       stage: "uploading",
