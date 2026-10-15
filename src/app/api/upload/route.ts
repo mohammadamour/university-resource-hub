@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { after } from "next/server";
 import type { ResourceType } from "@/types/database";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -427,8 +428,13 @@ export async function POST(req: Request) {
     message: "تم إنشاء السجل في قاعدة البيانات وبدء المعالجة في الخلفية...",
   });
 
-  // ── Stage 3: Hand off to background pipeline (ASYNC fire-and-forget) ─────────
-  processFileInBackground(rawBuffer, resourceId, courseId, generateQuiz, sourceText, title);
+  // ── Stage 3: Hand off to background pipeline via Next.js after() ─────────────
+  // Using after() guarantees that serverless runtimes (like Vercel) will NOT freeze
+  // or destroy the container before the background processing completes, while still
+  // allowing us to return an instant 202 Accepted response to the browser.
+  after(async () => {
+    await processFileInBackground(rawBuffer, resourceId, courseId, generateQuiz, sourceText, title);
+  });
 
   // ── Respond immediately ───────────────────────────────────────────────────────
   // The client's progressive stepper will continue showing the pipeline states.
