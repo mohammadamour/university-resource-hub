@@ -30,6 +30,7 @@ async function getCourse(slug: string): Promise<CourseWithResources | null> {
     `
     )
     .eq("slug", slug)
+    .eq("resources.status", "active")
     .single();
 
   return course as CourseWithResources | null;
