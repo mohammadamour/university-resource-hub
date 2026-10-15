@@ -26,9 +26,10 @@ export async function extractTextFromPdf(file: File): Promise<string | null> {
     // and must NOT be imported at the top level in a Next.js app
     const pdfjsLib = await import("pdfjs-dist");
 
-    // Point to the pdf.js worker script bundled by Next.js / webpack.
-    // Setting this to the CDN keeps the worker out of the main bundle.
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+    // Point to the self-hosted pdf.js worker in /public/workers.
+    // Self-hosting eliminates CDN network latency, CDN blocking on university Wi-Fi,
+    // and satisfies strict Content Security Policies (worker-src 'self').
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "/workers/pdf.worker.min.mjs";
 
     const arrayBuffer = await file.arrayBuffer();
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
