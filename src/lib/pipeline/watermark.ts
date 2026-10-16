@@ -1,26 +1,34 @@
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import {
+  PDFDocument,
+  rgb,
+  StandardFonts,
+  PDFName,
+  PDFArray,
+  PDFString,
+} from "pdf-lib";
+import { SITE_URL } from "@/lib/constants";
 
 export interface WatermarkOptions {
   /** Custom text to stamp. Defaults to platform referral message. */
   text?: string;
-  /** Opacity from 0.0 to 1.0 (default: 0.55 for subtle readability) */
+  /** Opacity from 0.0 to 1.0 (default: 0.60 for crisp yet non-intrusive readability) */
   opacity?: number;
   /** Font size in points (default: 8.5) */
   fontSize?: number;
+  /** Resource ID for dedicated redirect route /r/:resourceId */
+  resourceId?: string;
 }
 
 /**
- * Stamps a subtle, high-aesthetic referral watermark onto the bottom margin of every page in a PDF.
+ * Stamps a subtle, high-aesthetic referral watermark onto the bottom margin of every page in a PDF,
+ * embedding an explicit clickable PDF Link Annotation pointing to the permanent /r/:id redirect route.
  *
- * WHY THIS EXISTS:
- * When students download summary notes and share them in private WhatsApp / Telegram group chats,
- * this footer acts as an organic, self-distributing referral loop back to Molakhasat.
- *
- * It uses pure JavaScript (pdf-lib) and the standard Helvetica font, meaning:
- * - Runs reliably in Node.js, Vercel Serverless, and Docker without C++ binaries.
- * - Adds < 5ms of processing time per page.
- * - Guaranteed non-fatal: if watermarking fails on a corrupted PDF, it logs a warning
- *   and returns the un-watermarked buffer so the upload pipeline never halts.
+ * WHY THIS IS AN EVERGREEN ARCHITECTURE:
+ * 1. The stamped URL points to /r/:id on our primary brand domain (molakhasat.me).
+ * 2. If the production domain ever changes, a 30-second Cloudflare/DNS 301 wildcard redirect
+ *    (molakhasat.me/* -> newdomain.com/*) keeps every old PDF link working permanently.
+ * 3. The server-side /r/:id route dynamically looks up the resource and redirects to the course,
+ *    meaning PDFs remain 100% static and NEVER need binary migration or re-uploading.
  */
 export async function watermarkPdf(
   inputBuffer: ArrayBuffer,
@@ -34,28 +42,73 @@ export async function watermarkPdf(
 
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontSize = options.fontSize ?? 8.5;
-    const opacity = options.opacity ?? 0.55;
+    const opacity = options.opacity ?? 0.6;
+
+    // Resolve domain and target redirect URL
+    const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || SITE_URL).replace(/\/+$/, "");
+    const displayDomain = siteUrl.replace(/^https?:\/\//i, "");
+
+    const linkPath = options.resourceId ? `/r/${options.resourceId}` : "";
+    const clickUrl = `${siteUrl}${linkPath}`;
+
     const text =
       options.text ??
-      "Indexed via Molakhasat • molakhasat.com — Academic Resource Hub";
+      (options.resourceId
+        ? `Indexed via Molakhasat • ${displayDomain}${linkPath} — Academic Resource Hub`
+        : `Indexed via Molakhasat • ${displayDomain} — Academic Resource Hub`);
 
     const textWidth = font.widthOfTextAtSize(text, fontSize);
+    const textHeight = font.heightAtSize(fontSize);
     const pages = pdfDoc.getPages();
 
     for (const page of pages) {
       const { width } = page.getSize();
       // Center the watermark horizontally at the very bottom (14 points above the edge)
-      const x = (width - textWidth) / 2;
+      const x = Math.max(10, (width - textWidth) / 2);
       const y = 14;
 
+      // 1. Draw Visual Slate-Gray Text
       page.drawText(text, {
-        x: Math.max(10, x),
+        x,
         y,
         size: fontSize,
         font,
         color: rgb(0.35, 0.42, 0.52), // Subtle slate-gray (#596A85)
         opacity,
       });
+
+      // 2. Embed Native PDF Clickable Link Annotation over the text bounding box
+      try {
+        const linkAnnot = pdfDoc.context.obj({
+          Type: "Annot",
+          Subtype: "Link",
+          Rect: [x, y - 2, x + textWidth, y + textHeight + 2],
+          Border: [0, 0, 0],
+          C: [0, 0, 0],
+          A: {
+            Type: "Action",
+            S: "URI",
+            URI: PDFString.of(clickUrl),
+          },
+        });
+
+        const linkAnnotRef = pdfDoc.context.register(linkAnnot);
+
+        const rawAnnots = page.node.lookup(PDFName.of("Annots"));
+        let annotsArray: PDFArray;
+
+        if (rawAnnots instanceof PDFArray) {
+          annotsArray = rawAnnots;
+        } else {
+          annotsArray = pdfDoc.context.obj([]);
+          page.node.set(PDFName.of("Annots"), annotsArray);
+        }
+
+        annotsArray.push(linkAnnotRef);
+      } catch (annotErr) {
+        // Annotation failure is non-fatal — visual text remains stamped
+        console.warn("[watermark] Failed to attach link annotation to page:", annotErr);
+      }
     }
 
     const modifiedBytes = await pdfDoc.save();

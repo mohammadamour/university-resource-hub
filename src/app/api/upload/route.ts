@@ -105,7 +105,7 @@ async function processFileInBackground(
         message: "جارٍ تضمين العلامة المرجعية للمنصة في تذييل الصفحات...",
       });
       const { watermarkPdf } = await import("@/lib/pipeline/watermark");
-      finalBuffer = await watermarkPdf(finalBuffer);
+      finalBuffer = await watermarkPdf(finalBuffer, { resourceId });
       finalSize = finalBuffer.byteLength;
     } catch (wmError) {
       console.warn(

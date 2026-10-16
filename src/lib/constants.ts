@@ -16,7 +16,7 @@ export const SITE_NAME = "ملخصات";
 export const SITE_NAME_EN = "Molakhasat";
 export const SITE_DESCRIPTION =
   "منصة أكاديمية لطلاب الجامعة — ملخصات، موارد، وأدلة دراسية";
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://molakhasat.com";
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://molakhasat.me";
 
 // ─── Storage ────────────────────────────────────────────────────────────────
 export const R2_PUBLIC_URL = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || "";

@@ -275,9 +275,9 @@ Days 15–20 │ QA & LAUNCH
 
 _This README serves as the living master reference for the project. It will be updated as decisions evolve and development progresses._
 
-to do
+### Watermarking & Permanent Referral Strategy
 
-- [ ] **Configure `.env` for Watermarking:** Add a `PLATFORM_URL` placeholder variable (e.g., `https://REDIRECT_HOLDER.com`) to use during seeding.
-- [ ] **Implement `pdf-lib` Script:** Build the automated watermarking pipeline mapping clickable links to a dedicated redirect route (`/r/:id`) instead of static destinations.
-- [ ] **Seed Prototype Data:** Run the ingestion pipeline to watermark and store the initial batch of PDFs using the placeholder domain.
-- [ ] **Prepare Migration Script:** Save a "Find & Replace" script using `pdf-lib`'s annotation scanner as a fail-safe to update URLs in bulk upon deployment.
+- [x] **Configure Permanent Domain Base:** `NEXT_PUBLIC_SITE_URL=https://molakhasat.me` configured in `.env` and `src/lib/constants.ts`.
+- [x] **Automated Clickable Watermarking (`pdf-lib`):** Watermarks PDFs with centered slate-gray footer and embeds native clickable PDF Link Annotations mapped to the permanent `/r/:id` route.
+- [x] **Universal Redirect Engine (`/r/:id`):** Built Next.js redirect route (`src/app/r/[id]/route.ts`) that dynamically resolves resources to courses. PDFs remain 100% static; future domain or route changes are handled at DNS/routing level without ever modifying stored binary PDFs.
+- [ ] **Seed Prototype Data:** Run the ingestion pipeline to watermark and store the initial batch of PDFs using the evergreen redirect architecture.
