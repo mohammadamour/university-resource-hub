@@ -107,20 +107,27 @@ To provide maximum value while avoiding legal or academic liability, the platfor
 3. **Volatile Information Exclusion:** We explicitly exclude data that changes unofficially and frequently (e.g., Campus bus schedules). If a student misses an exam because our bus schedule was wrong, the platform takes the blame. If we can't guarantee the data, we don't host it.
 4. **Universal WhatsApp Directories:** Instead of trying to host every piece of communication, we will provide a curated list of "Universal WhatsApp Groups" (e.g., Book Exchange, Placement Exams prep, University Electives). This centralizes the scattered links into one trusted place without having to build a chat feature.
 
-### The Native Interactive Quiz Engine (Planned)
+### The Native Interactive Quiz Engine (Implemented)
 
-- **Decision:** Build a custom `<NativeQuiz />` React component that renders pre-generated JSON quizzes natively, avoiding fragile external embeds (iframes) and `X-Frame-Options` security blocks.
-- **Data Flow & Lifecycle:**
-  1. **Phase 1 (Admin Seeding):** Feed lecture notes/questions into Gemini Pro to output strict JSON (`question`, `options`, `correctIndex`, `explanation`).
-  2. **Phase 2 (Automated UGC Pipeline):** When students upload a summary, the backend extracts the text, prompts the Gemini Pro API asynchronously, and automatically generates a companion quiz JSON.
-  3. **Storage:** Stored in a `quiz_data` (JSONB) column in the Supabase `resources` table.
-  4. **Frontend Rendering:** `ResourceList.tsx` detects `quiz_data` and mounts `<NativeQuiz />` directly inline.
-- **Why:**
-  - **Zero Iframe Issues:** Complete immunity to third-party sites blocking their pages from being embedded.
-  - **Zero User Friction:** Students only upload their summary; the system handles the tedious job of writing and formatting multiple-choice questions via AI.
-  - **Perfect UI/UX:** The quiz natively inherits the app's styling, fonts, and dark mode.
-  - **Future-Proof:** Unlocks score tracking, progress saving, and student analytics in Supabase.
-  - **Reliable:** Pre-synthesized JSON eliminates runtime API latency, token exhaustion, and live hallucinations during exam study sessions.
+- **Architecture:** Custom `<NativeQuiz />` React 19 component rendering pre-generated JSON quizzes natively with zero external iframes and zero third-party `X-Frame-Options` blocks.
+- **Dynamic Bank Sizing (15–50 Questions):** Rather than fixed 10-question tests, the synthesis engine dynamically scales bank sizes based on source character density:
+  - `< 8,000 chars` (~1–4 pages, cheat-sheets): **15 questions**
+  - `8,000 – 25,000 chars` (~5–12 pages, single lectures): **25 questions**
+  - `25,000 – 60,000 chars` (~13–30 pages, chapter summaries): **35 questions**
+  - `> 60,000 chars` (30+ pages, full course syllabus booklets): **50 questions**
+- **Adaptive Launcher Modal & Decoupled Controls:**
+  - Students independently choose **Volume** (`5`, `10 [Default]`, `20`, `All`) and **Difficulty** (`متوازن [Default: 40% Easy, 40% Med, 20% Hard]`, `مفاهيم (سهل)`, `امتحاني (متوسط)`, `تحدي (متقدم)`).
+  - *Graceful Backfill:* If a student requests 20 "Hard" questions and the bank only has 10, the algorithm takes all 10 hard questions and backfills 10 from medium with a polite UI notification.
+- **Dynamic In-Session Option Shuffling:** On every question display, option positions are randomized via Fisher-Yates and `correctIndex` is dynamically remapped in memory, completely eliminating option letter/position memorization traps.
+- **Data Flow & Telemetry Lifecycle:**
+  1. **Upload Pipeline / Seeding:** Asynchronous background worker calls Gemini 3.8 Flash (`gemini-quiz.ts`) with syllabus-wide scanning to output structured JSON with `topic` and `difficulty` metadata.
+  2. **Storage:** Stored in a `quiz_data` (JSONB) column in the Supabase `resources` table.
+  3. **Frontend Rendering:** `ResourceList.tsx` detects `quiz_data` and mounts `<NativeQuiz />` directly inline.
+  4. **Diagnostic Attempt Logging:** Upon quiz completion, a fire-and-forget beacon (`/api/quiz/record-attempt`) logs session metrics and question-level responses to `quiz_attempts` and `quiz_attempt_answers` (supports anonymous guest tokens today and user profiles in V2).
+- **Core Benefits:**
+  - **Zero Runtime Latency:** Tests start in `0ms` on mobile with zero spinners and zero runtime API quota exhaustion during exam nights.
+  - **Infinite Replayability:** Re-taking a quiz pulls a fresh random sample with freshly randomized choices.
+  - **Future-Proof Diagnostic Foundation:** Structured attempt history enables upcoming V2 features like "Train My Weaknesses".
 
 ---
 
@@ -188,18 +195,18 @@ To prevent the platform from becoming an unorganized "dump", V2 will implement t
 2. **The "Missing Course" Policy:** Users **cannot** manually type course names during upload (prevents database fragmentation like "CS 101" vs "cs101"). They must select from existing courses. If a course is missing, they submit a "Request Course" form.
 3. **The Approval Queue:** Student uploads default to `status: 'pending'` in the database. They do not appear on the live site until an Ambassador or Founder reviews and marks them as `approved`. This protects the platform's academic reputation from incorrect or malicious files.
 4. **Security & Sanitization:** The pipeline will require strict MIME-type validation, 10MB size limits, and Ghostscript flattening to strip embedded payloads before reaching public storage buckets (Supabase/R2).
-5. **The Automated Quiz Synthesis Pipeline (Summary → AI Quiz):**
+5. **The Automated Quiz Synthesis Pipeline (Summary → AI Question Bank):**
    - **The Friction Bottleneck:** Students cannot and will not manually type out 20 questions, answer options, and explanations into an upload form. Forcing manual quiz creation guarantees zero quiz submissions.
    - **The Solution:** Students upload what they already own: **Summaries (ملخصات)** and lecture notes. During the backend ingestion pipeline:
-     1. The server extracts the text from the uploaded summary PDF/document.
-     2. An asynchronous background worker calls the **Gemini Pro API** with a strict prompt: extract 10–15 key concepts and output structured JSON (`question`, `options`, `correctIndex`, `explanation`).
-     3. The server automatically attaches this JSON to a companion resource (`type: 'quiz'`) stored in the `quiz_data` (JSONB) column in Supabase.
-   - **The "2-for-1" Value Multiplier:** A single student upload yields two distinct assets: the readable PDF summary + an instant, native interactive quiz for peers.
-   - **Moderation:** Both the summary and its generated companion quiz enter the approval queue (`status: 'pending'`), allowing admins to review and publish both in a single click.
-6. **Adaptive Question Banks & Diagnostic Quizzes (V2 Roadmap):**
-   - **From Static Quizzes to Question Banks:** Instead of locking resources to a single static 10-question quiz, the system supports 30–50 question pools tagged with rich metadata (`difficulty: 'easy' | 'medium' | 'hard'`, `topic`, `subtopic`, `tags`).
-   - **Dynamic Sampling & Infinite Replayability:** Every attempt samples a unique randomized subset (e.g. 10 questions) tailored to difficulty modes (e.g., Quick Warm-up vs. Full Exam Simulation).
-   - **Personalized Mistake Targeting (Diagnostic Drill):** Once user authentication and profiles are live, mistake history per topic/tag allows the system to generate targeted remedial quizzes ("Train My Weaknesses") focusing specifically on concepts where the student previously struggled.
+     1. Client or server extracts text up to 300,000 characters from the uploaded PDF.
+     2. An asynchronous background worker calls **Gemini 3.8 Flash** with dynamic bank sizing (`calculateDynamicBankSize` producing 15 to 50 questions depending on document volume) and syllabus-wide coverage rules.
+     3. The server attaches this structured JSON to the resource in the `quiz_data` (JSONB) column in Supabase, broadcasting live progress over the Server-Sent Events (SSE) bus.
+   - **The "2-for-1" Value Multiplier:** A single upload produces two assets: the watermarked PDF summary + a multi-difficulty interactive quiz bank for peers.
+6. **Adaptive Question Banks & Diagnostic Quizzes (Implemented):**
+   - **Dynamic Sizing & Stratification:** Generates 15–50 questions proportionally stratified (40% Easy, 40% Medium, 20% Hard) and tagged with Arabic `topic` metadata.
+   - **Client-Side Adaptive Launcher:** `<NativeQuiz />` provides decoupled **Volume** (`5`, `10`, `20`, `All`) and **Difficulty** (`متوازن`, `سهل`, `متوسط`, `متقدم`) selectors with automatic priority backfill.
+   - **Dynamic Option Shuffling:** Randomizes choice positions on each start to eliminate muscle-memory answer memorization.
+   - **Diagnostic Telemetry Schema:** Logs session metrics to `quiz_attempts` and question-level responses to `quiz_attempt_answers` via fire-and-forget beacon (`/api/quiz/record-attempt`), powering the future *"Train My Weaknesses"* dashboard.
 
 ### 7. The AI Campus Assistant (V2+ Feature)
 
@@ -255,11 +262,13 @@ Days 15–20 │ QA & LAUNCH
 ## Project Status
 
 - [x] Strategic planning & architecture design
-- [ ] Seed file collection & compression
-- [ ] Quiz generation pipeline
-- [ ] Database schema & infrastructure setup
-- [ ] Frontend MVP development
-- [ ] QA testing & mobile optimization
+- [x] Database schema & infrastructure setup (Supabase PostgreSQL, RLS policies, session pooler IPv4)
+- [x] Frontend MVP development (Next.js 16 App Router, React 19, Vanilla CSS, RTL, mobile-first)
+- [x] Real-time SSE Upload Ingestion Pipeline (Ghostscript compression, 300k-char text extraction, PDF watermarking)
+- [x] Dynamic AI Question Bank Engine (15–50 questions scaling by volume, syllabus-wide scanning, topic/difficulty metadata)
+- [x] Adaptive Native Quiz Player (`<NativeQuiz />` launcher modal, option shuffling, graceful backfill, telemetry beaconing)
+- [ ] Seed file collection & compression (Curating definitive summaries for initial course catalog)
+- [ ] QA testing & mobile optimization (WhatsApp / Telegram in-app browser validation)
 - [ ] Launch & user acquisition
 
 ---
