@@ -265,3 +265,10 @@ Days 15–20 │ QA & LAUNCH
 ---
 
 _This README serves as the living master reference for the project. It will be updated as decisions evolve and development progresses._
+
+to do
+
+- [ ] **Configure `.env` for Watermarking:** Add a `PLATFORM_URL` placeholder variable (e.g., `https://REDIRECT_HOLDER.com`) to use during seeding.
+- [ ] **Implement `pdf-lib` Script:** Build the automated watermarking pipeline mapping clickable links to a dedicated redirect route (`/r/:id`) instead of static destinations.
+- [ ] **Seed Prototype Data:** Run the ingestion pipeline to watermark and store the initial batch of PDFs using the placeholder domain.
+- [ ] **Prepare Migration Script:** Save a "Find & Replace" script using `pdf-lib`'s annotation scanner as a fail-safe to update URLs in bulk upon deployment.

@@ -297,3 +297,79 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- ─── QUIZ ATTEMPTS & DIAGNOSTIC TRACKING ─────────────────────────────────────
+-- Future-proof student quiz attempt tracking and granular question diagnostics.
+-- Supports anonymous guest sessions today and authenticated student profiles in V2.
+
+CREATE TABLE quiz_attempts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    guest_session_id TEXT,
+    resource_id UUID NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+    course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    total_questions INT NOT NULL,
+    score INT NOT NULL,
+    score_percentage INT NOT NULL,
+    difficulty_selected TEXT NOT NULL DEFAULT 'balanced',
+    duration_seconds INT DEFAULT 0,
+    completed_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE quiz_attempt_answers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    attempt_id UUID NOT NULL REFERENCES quiz_attempts(id) ON DELETE CASCADE,
+    question_text TEXT NOT NULL,
+    selected_option TEXT NOT NULL,
+    correct_option TEXT NOT NULL,
+    is_correct BOOLEAN NOT NULL,
+    difficulty TEXT,
+    topic TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_quiz_attempts_user ON quiz_attempts(user_id);
+CREATE INDEX idx_quiz_attempts_guest ON quiz_attempts(guest_session_id);
+CREATE INDEX idx_quiz_attempts_resource ON quiz_attempts(resource_id);
+CREATE INDEX idx_quiz_attempts_course ON quiz_attempts(course_id);
+CREATE INDEX idx_quiz_attempt_answers_attempt ON quiz_attempt_answers(attempt_id);
+CREATE INDEX idx_quiz_attempt_answers_topic ON quiz_attempt_answers(topic);
+
+ALTER TABLE quiz_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quiz_attempt_answers ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public insert of quiz attempts"
+ON quiz_attempts FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Allow public insert of quiz attempt answers"
+ON quiz_attempt_answers FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Users can read own quiz attempts"
+ON quiz_attempts FOR SELECT
+USING (
+    (auth.uid() IS NOT NULL AND user_id = auth.uid())
+    OR
+    (EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.id = auth.uid()
+        AND (profiles.role = 'admin' OR profiles.role = 'super_admin')
+    ))
+);
+
+CREATE POLICY "Users can read own quiz attempt answers"
+ON quiz_attempt_answers FOR SELECT
+USING (
+    EXISTS (
+        SELECT 1 FROM quiz_attempts
+        WHERE quiz_attempts.id = quiz_attempt_answers.attempt_id
+        AND (
+            (auth.uid() IS NOT NULL AND quiz_attempts.user_id = auth.uid())
+            OR
+            (EXISTS (
+                SELECT 1 FROM profiles
+                WHERE profiles.id = auth.uid()
+                AND (profiles.role = 'admin' OR profiles.role = 'super_admin')
+            ))
+        )
+    )
+);

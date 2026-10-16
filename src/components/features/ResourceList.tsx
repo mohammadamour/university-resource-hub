@@ -132,6 +132,8 @@ export default function ResourceList({ resources }: ResourceListProps) {
               quizData={resource.quiz_data}
               sourceTitle={resource.title}
               defaultOpen={isQuiz}
+              resourceId={resource.id}
+              courseId={resource.course_id}
             />
           </div>
         )}

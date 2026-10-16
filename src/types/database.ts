@@ -113,3 +113,57 @@ export interface CourseWithResources extends Course {
   resources: Resource[];
   department?: Department;
 }
+
+// ─── Quiz Attempt & Diagnostics Tracking Types ──────────────────────────────
+
+export type QuizDifficulty = "easy" | "medium" | "hard";
+export type QuizSelectionMode = "balanced" | "easy" | "medium" | "hard" | "all";
+
+export interface QuizAttempt {
+  id: string;
+  user_id: string | null;
+  guest_session_id: string | null;
+  resource_id: string;
+  course_id: string;
+  total_questions: number;
+  score: number;
+  score_percentage: number;
+  difficulty_selected: string;
+  duration_seconds: number;
+  completed_at: string;
+}
+
+export interface QuizAttemptAnswer {
+  id: string;
+  attempt_id: string;
+  question_text: string;
+  selected_option: string;
+  correct_option: string;
+  is_correct: boolean;
+  difficulty: string | null;
+  topic: string | null;
+  created_at: string;
+}
+
+/**
+ * Payload sent from <NativeQuiz /> to /api/quiz/record-attempt upon completion
+ */
+export interface RecordAttemptPayload {
+  resourceId: string;
+  courseId: string;
+  guestSessionId?: string | null;
+  totalQuestions: number;
+  score: number;
+  scorePercentage: number;
+  difficultySelected: string;
+  durationSeconds: number;
+  answers: {
+    questionText: string;
+    selectedOption: string;
+    correctOption: string;
+    isCorrect: boolean;
+    difficulty?: string;
+    topic?: string;
+  }[];
+}
+

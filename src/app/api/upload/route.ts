@@ -253,7 +253,7 @@ async function processFileInBackground(
           progressBus.publish(resourceId, {
             stage: "done",
             percent: 100,
-            message: "اكتملت جميع المراحل بنجاح وتم توليد الكويز التفاعلي!",
+            message: `اكتملت جميع المراحل بنجاح! تم إنشاء بنك أسئلة يضم ${quizData.questions.length} سؤالاً تفاعلياً.`,
             resourceId,
           });
         }

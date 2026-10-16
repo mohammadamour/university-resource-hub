@@ -3,7 +3,6 @@ import type { QuizData } from "@/types/database";
 const GEMINI_API_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent";
 
-const NUM_QUESTIONS = 10;
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1500;
 
@@ -12,52 +11,82 @@ function sleep(ms: number) {
 }
 
 /**
+ * Calculates optimal question bank size based on source text density.
+ *
+ * RULES:
+ * - < 8,000 chars  (~1-4 pages, cheat-sheets): 15 questions
+ * - 8,000 - 25,000 (~5-12 pages, single lectures): 25 questions
+ * - 25,000 - 60,000 (~13-30 pages, chapter summaries): 35 questions
+ * - > 60,000 chars (30+ pages, complete syllabus booklets): 50 questions
+ */
+export function calculateDynamicBankSize(charCount: number): number {
+  if (charCount < 8_000) return 15;
+  if (charCount < 25_000) return 25;
+  if (charCount < 60_000) return 35;
+  return 50;
+}
+
 /**
  * Builds the strict-JSON prompt for Gemini.
  * Caps at 300,000 characters (~50,000 words), easily ingesting entire course summaries
  * while staying far below Gemini 3.8 Flash's 1-million-token context window.
  */
-function buildPrompt(extractedText: string, sourceTitle: string): string {
+function buildPrompt(
+  extractedText: string,
+  sourceTitle: string,
+  targetCount: number
+): string {
   const material = extractedText.slice(0, 300_000);
-  return `You are an educational quiz generator for university students.
-Given the following Arabic/English study material, generate exactly ${NUM_QUESTIONS} multiple choice questions.
+  const easyCount = Math.round(targetCount * 0.4);
+  const medCount = Math.round(targetCount * 0.4);
+  const hardCount = targetCount - easyCount - medCount;
 
-RULES:
-- Scan and analyze the ENTIRE study material from page 1 to the final page.
-- Distribute the ${NUM_QUESTIONS} questions EVENLY across the different chapters, sections, or topics covered in the document (do NOT cluster all questions in the introductory pages).
-- Each question must have exactly 4 options (A, B, C, D)
-- The correct answer index is 0-based (0 = A, 1 = B, 2 = C, 3 = D)
-- Explanations must be in Arabic, clarifying why the chosen answer is correct
-- Questions should test conceptual understanding and problem-solving, not just trivial memorization
-- Distribute difficulty: 40% easy, 40% medium, 20% hard
-- Assign each question a concise Arabic "topic" (e.g. the chapter or concept name, like "النهايات المثلثية", "المصفوفات", "قواعد الاشتقاق")
-- Assign each question a "difficulty" ("easy", "medium", or "hard")
-- Do NOT repeat questions or options
+  return `You are an expert academic curriculum designer creating a university exam question bank for Jordanian students.
+Given the following academic material, generate exactly ${targetCount} high-yield multiple choice questions.
 
-RETURN ONLY valid JSON with NO markdown fences, NO extra text — exactly this shape:
+STRICT DISTRIBUTION RULES:
+1. TARGET VOLUME: Exactly ${targetCount} questions.
+2. DIFFICULTY STRATIFICATION:
+   - Exactly ${easyCount} "easy" questions (foundational definitions, direct properties, core concepts).
+   - Exactly ${medCount} "medium" questions (formula application, multi-step problem solving).
+   - Exactly ${hardCount} "hard" questions (conceptual synthesis, edge cases, tricky exam traps).
+3. SYLLABUS-WIDE COVERAGE:
+   - Scan and analyze the ENTIRE material sequentially from page 1 to the final page.
+   - Distribute the ${targetCount} questions EVENLY across all sections and chapters (do NOT cluster questions in chapter 1).
+4. QUESTION REQUIREMENTS:
+   - Each question must have exactly 4 plausible options (A, B, C, D).
+   - Only 1 unambiguous correct answer (correctIndex: 0, 1, 2, or 3).
+   - Explanations must be in clear Arabic, explicitly proving why the chosen answer is correct and why common pitfalls are wrong.
+   - Assign each question a concise Arabic "topic" (e.g. "النهايات المثلثية", "المصفوفات المتماثلة", "قواعد الاشتقاق").
+   - Assign each question a "difficulty" ("easy", "medium", or "hard").
+   - Do NOT repeat questions, concepts, or distractors.
+
+RETURN ONLY VALID RAW JSON with NO markdown fences, NO backticks, NO extra text:
 {
   "version": 1,
-  "generatedAt": "<ISO 8601 timestamp>",
+  "generatedAt": "${new Date().toISOString()}",
   "sourceTitle": "${sourceTitle}",
   "questions": [
     {
-      "question": "...",
-      "options": ["...", "...", "...", "..."],
+      "id": "q1",
+      "question": "ما هي قيمة نهاية د(س) عندما تقترب س من الصفر؟",
+      "options": ["1", "0", "غير موجودة", "∞"],
       "correctIndex": 0,
-      "explanation": "...",
+      "explanation": "باستخدام النظرية الأساسية لنهاية جا(س)/س عند س->0 فإن القيمة تساوي 1.",
       "difficulty": "medium",
-      "topic": "اسم الفصل أو الموضوع"
+      "topic": "النهايات المثلثية"
     }
   ]
 }
 
-STUDY MATERIAL:
+ACADEMIC MATERIAL:
 ${material}`;
 }
 
 /**
- * Validates that the raw Gemini response is a structurally sound QuizData object.
- * Throws if invalid so the caller can fall back or mark the resource as rejected.
+ * Validates and sanitizes the raw Gemini response into a sound QuizData object.
+ * Tolerates minor omissions (e.g. 33 questions instead of 35) without crashing the pipeline,
+ * but requires at least 5 structurally valid questions.
  */
 function validateQuizData(raw: unknown): QuizData {
   if (typeof raw !== "object" || raw === null) {
@@ -74,8 +103,12 @@ function validateQuizData(raw: unknown): QuizData {
     throw new Error("Quiz response has no questions array");
   }
 
+  const validQuestions = [];
+
   for (const [i, q] of (obj.questions as unknown[]).entries()) {
+    if (typeof q !== "object" || q === null) continue;
     const question = q as Record<string, unknown>;
+
     if (
       typeof question.question !== "string" ||
       !Array.isArray(question.options) ||
@@ -85,25 +118,51 @@ function validateQuizData(raw: unknown): QuizData {
       question.correctIndex > 3 ||
       typeof question.explanation !== "string"
     ) {
-      throw new Error(`Question at index ${i} is malformed`);
+      console.warn(`[gemini-quiz] Skipping malformed question at index ${i}`);
+      continue;
     }
 
     // Sanitize optional difficulty
+    let difficulty: "easy" | "medium" | "hard" = "medium";
     if (
-      question.difficulty !== "easy" &&
-      question.difficulty !== "medium" &&
-      question.difficulty !== "hard"
+      question.difficulty === "easy" ||
+      question.difficulty === "medium" ||
+      question.difficulty === "hard"
     ) {
-      question.difficulty = "medium";
+      difficulty = question.difficulty;
     }
 
     // Sanitize optional topic
-    if (typeof question.topic !== "string") {
-      question.topic = undefined;
-    }
+    const topic = typeof question.topic === "string" ? question.topic.trim() : undefined;
+    const id = typeof question.id === "string" ? question.id : `q${i + 1}`;
+
+    validQuestions.push({
+      id,
+      question: question.question.trim(),
+      options: question.options.map((opt) => String(opt).trim()),
+      correctIndex: question.correctIndex,
+      explanation: question.explanation.trim(),
+      difficulty,
+      topic,
+    });
   }
 
-  return raw as QuizData;
+  if (validQuestions.length < 5) {
+    throw new Error(
+      `Quiz validation failed: only ${validQuestions.length} valid questions produced (minimum 5 required)`
+    );
+  }
+
+  return {
+    version: 1,
+    generatedAt:
+      typeof obj.generatedAt === "string"
+        ? obj.generatedAt
+        : new Date().toISOString(),
+    sourceTitle:
+      typeof obj.sourceTitle === "string" ? obj.sourceTitle : undefined,
+    questions: validQuestions,
+  };
 }
 
 /**
@@ -115,7 +174,8 @@ function validateQuizData(raw: unknown): QuizData {
  */
 export async function generateQuizWithGemini(
   extractedText: string,
-  sourceTitle: string
+  sourceTitle: string,
+  targetCount?: number
 ): Promise<QuizData> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -124,7 +184,14 @@ export async function generateQuizWithGemini(
     );
   }
 
-  const prompt = buildPrompt(extractedText, sourceTitle);
+  const questionCount =
+    targetCount ?? calculateDynamicBankSize(extractedText.length);
+
+  console.log(
+    `[gemini-quiz] Generating dynamic bank of ${questionCount} questions for "${sourceTitle}" (${extractedText.length} chars extracted)`
+  );
+
+  const prompt = buildPrompt(extractedText, sourceTitle, questionCount);
 
   let response: Response | null = null;
   let lastError: string = "";
