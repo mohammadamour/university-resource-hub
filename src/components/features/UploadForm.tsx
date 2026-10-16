@@ -53,7 +53,7 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [title, setTitle] = useState("");
   const [resourceType, setResourceType] = useState<ResourceType>("summary");
-  const [generateQuiz, setGenerateQuiz] = useState(false);
+  const [generateQuiz, setGenerateQuiz] = useState(true);
   const [file, setFile] = useState<File | null>(null);
 
   // Eager text extraction state (speculative: runs as soon as file + quiz toggle are set)
@@ -320,7 +320,7 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
         setTitle("");
         // Keep selectedCourseId so admin can upload multiple resources for the same course smoothly
         setResourceType("summary");
-        setGenerateQuiz(false);
+        setGenerateQuiz(true);
         setIsSubmitting(false);
         setCurrentStepIndex(-1);
         setProgressPercent(0);
@@ -464,7 +464,12 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
             <button
               key={value}
               type="button"
-              onClick={() => setResourceType(value)}
+              onClick={() => {
+                setResourceType(value);
+                if (value === "summary") {
+                  setGenerateQuiz(true);
+                }
+              }}
               disabled={isSubmitting}
               aria-pressed={resourceType === value}
               className={`flex flex-col items-center gap-1.5 rounded-xl border py-3 px-2 text-xs font-medium transition-all disabled:opacity-50 ${
@@ -556,20 +561,20 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
       <div className="flex items-center justify-between rounded-xl border border-border bg-secondary/50 px-4 py-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-sm font-medium text-foreground">
-            توليد كويز تفاعلي بالذكاء الاصطناعي ✨
+            توليد بنك أسئلة وكويز تفاعلي بالذكاء الاصطناعي ✨
           </span>
           <span className="text-xs text-muted-foreground">
             {generateQuiz
               ? extractionStatus === "extracting"
-                ? "⏳ جارٍ استخراج النص من الـ PDF..."
+                ? "⏳ جارٍ استخراج النص من الـ PDF مسبقاً في الخلفية..."
                 : extractionStatus === "done"
-                ? "✅ تم استخراج النص مسبقاً — سيكون الرفع أسرع"
+                ? "✅ تم استخراج النص مسبقاً — جاهز لتوليد بنك الأسئلة فور الرفع"
                 : extractionStatus === "failed"
-                ? "⚠️ PDF مسحوب ضوئياً — سيتم الاستخراج على الخادم"
-                : "يستخدم Gemini لصياغة أسئلة اختيار من متعدد مستخلصة من الشرح"
+                ? "⚠️ PDF مسحوب ضوئياً — سيتم الاستخراج المباشر عبر الخادم"
+                : "ينشئ بنك أسئلة شامل ومتدرج الصعوبة (15 إلى 50 سؤالاً) يغطي كامل المادة"
               : extractionStatus === "done"
-              ? "✨ النص مستخرج وجاهز إذا أردت تفعيل الكويز"
-              : "يستخدم Gemini لصياغة أسئلة اختيار من متعدد مستخلصة من الشرح"}
+              ? "✨ النص مستخرج ومحفوظ إذا أردت تفعيل توليد الأسئلة"
+              : "توليد بنك أسئلة تفاعلي متعدد الصعوبات عبر Gemini 3.8 Flash"}
           </span>
         </div>
         <button
@@ -593,8 +598,8 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
       </div>
 
       {generateQuiz && extractionStatus !== "extracting" && (
-        <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
-          ⚠️ الكويز التلقائي تجريبي. سيقوم النظام باستخراج النص وإرساله إلى Gemini لإنشاء الأسئلة.
+        <p className="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-xs text-muted-foreground">
+          ✨ مفعّل تلقائياً للملخصات: سيقوم النظام بمسح كامل المادة وتوليد بنك أسئلة تفاعلي متعدد المستويات للطلاب.
         </p>
       )}
 
