@@ -235,40 +235,85 @@ async function processFileInBackground(
             resourceId,
           });
         } else {
-          const { generateQuizWithGemini } = await import("@/lib/pipeline/gemini-quiz");
-          const quizData = await generateQuizWithGemini(sourceText, title);
+          const { generateQuizWithGemini, expandQuizWithGemini } = await import(
+            "@/lib/pipeline/gemini-quiz"
+          );
+
+          // ── Phase 1: Rapid In-Flight Generation (10 high-yield questions, ~4-6s) ───
+          const initialQuizData = await generateQuizWithGemini(sourceText, title, 10);
 
           const { error: quizUpdateError } = await supabase
             .from("resources")
             .update({
               status: "active",
-              quiz_data: quizData,
+              quiz_data: initialQuizData,
               source_text: sourceText.slice(0, 100_000),
             })
             .eq("id", resourceId);
 
           if (quizUpdateError) {
             console.error(
-              `[pipeline] Failed to save quiz_data for ${resourceId}:`,
+              `[pipeline] Failed to save initial quiz_data for ${resourceId}:`,
               quizUpdateError.message
             );
-            // Still mark active
             await supabase
               .from("resources")
               .update({ status: "active" })
               .eq("id", resourceId);
           } else {
             console.log(
-              `[pipeline] ✅ Quiz generated: ${quizData.questions.length} questions saved for ${resourceId}.`
+              `[pipeline] ✅ Phase 1 Quiz saved: ${initialQuizData.questions.length} questions ready for ${resourceId}.`
             );
           }
 
+          // Release the client immediately! The uploader gets 100% completion & green checkmark
           progressBus.publish(resourceId, {
             stage: "done",
             percent: 100,
-            message: `اكتملت جميع المراحل بنجاح! تم إنشاء بنك أسئلة يضم ${quizData.questions.length} سؤالاً تفاعلياً.`,
+            message: `اكتملت جميع المراحل بنجاح! تم إنشاء بنك أسئلة فوري يضم ${initialQuizData.questions.length} أسئلة تفاعلية.`,
             resourceId,
           });
+
+          // ── Phase 2: Asynchronous Background Expansion (+15 to +20 questions) ───────
+          // Only triggers for substantial summaries (>= 8,000 characters).
+          // Runs non-blockingly inside Next.js after() context without affecting the user's completed screen.
+          if (sourceText.length >= 8_000) {
+            try {
+              const additionalTarget = sourceText.length > 25_000 ? 20 : 15;
+              console.log(
+                `[pipeline] Initiating Phase 2 background expansion (+${additionalTarget} questions) for ${resourceId}...`
+              );
+
+              const expandedQuizData = await expandQuizWithGemini(
+                sourceText,
+                title,
+                initialQuizData,
+                additionalTarget
+              );
+
+              const { error: expansionUpdateError } = await supabase
+                .from("resources")
+                .update({ quiz_data: expandedQuizData })
+                .eq("id", resourceId);
+
+              if (expansionUpdateError) {
+                console.warn(
+                  `[pipeline] Phase 2 expansion DB save failed for ${resourceId}:`,
+                  expansionUpdateError.message
+                );
+              } else {
+                console.log(
+                  `[pipeline] 🚀 Phase 2 expansion complete: ${expandedQuizData.questions.length} total questions available for ${resourceId}.`
+                );
+              }
+            } catch (expansionErr) {
+              // Non-fatal: Phase 1 questions remain safe and sound in the database
+              console.warn(
+                `[pipeline] Phase 2 expansion skipped for ${resourceId}:`,
+                expansionErr
+              );
+            }
+          }
         }
       } catch (quizError) {
         // Quiz failure is non-fatal — resource is promoted to active without a quiz

@@ -79,3 +79,38 @@ When you need materials for courses you don't have:
    - Reach out to friends taking different courses: *"Send me your lecture slides/notes, I'll turn them into a clean summary and interactive quiz on the hub."*
 3. **Slide-to-Summary Synthesis:**
    - Extract raw text from slide decks using LLM -> Synthesize into clean, structured Markdown summaries -> Export to clean PDF -> Run Phase 2 & 3.
+
+---
+
+## ✅ Phase 7: First 3 Uploads "Flight-Check" Checklist
+
+Use this compact checklist for your **first 3–5 uploads** to verify the entire end-to-end machinery (SSE stream, storage, watermarking, redirect, and quiz engine) before mass-seeding:
+
+```markdown
+### ✈️ Flight-Check: Resource #[____] — [Course Name]
+
+#### 1. Ingestion & In-Flight Pipeline
+- [ ] Clean Title: Follows "Topic | Description" format (e.g., `المتغيرات والتحكم | أساسيات لغة C++`).
+- [ ] Instant Ack: Received fast `202 Accepted` response.
+- [ ] SSE Progress Stream: Status bar transitioned cleanly through all stages:
+      `[uploading 55%] ➔ [processing 45%] ➔ [synthesizing 85%] ➔ [done 100%]`.
+- [ ] Auto-Quiz Seeding: Generated quality question bank (15–50 questions) with Arabic explanations.
+
+#### 2. Admin Manager Verification (`/admin/resources?key=...`)
+- [ ] Table Entry: Row shows up immediately with correct course badge, file size, and quiz status (e.g. `35 أسئلة ✨`).
+- [ ] Metadata Quick-Edit: Title or category can be modified without issues.
+
+#### 3. Watermark & Redirect Link Fidelity
+- [ ] Bottom Margin Check: PDF has subtle slate-gray footer on each page:
+      `For more course summaries and resources, visit molakhasat.me/r/<resourceId>`
+- [ ] Clickable Annotation: Clicking the stamped link in your PDF reader opens:
+      `https://molakhasat.me/r/<resourceId>` and smoothly 307-redirects to `/courses/<slug>?ref=pdf_watermark`.
+
+#### 4. Public Student Experience (`/courses/<slug>`)
+- [ ] Course Page Grouping: Resource appears under the correct topic header.
+- [ ] Mobile Touch Test: Opened on smartphone — PDF downloads immediately with zero login prompts.
+- [ ] Interactive Quiz Machine:
+      - [ ] Answered 2 questions: Instant green/red feedback + clear explanation.
+      - [ ] Completed quiz: SVG circular score ring renders final grade accurately.
+```
+
