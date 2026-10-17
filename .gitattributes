@@ -1,0 +1,2 @@
+# Exclude vendored third-party worker scripts from GitHub Linguist language statistics
+public/workers/** linguist-vendored
