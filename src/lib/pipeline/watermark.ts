@@ -54,8 +54,8 @@ export async function watermarkPdf(
     const text =
       options.text ??
       (options.resourceId
-        ? `Indexed via Molakhasat • ${displayDomain}${linkPath} — Academic Resource Hub`
-        : `Indexed via Molakhasat • ${displayDomain} — Academic Resource Hub`);
+        ? `For more course summaries and resources, visit ${displayDomain}${linkPath}`
+        : `For more course summaries and resources, visit ${displayDomain}`);
 
     const textWidth = font.widthOfTextAtSize(text, fontSize);
     const textHeight = font.heightAtSize(fontSize);

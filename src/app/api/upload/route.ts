@@ -96,7 +96,7 @@ async function processFileInBackground(
     }
 
     // ── Stage 2.5: Auto-Watermarking (Organic Referral Stamp) ────────────────
-    // Stamps "Indexed via Molakhasat • molakhasat.com" on the bottom margin of each page.
+    // Stamps "For more course summaries and resources, visit molakhasat.me/r/:id" on the bottom margin.
     // When students share the PDF on WhatsApp, it drives organic peer referrals back to the hub.
     try {
       progressBus.publish(resourceId, {
