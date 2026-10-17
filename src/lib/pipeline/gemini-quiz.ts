@@ -1,4 +1,12 @@
+import dns from "node:dns";
 import type { QuizData } from "@/types/database";
+
+// Force IPv4 resolution to prevent 30-second IPv6 socket timeouts
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch {
+  // Ignored in non-Node environments
+}
 
 const GEMINI_API_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent";

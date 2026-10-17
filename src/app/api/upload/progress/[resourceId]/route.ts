@@ -1,7 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
+import dns from "node:dns";
 import { progressBus, type PipelineProgressEvent } from "@/lib/pipeline/progress-bus";
 
-// Force dynamic execution for Next.js App Router (never pre-render or cache SSE)
+// Force IPv4 resolution first to bypass local network IPv6 routing black-holes
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch {
+  // Graceful fallback for non-Node runtimes
+}
+
+// Next.js Route Segment Config: allow up to 60s execution for telemetry stream
+export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 function createAdminClient() {
@@ -131,7 +140,7 @@ export async function GET(
       // Acts as a resilient fallback in case events were published before connection
       // or if running in a multi-instance/serverless environment.
       let pollAttempts = 0;
-      const MAX_POLL_ATTEMPTS = 30; // 60 seconds max
+      const MAX_POLL_ATTEMPTS = 45; // 90 seconds safety buffer
 
       pollingInterval = setInterval(async () => {
         if (isStreamClosed) return;
@@ -141,7 +150,7 @@ export async function GET(
           sendEvent({
             stage: "error",
             percent: 100,
-            message: "انتهت مهلة انتظار المعالجة (تجاوزت 60 ثانية). يرجى مراجعة حالة المورد لاحقاً.",
+            message: "انتهت مهلة انتظار المعالجة. يرجى مراجعة حالة المورد في لوحة الإدارة.",
             error: "PIPELINE_TIMEOUT",
             resourceId,
             timestamp: Date.now(),
@@ -201,10 +210,10 @@ export async function GET(
         }
       }, 2000);
 
-      // Hard safety timer: close after 70 seconds to prevent zombie connections
+      // Hard safety timer: close after 95 seconds to prevent zombie connections
       timeoutTimer = setTimeout(() => {
         cleanup();
-      }, 70 * 1000);
+      }, 95 * 1000);
     },
     cancel() {
       // Called if client cancels/aborts the ReadableStream

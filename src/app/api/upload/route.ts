@@ -1,6 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
 import { after } from "next/server";
+import dns from "node:dns";
 import type { ResourceType } from "@/types/database";
+
+// ─── Serverless & Network Runtime Config ──────────────────────────────────────
+// Next.js Route Segment Config: allow up to 60s execution for background AI synthesis
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
+// Force IPv4 resolution first to bypass local network IPv6 routing black-holes
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch {
+  // Graceful fallback for non-Node runtimes
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
