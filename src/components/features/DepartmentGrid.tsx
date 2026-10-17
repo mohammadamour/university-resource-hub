@@ -13,9 +13,12 @@ interface DepartmentGridProps {
  */
 export default function DepartmentGrid({ departments }: DepartmentGridProps) {
   // Placement exams were conducted on Day 1 for freshmen.
-  // Code and route (/courses/placement-exams) are kept intact,
-  // but hidden from the homepage to avoid cluttering the UI.
-  const SHOW_PLACEMENT_EXAMS = false;
+  // Code and route (/courses/placement-exams) are kept 100% intact,
+  // but hidden from the public homepage until future freshman admission cycles.
+  // Can be toggled on/off instantly via NEXT_PUBLIC_SHOW_PLACEMENT_EXAMS="true".
+  const SHOW_PLACEMENT_EXAMS =
+    process.env.NEXT_PUBLIC_SHOW_PLACEMENT_EXAMS === "true";
+
   const visibleDepartments = departments.filter(
     (dept) => SHOW_PLACEMENT_EXAMS || dept.slug !== "placement-exams"
   );
