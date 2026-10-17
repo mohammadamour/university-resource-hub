@@ -59,75 +59,7 @@ export async function generateMetadata({
 
 export default async function CoursePage({ params }: CoursePageProps) {
   const { slug } = await params;
-  let course = await getCourse(slug);
-
-  // MOCK FOR PLACEMENT EXAMS (since local DB is not reset)
-  if (slug === 'placement-exams' && !course) {
-    course = {
-      id: "mock-id",
-      department_id: "mock-dept",
-      title: "امتحانات المستوى",
-      slug: "placement-exams",
-      course_code: null,
-      description: "نماذج ومواد تحضيرية لجميع امتحانات الكفاءة (عربي، إنجليزي، حاسوب)",
-      instructor: null,
-      semester: null,
-      display_order: 0,
-      created_at: new Date().toISOString(),
-      resources: [
-        {
-          id: "1",
-          course_id: "mock-id",
-          title: "عربي | ملخص قواعد النحو والصرف",
-          type: "summary",
-          storage_url: "#",
-          file_size_bytes: 2500000,
-          uploaded_by: "system",
-          created_at: new Date().toISOString()
-        },
-        {
-          id: "2",
-          course_id: "mock-id",
-          title: "عربي | كويز تجريبي مع الحلول",
-          type: "quiz",
-          storage_url: "#",
-          file_size_bytes: 1200000,
-          uploaded_by: "system",
-          created_at: new Date().toISOString()
-        },
-        {
-          id: "3",
-          course_id: "mock-id",
-          title: "انجليزي | نماذج امتحانات سابقة",
-          type: "past_exam",
-          storage_url: "#",
-          file_size_bytes: 1200000,
-          uploaded_by: "system",
-          created_at: new Date().toISOString()
-        },
-        {
-          id: "4",
-          course_id: "mock-id",
-          title: "حاسوب | أهم اختصارات الكيبورد والأساسيات",
-          type: "summary",
-          storage_url: "#",
-          file_size_bytes: 1200000,
-          uploaded_by: "system",
-          created_at: new Date().toISOString()
-        },
-        {
-          id: "5",
-          course_id: "mock-id",
-          title: "حاسوب | امتحان تجريبي تفاعلي",
-          type: "quiz",
-          storage_url: "https://share.gemini.google/KowylEzTUiIe",
-          file_size_bytes: 0,
-          uploaded_by: "system",
-          created_at: new Date().toISOString()
-        }
-      ] as Resource[]
-    };
-  }
+  const course = await getCourse(slug);
 
   if (!course) {
     notFound();
