@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed:quizzes": "npx tsx scripts/seed-quizzes.ts"
+    "seed:quizzes": "npx tsx scripts/seed-quizzes.ts",
+    "test:keys": "node scripts/verify-gemini-pool.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
