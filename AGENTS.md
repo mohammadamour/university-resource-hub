@@ -36,7 +36,7 @@ Never ask the user to re-explain the stack or the architecture. Here is everythi
   - `src/types/database.ts`: TypeScript contracts for `Course`, `Resource`, `QuizQuestion`, `QuizData`.
   - `src/quiz_seeds/`: JSON question banks and master Gemini prompt for generating adaptive quizzes.
   - `scripts/seed-quizzes.ts`: Automated upsert/seeding script for course quizzes.
-  - `TECHNICAL_ANALYSIS.md` (Gitignored): Master internal architectural reference and living technical memory. Consult and maintain this document when dealing with complex state or pipelines.
+  - `TECHNICAL_ANALYSIS.md`: Master architectural reference, living technical memory, and engineering backlog. Consult and maintain this document when dealing with complex state or pipelines.
 
 ---
 
