@@ -27,17 +27,56 @@ function getApiKeys(): string[] {
     .filter(Boolean);
 }
 
+// In-memory state for round-robin load distribution and quota cooldowns
+let roundRobinIndex = 0;
+const keyCooldowns = new Map<string, number>();
+
+/**
+ * Returns keys sorted for optimal load balancing:
+ * 1. Rotates starting point using round-robin index to distribute RPM/RPD evenly.
+ * 2. Deprioritizes keys currently in 429 cooldown so we don't waste 1.5s on dead keys.
+ */
+function getOrderedCandidateKeys(): string[] {
+  const allKeys = getApiKeys();
+  if (allKeys.length === 0) return [];
+
+  const now = Date.now();
+  // Rotate starting key so successive synthesis requests hit different Google accounts
+  const startIndex = roundRobinIndex % allKeys.length;
+  const rotated = [
+    ...allKeys.slice(startIndex),
+    ...allKeys.slice(0, startIndex),
+  ];
+
+  const readyKeys: string[] = [];
+  const coolingKeys: string[] = [];
+
+  for (const k of rotated) {
+    const cooldownExpires = keyCooldowns.get(k) || 0;
+    if (now >= cooldownExpires) {
+      readyKeys.push(k);
+    } else {
+      coolingKeys.push(k);
+    }
+  }
+
+  // Active keys first; cooling keys as emergency last resort
+  return [...readyKeys, ...coolingKeys];
+}
+
 /**
  * Robust caller for Google Gemini REST API.
  * Features:
- *  - Automatic multi-key pool failover (switches keys instantly on 429 quota exhaustion)
- *  - Model fallback chain (switches to fast-lite if primary model has issues)
+ *  - Round-robin load balancing across all configured accounts
+ *  - 429 cooldown tracking (skips exhausted keys automatically)
+ *  - Automatic multi-key pool failover
+ *  - Model fallback chain (gemini-3.5-flash -> gemini-flash-lite-latest -> gemini-3.8-flash)
  *  - thinkingBudget: 0 to eliminate 15-second reasoning token lag
  *  - Deterministic JSON mode
  */
 async function callGemini(prompt: string): Promise<string> {
-  const keys = getApiKeys();
-  if (keys.length === 0) {
+  const candidateKeys = getOrderedCandidateKeys();
+  if (candidateKeys.length === 0) {
     throw new Error(
       "Missing GEMINI_API_KEY or GEMINI_API_KEYS in .env.local. Please configure at least one key."
     );
@@ -45,9 +84,10 @@ async function callGemini(prompt: string): Promise<string> {
 
   let lastError = "";
 
-  // Try each API key in the pool (e.g., your 3 Google accounts)
-  for (let keyIdx = 0; keyIdx < keys.length; keyIdx++) {
-    const apiKey = keys[keyIdx];
+  // Try each API key in the prioritized candidate list
+  for (let keyIdx = 0; keyIdx < candidateKeys.length; keyIdx++) {
+    const apiKey = candidateKeys[keyIdx];
+    const keyPreview = apiKey.slice(0, 8) + "..." + apiKey.slice(-4);
 
     // Try candidate models
     for (const model of CANDIDATE_MODELS) {
@@ -78,6 +118,10 @@ async function callGemini(prompt: string): Promise<string> {
             throw new Error("Gemini returned empty parts in response.");
           }
 
+          // Successfully generated: rotate round-robin counter for next request
+          roundRobinIndex = (roundRobinIndex + 1) % candidateKeys.length;
+          keyCooldowns.delete(apiKey);
+
           // Strip any accidental markdown fences
           return rawText
             .trim()
@@ -88,11 +132,12 @@ async function callGemini(prompt: string): Promise<string> {
         const errorBody = await response.text();
         lastError = `[${model}] HTTP ${response.status}: ${errorBody.slice(0, 200)}`;
 
-        // If daily quota exhausted (429 RESOURCE_EXHAUSTED), immediately switch to next API key!
+        // If daily quota exhausted (429 RESOURCE_EXHAUSTED), mark key with 5-minute cooldown
         if (response.status === 429) {
           console.warn(
-            `[gemini-quiz] Key #${keyIdx + 1} hit quota on ${model}. Failing over to next key...`
+            `[gemini-quiz] Key ${keyPreview} hit quota (429) on ${model}. Cooldown set for 5m. Failing over to next key...`
           );
+          keyCooldowns.set(apiKey, Date.now() + 5 * 60 * 1000);
           break; // Break model loop, try next API key in pool
         }
 
