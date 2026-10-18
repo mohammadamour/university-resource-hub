@@ -138,6 +138,46 @@ export default function AdminResourceManager({
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // On-demand AI Quiz Generation state
+  const [generatingQuizId, setGeneratingQuizId] = useState<string | null>(null);
+
+  const handleGenerateQuiz = async (res: AdminResourceItem) => {
+    if (generatingQuizId) return;
+    setGeneratingQuizId(res.id);
+
+    try {
+      const response = await fetch(`/api/admin/resources/${res.id}/quiz`, {
+        method: "POST",
+        headers: { "x-admin-secret": adminSecret },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "فشل توليد بنك الأسئلة.");
+      }
+
+      // Update state in-place with the fresh quiz bank
+      setResources((prev) =>
+        prev.map((r) =>
+          r.id === res.id ? { ...r, quiz_data: data.quizData } : r
+        )
+      );
+
+      showNotification(
+        "success",
+        `تم توليد بنك الأسئلة بنجاح (${data.count} سؤال) للمورد: "${res.title}"`
+      );
+    } catch (err) {
+      showNotification(
+        "error",
+        err instanceof Error ? err.message : "حدث خطأ أثناء الاتصال بنموذج الذكاء الاصطناعي."
+      );
+    } finally {
+      setGeneratingQuizId(null);
+    }
+  };
+
   // Global notification banner
   const [notification, setNotification] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -534,23 +574,56 @@ export default function AdminResourceManager({
                         </span>
                       </td>
 
-                      {/* Quiz Badge */}
+                      {/* Quiz Badge & On-Demand Generator */}
                       <td className="px-4 py-4">
-                        {questionCount > 0 ? (
-                          <Link
-                            href={`/courses/${res.course?.slug || ""}?quiz=${res.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-full border border-purple-500/25 bg-purple-500/10 px-2.5 py-1 text-xs font-semibold text-purple-400 transition-colors hover:bg-purple-500/20"
-                            title="فتح الكويز في صفحة المادة"
-                          >
-                            <span>✨</span>
-                            <span>{questionCount} سؤال</span>
-                            <span className="text-[10px]">↗</span>
-                          </Link>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">بدون كويز</span>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {questionCount > 0 ? (
+                            <>
+                              <Link
+                                href={`/courses/${res.course?.slug || ""}?quiz=${res.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-full border border-purple-500/25 bg-purple-500/10 px-2.5 py-1 text-xs font-semibold text-purple-400 transition-colors hover:bg-purple-500/20"
+                                title="فتح الكويز في صفحة المادة"
+                              >
+                                <span>✨</span>
+                                <span>{questionCount} سؤال</span>
+                                <span className="text-[10px]">↗</span>
+                              </Link>
+                              <button
+                                onClick={() => handleGenerateQuiz(res)}
+                                disabled={generatingQuizId !== null}
+                                className="rounded-md border border-purple-500/30 bg-purple-500/10 p-1 text-[11px] text-purple-300 hover:bg-purple-500/20 disabled:opacity-50 transition-colors"
+                                title="إعادة توليد بنك الأسئلة عبر الذكاء الاصطناعي"
+                              >
+                                {generatingQuizId === res.id ? (
+                                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+                                ) : (
+                                  "🔄"
+                                )}
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleGenerateQuiz(res)}
+                              disabled={generatingQuizId !== null}
+                              className="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-xs font-medium text-purple-300 hover:bg-purple-500/20 transition-all disabled:opacity-50"
+                              title="توليد كويز تفاعلي لهذا المورد بالذكاء الاصطناعي"
+                            >
+                              {generatingQuizId === res.id ? (
+                                <>
+                                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+                                  <span>جارٍ التوليد...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>⚡</span>
+                                  <span>توليد كويز</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </td>
 
                       {/* Status */}
@@ -663,7 +736,26 @@ export default function AdminResourceManager({
                   </div>
 
                   {/* Actions Bar */}
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                  <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border">
+                    <button
+                      onClick={() => handleGenerateQuiz(res)}
+                      disabled={generatingQuizId !== null}
+                      className="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-300 hover:bg-purple-500/20 disabled:opacity-50"
+                      title={questionCount > 0 ? "إعادة توليد الكويز" : "توليد كويز بالذكاء الاصطناعي"}
+                    >
+                      {generatingQuizId === res.id ? (
+                        <>
+                          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+                          <span>جارٍ التوليد...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>{questionCount > 0 ? "🔄" : "⚡"}</span>
+                          <span>{questionCount > 0 ? "تحديث الكويز" : "توليد كويز"}</span>
+                        </>
+                      )}
+                    </button>
+
                     <Link
                       href={`/r/${res.id}`}
                       target="_blank"

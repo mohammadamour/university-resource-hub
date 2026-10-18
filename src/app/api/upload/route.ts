@@ -56,10 +56,9 @@ async function processFileInBackground(
   rawBuffer: ArrayBuffer,
   resourceId: string,
   courseId: string,
-  generateQuiz: boolean,
-  /** Pre-extracted text from client-side pdfjs. If provided, skips server-side pdf-parse. */
+  /** Pre-extracted text from client-side pdfjs saved in DB for on-demand quiz generation */
   preExtractedText: string | null = null,
-  /** Resource title — used as sourceTitle in quiz metadata */
+  /** Resource title */
   title: string = ""
 ) {
   const supabase = createAdminClient();
@@ -173,18 +172,16 @@ async function processFileInBackground(
         `Size: ${rawBuffer.byteLength} → ${finalSize} bytes (${compressionRatio})`
     );
 
-    // ── Stage 4: Update DB row with storage URL ─────────────────────────────
-    // If a quiz is requested, keep status='processing' so clients know work is still ongoing.
-    // Otherwise, transition straight to status='active'.
-    const initialStatus = generateQuiz ? "processing" : "active";
-
+    // ── Stage 4: Update DB row with storage URL & activate immediately ────────
+    // Decoupled architecture: resources become active immediately upon successful storage upload.
+    // Pre-extracted client text is preserved in source_text so admins can generate quizzes on-demand with zero delay.
     const { error: updateError } = await supabase
       .from("resources")
       .update({
         storage_url: publicUrl,
         file_size_bytes: finalSize,
-        status: initialStatus,
-        source_text: generateQuiz ? "__PENDING_EXTRACTION__" : null,
+        status: "active",
+        source_text: preExtractedText ? preExtractedText.slice(0, 100_000) : null,
       })
       .eq("id", resourceId);
 
@@ -192,156 +189,13 @@ async function processFileInBackground(
       throw new Error(`DB status update failed: ${updateError.message}`);
     }
 
-    // ── Stage 5: AI Quiz Generation (OPTIONAL) ──────────────────────────────
-    if (generateQuiz) {
-      progressBus.publish(resourceId, {
-        stage: "synthesizing",
-        percent: 75,
-        message: "جارٍ تحليل المحتوى وتوليد كويز تفاعلي عبر Gemini 3.8 Flash...",
-      });
-
-      try {
-        let sourceText = preExtractedText;
-
-        if (!sourceText) {
-          console.log(
-            `[pipeline] No pre-extracted text — running server-side pdf-parse for ${resourceId}`
-          );
-          const pdfParseModule = await import("pdf-parse");
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const pdfParse = (pdfParseModule as any).default || pdfParseModule;
-          const pdfData = await pdfParse(Buffer.from(finalBuffer));
-          sourceText = pdfData.text?.trim() ?? null;
-        } else {
-          console.log(
-            `[pipeline] Using pre-extracted client text for ${resourceId} (skipping pdf-parse)`
-          );
-        }
-
-        if (!sourceText || sourceText.length < 50) {
-          console.warn(
-            `[pipeline] Text too short to generate a useful quiz for ${resourceId}. Skipping.`
-          );
-          // Mark active even if text was too short for a quiz
-          await supabase
-            .from("resources")
-            .update({ status: "active", source_text: null })
-            .eq("id", resourceId);
-
-          progressBus.publish(resourceId, {
-            stage: "done",
-            percent: 100,
-            message: "تم حفظ ونشر المورد بنجاح (المحتوى النصي غير كافٍ لإنشاء كويز تلقائي).",
-            resourceId,
-          });
-        } else {
-          const { generateQuizWithGemini, expandQuizWithGemini } = await import(
-            "@/lib/pipeline/gemini-quiz"
-          );
-
-          // ── Phase 1: Rapid In-Flight Generation (10 high-yield questions, ~4-6s) ───
-          const initialQuizData = await generateQuizWithGemini(sourceText, title, 10);
-
-          const { error: quizUpdateError } = await supabase
-            .from("resources")
-            .update({
-              status: "active",
-              quiz_data: initialQuizData,
-              source_text: sourceText.slice(0, 100_000),
-            })
-            .eq("id", resourceId);
-
-          if (quizUpdateError) {
-            console.error(
-              `[pipeline] Failed to save initial quiz_data for ${resourceId}:`,
-              quizUpdateError.message
-            );
-            await supabase
-              .from("resources")
-              .update({ status: "active" })
-              .eq("id", resourceId);
-          } else {
-            console.log(
-              `[pipeline] ✅ Phase 1 Quiz saved: ${initialQuizData.questions.length} questions ready for ${resourceId}.`
-            );
-          }
-
-          // Release the client immediately! The uploader gets 100% completion & green checkmark
-          progressBus.publish(resourceId, {
-            stage: "done",
-            percent: 100,
-            message: `اكتملت جميع المراحل بنجاح! تم إنشاء بنك أسئلة فوري يضم ${initialQuizData.questions.length} أسئلة تفاعلية.`,
-            resourceId,
-          });
-
-          // ── Phase 2: Asynchronous Background Expansion (+15 to +20 questions) ───────
-          // Only triggers for substantial summaries (>= 8,000 characters).
-          // Runs non-blockingly inside Next.js after() context without affecting the user's completed screen.
-          if (sourceText.length >= 8_000) {
-            try {
-              const additionalTarget = sourceText.length > 25_000 ? 20 : 15;
-              console.log(
-                `[pipeline] Initiating Phase 2 background expansion (+${additionalTarget} questions) for ${resourceId}...`
-              );
-
-              const expandedQuizData = await expandQuizWithGemini(
-                sourceText,
-                title,
-                initialQuizData,
-                additionalTarget
-              );
-
-              const { error: expansionUpdateError } = await supabase
-                .from("resources")
-                .update({ quiz_data: expandedQuizData })
-                .eq("id", resourceId);
-
-              if (expansionUpdateError) {
-                console.warn(
-                  `[pipeline] Phase 2 expansion DB save failed for ${resourceId}:`,
-                  expansionUpdateError.message
-                );
-              } else {
-                console.log(
-                  `[pipeline] 🚀 Phase 2 expansion complete: ${expandedQuizData.questions.length} total questions available for ${resourceId}.`
-                );
-              }
-            } catch (expansionErr) {
-              // Non-fatal: Phase 1 questions remain safe and sound in the database
-              console.warn(
-                `[pipeline] Phase 2 expansion skipped for ${resourceId}:`,
-                expansionErr
-              );
-            }
-          }
-        }
-      } catch (quizError) {
-        // Quiz failure is non-fatal — resource is promoted to active without a quiz
-        console.error(
-          `[pipeline] Quiz generation failed for ${resourceId} (resource remains active):`,
-          quizError
-        );
-        await supabase
-          .from("resources")
-          .update({ status: "active", source_text: null })
-          .eq("id", resourceId);
-
-        progressBus.publish(resourceId, {
-          stage: "done",
-          percent: 100,
-          message: "تم نشر المستند بنجاح (تعذر توليد الكويز تلقائياً).",
-          resourceId,
-        });
-      }
-    } else {
-      // No quiz requested — fully complete
-      progressBus.publish(resourceId, {
-        stage: "done",
-        percent: 100,
-        message: "تم حفظ المورد ونشره بنجاح في قاعدة البيانات!",
-        resourceId,
-      });
-    }
+    // ── Stage 5: Notify client of 100% completion ─────────────────────────────
+    progressBus.publish(resourceId, {
+      stage: "done",
+      percent: 100,
+      message: "تم حفظ المستند، تضمين العلامة المرجعية، ونشره بنجاح للطلاب!",
+      resourceId,
+    });
 
     console.log(
       `[pipeline] ✅ Resource ${resourceId} is now active. URL: ${publicUrl}`
@@ -510,7 +364,7 @@ export async function POST(req: Request) {
   // or destroy the container before the background processing completes, while still
   // allowing us to return an instant 202 Accepted response to the browser.
   after(async () => {
-    await processFileInBackground(rawBuffer, resourceId, courseId, generateQuiz, sourceText, title);
+    await processFileInBackground(rawBuffer, resourceId, courseId, sourceText, title);
   });
 
   // ── Respond immediately ───────────────────────────────────────────────────────
@@ -523,7 +377,7 @@ export async function POST(req: Request) {
       status: "processing",
       message:
         "Resource record created. Background pipeline has been started — file will be available shortly.",
-      quizPending: generateQuiz, // Let the client know to expect quiz data
+      quizPending: false, // Quizzes are managed on-demand via the Admin panel
     },
     { status: 202 } // 202 Accepted = "we received it, work is in progress"
   );

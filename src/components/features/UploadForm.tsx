@@ -19,17 +19,16 @@ export interface UploadCourse {
 }
 
 export interface PipelineStep {
-  id: "upload" | "process" | "quiz" | "save";
+  id: "upload" | "process" | "save";
   label: string;
   description: string;
   icon: string;
 }
 
 const PIPELINE_STEPS: PipelineStep[] = [
-  { id: "upload", label: "الرفع والتخزين", description: "نقل الملف إلى السحابة", icon: "⬆️" },
-  { id: "process", label: "الضغط والتنقية", description: "تقليص الحجم لـ 150 DPI", icon: "🔧" },
-  { id: "quiz", label: "الكويز التفاعلي", description: "تحليل وتوليد الأسئلة بـ Gemini", icon: "✨" },
-  { id: "save", label: "الحفظ والنشر", description: "اعتماد المورد وإتاحته للطلاب", icon: "🚀" },
+  { id: "upload", label: "فحص ورفع الملف", description: "التحقق من سلامة ونقل الملف للسحابة", icon: "⬆️" },
+  { id: "process", label: "العلامة المرجعية", description: "تضمين رابط المورد الدائم molakhasat.me/r/:id", icon: "🔖" },
+  { id: "save", label: "الحفظ والنشر", description: "اعتماد المورد وإتاحته فوراً للطلاب", icon: "🚀" },
 ];
 
 const RESOURCE_TYPES: { value: ResourceType; label: string; emoji: string }[] = [
@@ -53,7 +52,6 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [title, setTitle] = useState("");
   const [resourceType, setResourceType] = useState<ResourceType>("summary");
-  const [generateQuiz, setGenerateQuiz] = useState(true);
   const [file, setFile] = useState<File | null>(null);
 
   // Eager text extraction state (speculative: runs as soon as file + quiz toggle are set)
@@ -214,20 +212,16 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
       formData.append("courseId", selectedCourseId);
       formData.append("title", title.trim());
       formData.append("type", resourceType);
-      formData.append("generateQuiz", String(generateQuiz));
 
-      // Attach eagerly-extracted text if available — server skips its own extraction
-      if (generateQuiz && extractedSourceText) {
+      // Attach eagerly-extracted text if available so it is preserved in DB for on-demand quizzes
+      if (extractedSourceText) {
         formData.append("sourceText", extractedSourceText);
       }
 
       // Update to Step 1 (Upload)
       setCurrentStepIndex(0);
       setProgressPercent(30);
-      const extractHint =
-        generateQuiz && extractedSourceText
-          ? " (النص مُستخرَج مسبقاً ✓)"
-          : "";
+      const extractHint = extractedSourceText ? " (النص مُستخرَج مسبقاً ✓)" : "";
       setStatusLog(`جارٍ رفع الملف إلى خوادم التخزين...${extractHint}`);
 
       const response = await fetch("/api/upload", {
@@ -277,18 +271,14 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
 
                 if (eventData.stage === "uploading") {
                   setCurrentStepIndex(0);
-                  setProgressPercent(eventData.percent ?? 25);
+                  setProgressPercent(eventData.percent ?? 30);
                   if (eventData.message) setStatusLog(eventData.message);
                 } else if (eventData.stage === "processing") {
                   setCurrentStepIndex(1);
-                  setProgressPercent(eventData.percent ?? 50);
-                  if (eventData.message) setStatusLog(eventData.message);
-                } else if (eventData.stage === "synthesizing") {
-                  setCurrentStepIndex(2);
-                  setProgressPercent(eventData.percent ?? 75);
+                  setProgressPercent(eventData.percent ?? 65);
                   if (eventData.message) setStatusLog(eventData.message);
                 } else if (eventData.stage === "done") {
-                  setCurrentStepIndex(3);
+                  setCurrentStepIndex(2);
                   setProgressPercent(100);
                   setStatusLog(eventData.message || "اكتملت جميع مراحل المعالجة بنجاح!");
                   const finalId = eventData.resourceId || resourceId;
@@ -307,7 +297,7 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
         }
       } else {
         // Fallback if SSE stream could not be established
-        setCurrentStepIndex(3);
+        setCurrentStepIndex(2);
         setProgressPercent(100);
         setStatusLog("تم تسجيل المورد وجارٍ إتاحته في المنصة.");
         setSuccessResourceId(resourceId);
@@ -320,7 +310,6 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
         setTitle("");
         // Keep selectedCourseId so admin can upload multiple resources for the same course smoothly
         setResourceType("summary");
-        setGenerateQuiz(true);
         setIsSubmitting(false);
         setCurrentStepIndex(-1);
         setProgressPercent(0);
@@ -466,9 +455,6 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
               type="button"
               onClick={() => {
                 setResourceType(value);
-                if (value === "summary") {
-                  setGenerateQuiz(true);
-                }
               }}
               disabled={isSubmitting}
               aria-pressed={resourceType === value}
@@ -557,51 +543,18 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
         />
       </div>
 
-      {/* ── 5. AI Quiz Toggle ──────────────────────────────────────── */}
-      <div className="flex items-center justify-between rounded-xl border border-border bg-secondary/50 px-4 py-3">
+      {/* ── 5. Admin Quiz Notice ───────────────────────────────────── */}
+      <div className="flex items-center gap-3 rounded-xl border border-purple-500/20 bg-purple-500/5 px-4 py-3 text-xs text-muted-foreground">
+        <span className="text-xl">✨</span>
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium text-foreground">
-            توليد بنك أسئلة وكويز تفاعلي بالذكاء الاصطناعي ✨
+          <span className="font-semibold text-foreground">
+            توليد بنوك الأسئلة والكويزات
           </span>
-          <span className="text-xs text-muted-foreground">
-            {generateQuiz
-              ? extractionStatus === "extracting"
-                ? "⏳ جارٍ استخراج النص من الـ PDF مسبقاً في الخلفية..."
-                : extractionStatus === "done"
-                ? "✅ تم استخراج النص مسبقاً — جاهز لتوليد بنك الأسئلة فور الرفع"
-                : extractionStatus === "failed"
-                ? "⚠️ PDF مسحوب ضوئياً — سيتم الاستخراج المباشر عبر الخادم"
-                : "ينشئ بنك أسئلة شامل ومتدرج الصعوبة (15 إلى 50 سؤالاً) يغطي كامل المادة"
-              : extractionStatus === "done"
-              ? "✨ النص مستخرج ومحفوظ إذا أردت تفعيل توليد الأسئلة"
-              : "توليد بنك أسئلة تفاعلي متعدد الصعوبات عبر Gemini 3.8 Flash"}
+          <span>
+            يتم توليد الكويزات التفاعلية للملخصات المختارة مباشرة عبر لوحة إدارة الموارد، لتوفير السرعة القصوى أثناء الرفع وضمان أعلى جودة للأسئلة.
           </span>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={generateQuiz}
-          id="upload-generate-quiz"
-          onClick={() => setGenerateQuiz((prev) => !prev)}
-          disabled={isSubmitting}
-          className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
-            generateQuiz ? "bg-accent" : "bg-border"
-          }`}
-        >
-          <span
-            className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-sm transition-transform duration-200`}
-            style={{
-              transform: generateQuiz ? "translateX(-20px)" : "translateX(0)",
-            }}
-          />
-        </button>
       </div>
-
-      {generateQuiz && extractionStatus !== "extracting" && (
-        <p className="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-xs text-muted-foreground">
-          ✨ مفعّل تلقائياً للملخصات: سيقوم النظام بمسح كامل المادة وتوليد بنك أسئلة تفاعلي متعدد المستويات للطلاب.
-        </p>
-      )}
 
       {/* ── Progressive Pipeline Progress Stepper ──────────────────── */}
       {isSubmitting && (
@@ -625,23 +578,19 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
           </div>
 
           {/* Stepper Pills */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {PIPELINE_STEPS.map((step, idx) => {
               const isPast = idx < currentStepIndex;
               const isCurrent = idx === currentStepIndex;
-              const isFuture = idx > currentStepIndex;
-              const isSkippedQuiz = step.id === "quiz" && !generateQuiz;
 
               return (
                 <div
                   key={step.id}
                   className={`flex flex-col items-start gap-1 rounded-xl border p-2.5 text-xs transition-all ${
-                    isPast || (isCompleted && !isSkippedQuiz)
+                    isPast || isCompleted
                       ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400"
                       : isCurrent
                       ? "border-accent bg-accent/10 text-accent font-semibold shadow-xs"
-                      : isSkippedQuiz
-                      ? "border-border/40 bg-secondary/30 text-muted-foreground/60"
                       : "border-border/60 bg-secondary/40 text-muted-foreground"
                   }`}
                 >
@@ -650,7 +599,7 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
                     <span className="font-medium truncate">{step.label}</span>
                   </div>
                   <span className="text-[10px] text-muted-foreground truncate">
-                    {isSkippedQuiz ? "تم التخطي (معطل)" : step.description}
+                    {step.description}
                   </span>
                 </div>
               );

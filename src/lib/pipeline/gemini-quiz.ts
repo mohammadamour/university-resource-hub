@@ -8,89 +8,106 @@ try {
   // Ignored in non-Node environments
 }
 
-const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent";
+/**
+ * Candidate models in order of priority.
+ * gemini-3.5-flash has proven high availability and quota.
+ * gemini-flash-lite-latest is an ultra-fast fallback.
+ */
+const CANDIDATE_MODELS = [
+  "gemini-3.5-flash",
+  "gemini-flash-lite-latest",
+  "gemini-3.8-flash",
+];
 
-const MAX_RETRIES = 2;
-const RETRY_DELAY_MS = 1500;
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function getApiKeys(): string[] {
+  const raw = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || "";
+  return raw
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
 }
 
 /**
- * Calculates optimal question bank size based on source text density.
- *
- * RULES:
- * - < 8,000 chars   (~1-4 pages): 10 questions (Phase 1 only)
- * - 8,000 - 25,000  (~5-12 pages): 10 Phase 1 + 15 Phase 2 = 25 questions total
- * - > 25,000 chars  (13+ pages): 10 Phase 1 + 20 Phase 2 = 30 questions total
+ * Robust caller for Google Gemini REST API.
+ * Features:
+ *  - Automatic multi-key pool failover (switches keys instantly on 429 quota exhaustion)
+ *  - Model fallback chain (switches to fast-lite if primary model has issues)
+ *  - thinkingBudget: 0 to eliminate 15-second reasoning token lag
+ *  - Deterministic JSON mode
  */
-export function calculateDynamicBankSize(charCount: number): number {
-  if (charCount < 8_000) return 10;
-  if (charCount < 25_000) return 25;
-  return 30;
-}
+async function callGemini(prompt: string): Promise<string> {
+  const keys = getApiKeys();
+  if (keys.length === 0) {
+    throw new Error(
+      "Missing GEMINI_API_KEY or GEMINI_API_KEYS in .env.local. Please configure at least one key."
+    );
+  }
 
-/**
- * Helper to call Gemini REST API with retry, low temperature, and strict JSON mode.
- */
-async function callGemini(prompt: string, apiKey: string): Promise<string> {
-  let response: Response | null = null;
   let lastError = "";
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.25, // Deterministic JSON output
-          responseMimeType: "application/json",
-        },
-      }),
-    });
+  // Try each API key in the pool (e.g., your 3 Google accounts)
+  for (let keyIdx = 0; keyIdx < keys.length; keyIdx++) {
+    const apiKey = keys[keyIdx];
 
-    if (response.ok) {
-      break;
+    // Try candidate models
+    for (const model of CANDIDATE_MODELS) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.25,
+              responseMimeType: "application/json",
+              thinkingConfig: {
+                thinkingBudget: 0, // Eliminate 15s internal reasoning latency
+              },
+            },
+          }),
+        });
+
+        if (response.ok) {
+          const json = await response.json();
+          const rawText: string | undefined =
+            json?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+          if (!rawText) {
+            throw new Error("Gemini returned empty parts in response.");
+          }
+
+          // Strip any accidental markdown fences
+          return rawText
+            .trim()
+            .replace(/^```json\s*/i, "")
+            .replace(/\s*```$/, "");
+        }
+
+        const errorBody = await response.text();
+        lastError = `[${model}] HTTP ${response.status}: ${errorBody.slice(0, 200)}`;
+
+        // If daily quota exhausted (429 RESOURCE_EXHAUSTED), immediately switch to next API key!
+        if (response.status === 429) {
+          console.warn(
+            `[gemini-quiz] Key #${keyIdx + 1} hit quota on ${model}. Failing over to next key...`
+          );
+          break; // Break model loop, try next API key in pool
+        }
+
+        // If 404 (model deprecated), try next model immediately
+        if (response.status === 404) {
+          continue;
+        }
+      } catch (networkErr) {
+        lastError = `Network error calling ${model}: ${networkErr instanceof Error ? networkErr.message : String(networkErr)}`;
+        console.warn(`[gemini-quiz] ${lastError}`);
+      }
     }
-
-    lastError = await response.text();
-    // Retry on transient high load (503) or rate limit (429)
-    if ((response.status === 503 || response.status === 429) && attempt < MAX_RETRIES) {
-      const delay = RETRY_DELAY_MS * (attempt + 1);
-      console.warn(
-        `[gemini-quiz] Attempt ${attempt + 1} got ${response.status}. Retrying in ${delay}ms...`
-      );
-      await sleep(delay);
-      continue;
-    }
-
-    throw new Error(
-      `Gemini API error [${response.status}]: ${lastError.slice(0, 300)}`
-    );
   }
 
-  if (!response || !response.ok) {
-    throw new Error(`Gemini API call failed: ${lastError.slice(0, 300)}`);
-  }
-
-  const json = await response.json();
-  const rawText: string | undefined =
-    json?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!rawText) {
-    throw new Error(
-      "Gemini returned an empty response. Check your API quota or prompt."
-    );
-  }
-
-  // Strip accidental markdown fences
-  return rawText
-    .trim()
-    .replace(/^```json\s*/i, "")
-    .replace(/\s*```$/, "");
+  throw new Error(`All Gemini API keys and models failed. Last error: ${lastError}`);
 }
 
 /**
@@ -231,19 +248,12 @@ export async function generateQuizWithGemini(
   sourceTitle: string,
   targetCount: number = 10
 ): Promise<QuizData> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      "Missing GEMINI_API_KEY env var. Add it to .env.local to enable quiz generation."
-    );
-  }
-
   console.log(
     `[gemini-quiz] [Phase 1] Generating core bank of ${targetCount} questions for "${sourceTitle}"`
   );
 
   const prompt = buildPrompt(extractedText, sourceTitle, targetCount);
-  const rawJson = await callGemini(prompt, apiKey);
+  const rawJson = await callGemini(prompt);
 
   let parsed: unknown;
   try {
@@ -267,10 +277,6 @@ export async function expandQuizWithGemini(
   existingQuiz: QuizData,
   targetAdditionalCount: number = 15
 ): Promise<QuizData> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("Missing GEMINI_API_KEY env var for quiz expansion.");
-  }
 
   const existingQuestions = existingQuiz.questions || [];
   const coveredTopics = Array.from(
@@ -329,7 +335,7 @@ RETURN ONLY VALID RAW JSON with NO markdown fences, NO backticks:
 ACADEMIC MATERIAL:
 ${material}`;
 
-  const rawJson = await callGemini(prompt, apiKey);
+  const rawJson = await callGemini(prompt);
   let parsed: unknown;
   try {
     parsed = JSON.parse(rawJson);
