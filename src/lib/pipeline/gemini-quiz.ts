@@ -313,15 +313,31 @@ export async function generateQuizWithGemini(
 }
 
 /**
- * Phase 2: Asynchronous background expansion (+15 to +20 complementary questions).
+ * Automatically computes a safe, non-hallucinating expansion count based on content length.
+ * - Short summaries (< 8,000 chars): 8 high-yield questions
+ * - Medium summaries (8,000 - 25,000 chars): 12 questions
+ * - Deep/Booklet summaries (25,000+ chars): 18 questions
+ */
+export function calculateDynamicExpansionCount(textLength: number): number {
+  if (textLength < 8_000) return 8;
+  if (textLength < 25_000) return 12;
+  return 18;
+}
+
+/**
+ * Phase 2: Asynchronous on-demand expansion (dynamically sized based on material depth).
  * Generates non-duplicate questions covering remaining sections and appends them to existing bank.
  */
 export async function expandQuizWithGemini(
   extractedText: string,
   sourceTitle: string,
   existingQuiz: QuizData,
-  targetAdditionalCount: number = 15
+  targetAdditionalCount?: number
 ): Promise<QuizData> {
+  const effectiveCount =
+    typeof targetAdditionalCount === "number" && targetAdditionalCount > 0
+      ? targetAdditionalCount
+      : calculateDynamicExpansionCount(extractedText.length);
 
   const existingQuestions = existingQuiz.questions || [];
   const coveredTopics = Array.from(
@@ -329,27 +345,27 @@ export async function expandQuizWithGemini(
   ).join("، ");
 
   const sampleExisting = existingQuestions
-    .slice(0, 5)
+    .slice(0, 8)
     .map((q) => `- ${q.question}`)
     .join("\n");
 
   const material = extractedText.slice(0, 300_000);
-  const easyCount = Math.round(targetAdditionalCount * 0.3);
-  const medCount = Math.round(targetAdditionalCount * 0.4);
-  const hardCount = targetAdditionalCount - easyCount - medCount;
+  const easyCount = Math.round(effectiveCount * 0.3);
+  const medCount = Math.round(effectiveCount * 0.4);
+  const hardCount = effectiveCount - easyCount - medCount;
 
   console.log(
-    `[gemini-quiz] [Phase 2] Expanding bank with +${targetAdditionalCount} complementary questions for "${sourceTitle}"`
+    `[gemini-quiz] [Phase 2] Expanding bank with +${effectiveCount} complementary questions for "${sourceTitle}" (Material: ${extractedText.length} chars)`
   );
 
   const prompt = `You are an expert academic curriculum designer expanding an existing university exam question bank.
-We already generated Part 1 of the quiz for "${sourceTitle}".
+We already generated ${existingQuestions.length} questions for "${sourceTitle}".
 Topics already covered: ${coveredTopics || "None specified"}.
-Sample existing questions:
+Sample existing questions (DO NOT REPEAT OR REPHRASE THESE):
 ${sampleExisting}
 
 YOUR TASK:
-Generate exactly ${targetAdditionalCount} NEW, complementary multiple choice questions that DO NOT duplicate existing questions. Focus on uncovered chapters, deeper calculations, application problems, and exam edge cases.
+Generate exactly ${effectiveCount} NEW, complementary multiple choice questions that DO NOT duplicate existing questions. Focus on uncovered chapters, deeper calculations, application problems, and exam edge cases.
 
 DISTRIBUTION:
 - Exactly ${easyCount} "easy" questions
@@ -398,7 +414,7 @@ ${material}`;
   const validNewQuestions: QuizData["questions"] = [];
   const startIndex = existingQuestions.length;
 
-  for (const [i, q] of rawQuestions.entries()) {
+  for (const [, q] of rawQuestions.entries()) {
     if (typeof q !== "object" || q === null) continue;
     const question = q as Record<string, unknown>;
 

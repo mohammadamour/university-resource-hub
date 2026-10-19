@@ -140,9 +140,10 @@ export default function AdminResourceManager({
 
   // On-demand AI Quiz Generation state
   const [generatingQuizId, setGeneratingQuizId] = useState<string | null>(null);
+  const [expandingQuizId, setExpandingQuizId] = useState<string | null>(null);
 
   const handleGenerateQuiz = async (res: AdminResourceItem) => {
-    if (generatingQuizId) return;
+    if (generatingQuizId || expandingQuizId) return;
     setGeneratingQuizId(res.id);
 
     try {
@@ -175,6 +176,47 @@ export default function AdminResourceManager({
       );
     } finally {
       setGeneratingQuizId(null);
+    }
+  };
+
+  const handleExpandQuiz = async (res: AdminResourceItem) => {
+    if (expandingQuizId || generatingQuizId) return;
+    setExpandingQuizId(res.id);
+
+    try {
+      const response = await fetch(`/api/admin/resources/${res.id}/quiz`, {
+        method: "POST",
+        headers: {
+          "x-admin-secret": adminSecret,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "expand" }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "فشل توسيع بنك الأسئلة.");
+      }
+
+      // Update state in-place with the expanded quiz bank
+      setResources((prev) =>
+        prev.map((r) =>
+          r.id === res.id ? { ...r, quiz_data: data.quizData } : r
+        )
+      );
+
+      showNotification(
+        "success",
+        data.message || `تم توسيع بنك الأسئلة للمورد: "${res.title}"`
+      );
+    } catch (err) {
+      showNotification(
+        "error",
+        err instanceof Error ? err.message : "حدث خطأ أثناء توسيع بنك الأسئلة."
+      );
+    } finally {
+      setExpandingQuizId(null);
     }
   };
 
@@ -590,18 +632,35 @@ export default function AdminResourceManager({
                                 <span>{questionCount} سؤال</span>
                                 <span className="text-[10px]">↗</span>
                               </Link>
-                              <button
-                                onClick={() => handleGenerateQuiz(res)}
-                                disabled={generatingQuizId !== null}
-                                className="rounded-md border border-purple-500/30 bg-purple-500/10 p-1 text-[11px] text-purple-300 hover:bg-purple-500/20 disabled:opacity-50 transition-colors"
-                                title="إعادة توليد بنك الأسئلة عبر الذكاء الاصطناعي"
-                              >
-                                {generatingQuizId === res.id ? (
-                                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
-                                ) : (
-                                  "🔄"
-                                )}
-                              </button>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleExpandQuiz(res)}
+                                  disabled={expandingQuizId !== null || generatingQuizId !== null}
+                                  className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+                                  title="توسيع بنك الأسئلة بأسئلة ذكية إضافية غير مكررة"
+                                >
+                                  {expandingQuizId === res.id ? (
+                                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+                                  ) : (
+                                    <>
+                                      <span>➕</span>
+                                      <span>توسيع</span>
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => handleGenerateQuiz(res)}
+                                  disabled={generatingQuizId !== null || expandingQuizId !== null}
+                                  className="rounded-md border border-purple-500/30 bg-purple-500/10 p-1 text-[11px] text-purple-300 hover:bg-purple-500/20 disabled:opacity-50 transition-colors"
+                                  title="إعادة توليد بنك الأسئلة من الصفر"
+                                >
+                                  {generatingQuizId === res.id ? (
+                                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+                                  ) : (
+                                    "🔄"
+                                  )}
+                                </button>
+                              </div>
                             </>
                           ) : (
                             <button
@@ -737,9 +796,30 @@ export default function AdminResourceManager({
 
                   {/* Actions Bar */}
                   <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border">
+                    {questionCount > 0 && (
+                      <button
+                        onClick={() => handleExpandQuiz(res)}
+                        disabled={expandingQuizId !== null || generatingQuizId !== null}
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
+                        title="توسيع بنك الأسئلة بأسئلة ذكية إضافية غير مكررة"
+                      >
+                        {expandingQuizId === res.id ? (
+                          <>
+                            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+                            <span>جارٍ التوسيع...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>➕</span>
+                            <span>توسيع</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
                     <button
                       onClick={() => handleGenerateQuiz(res)}
-                      disabled={generatingQuizId !== null}
+                      disabled={generatingQuizId !== null || expandingQuizId !== null}
                       className="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-300 hover:bg-purple-500/20 disabled:opacity-50"
                       title={questionCount > 0 ? "إعادة توليد الكويز" : "توليد كويز بالذكاء الاصطناعي"}
                     >
@@ -751,7 +831,7 @@ export default function AdminResourceManager({
                       ) : (
                         <>
                           <span>{questionCount > 0 ? "🔄" : "⚡"}</span>
-                          <span>{questionCount > 0 ? "تحديث الكويز" : "توليد كويز"}</span>
+                          <span>{questionCount > 0 ? "إعادة ضبط" : "توليد كويز"}</span>
                         </>
                       )}
                     </button>

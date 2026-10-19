@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import dns from "node:dns";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { generateQuizWithGemini } from "@/lib/pipeline/gemini-quiz";
+import {
+  generateQuizWithGemini,
+  expandQuizWithGemini,
+} from "@/lib/pipeline/gemini-quiz";
 
 // Enforce IPv4 to bypass Windows / Jordanian ISP IPv6 black-hole
 try {
@@ -15,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/admin/resources/[id]/quiz
- * Generates or regenerates an AI question bank for an existing resource on-demand.
+ * Generates, regenerates, or expands an AI question bank for an existing resource on-demand.
  */
 export async function POST(
   req: Request,
@@ -34,7 +37,7 @@ export async function POST(
   // 1. Fetch resource record
   const { data: resource, error: fetchError } = await supabase
     .from("resources")
-    .select("id, title, storage_url, source_text, course_id, type")
+    .select("id, title, storage_url, source_text, course_id, type, quiz_data")
     .eq("id", id)
     .single();
 
@@ -98,14 +101,35 @@ export async function POST(
     );
   }
 
-  // 3. Generate structured quiz via hardened Gemini engine (15 questions target)
+  // Parse optional JSON body
+  const body = await req.json().catch(() => ({}));
+  const isExpand = body?.action === "expand";
+  const customCount = typeof body?.count === "number" ? body.count : undefined;
+
+  // 3. Generate or Expand structured quiz via hardened Gemini engine
   try {
-    const quizData = await generateQuizWithGemini(sourceText, resource.title, 15);
+    let finalQuizData;
+    let addedCount = 0;
+    const existingQuestionsCount = resource.quiz_data?.questions?.length || 0;
+
+    if (isExpand && existingQuestionsCount > 0) {
+      finalQuizData = await expandQuizWithGemini(
+        sourceText,
+        resource.title,
+        resource.quiz_data,
+        customCount
+      );
+      addedCount = finalQuizData.questions.length - existingQuestionsCount;
+    } else {
+      // Baseline generation (15 questions default, or custom count)
+      finalQuizData = await generateQuizWithGemini(sourceText, resource.title, customCount || 15);
+      addedCount = finalQuizData.questions.length;
+    }
 
     // 4. Save quiz_data atomically to the resource
     const { error: updateError } = await supabase
       .from("resources")
-      .update({ quiz_data: quizData })
+      .update({ quiz_data: finalQuizData })
       .eq("id", id);
 
     if (updateError) {
@@ -114,16 +138,19 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      quizData,
-      count: quizData.questions.length,
-      message: `تم توليد بنك الأسئلة بنجاح يضم ${quizData.questions.length} سؤالاً تفاعلياً!`,
+      quizData: finalQuizData,
+      count: finalQuizData.questions.length,
+      added: addedCount,
+      message: isExpand
+        ? `تم توسيع بنك الأسئلة بإضافة ${addedCount} أسئلة جديدة! الإجمالي الآن: ${finalQuizData.questions.length} سؤالاً.`
+        : `تم توليد بنك الأسئلة بنجاح يضم ${finalQuizData.questions.length} سؤالاً تفاعلياً!`,
     });
   } catch (aiErr) {
-    console.error(`[admin-quiz] Failed to generate quiz for ${id}:`, aiErr);
+    console.error(`[admin-quiz] Failed to process quiz for ${id}:`, aiErr);
     return NextResponse.json(
       {
         error:
-          aiErr instanceof Error ? aiErr.message : "فشل توليد الكويز عبر الذكاء الاصطناعي.",
+          aiErr instanceof Error ? aiErr.message : "فشل توليد أو توسيع الكويز عبر الذكاء الاصطناعي.",
       },
       { status: 500 }
     );
