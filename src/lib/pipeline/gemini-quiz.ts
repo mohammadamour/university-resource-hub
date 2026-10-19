@@ -65,6 +65,39 @@ function getOrderedCandidateKeys(): string[] {
 }
 
 /**
+ * Defensively extracts the JSON string from raw LLM output,
+ * stripping markdown fences or conversational preambles.
+ */
+function extractJsonString(rawText: string): string {
+  const trimmed = rawText.trim();
+  const unquoted = trimmed
+    .replace(/^```json\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+
+  if (
+    (unquoted.startsWith("{") && unquoted.endsWith("}")) ||
+    (unquoted.startsWith("[") && unquoted.endsWith("]"))
+  ) {
+    return unquoted;
+  }
+
+  const firstBrace = unquoted.indexOf("{");
+  const lastBrace = unquoted.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    return unquoted.slice(firstBrace, lastBrace + 1);
+  }
+
+  const firstBracket = unquoted.indexOf("[");
+  const lastBracket = unquoted.lastIndexOf("]");
+  if (firstBracket !== -1 && lastBracket > firstBracket) {
+    return unquoted.slice(firstBracket, lastBracket + 1);
+  }
+
+  return unquoted;
+}
+
+/**
  * Robust caller for Google Gemini REST API.
  * Features:
  *  - Round-robin load balancing across all configured accounts
@@ -122,11 +155,8 @@ async function callGemini(prompt: string): Promise<string> {
           roundRobinIndex = (roundRobinIndex + 1) % candidateKeys.length;
           keyCooldowns.delete(apiKey);
 
-          // Strip any accidental markdown fences
-          return rawText
-            .trim()
-            .replace(/^```json\s*/i, "")
-            .replace(/\s*```$/, "");
+          // Defensively extract and clean JSON
+          return extractJsonString(rawText);
         }
 
         const errorBody = await response.text();
@@ -399,20 +429,39 @@ ${material}`;
   const rawJson = await callGemini(prompt);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(rawJson);
-  } catch {
-    console.warn(`[gemini-quiz] Phase 2 returned invalid JSON, preserving Phase 1 bank.`);
-    return existingQuiz;
+    const cleanJson = extractJsonString(rawJson);
+    parsed = JSON.parse(cleanJson);
+  } catch (parseErr) {
+    console.error(`[gemini-quiz] Phase 2 JSON parse error:`, parseErr);
+    throw new Error(`فشل تحليل استجابة الذكاء الاصطناعي أثناء التوسيع: ${rawJson.slice(0, 150)}...`);
   }
 
   if (typeof parsed !== "object" || parsed === null) {
-    return existingQuiz;
+    throw new Error("استجابة الذكاء الاصطناعي ليست كائناً صالحاً.");
   }
 
-  const obj = parsed as Record<string, unknown>;
-  const rawQuestions = Array.isArray(obj.questions) ? obj.questions : [];
+  let rawQuestions: unknown[] = [];
+  if (Array.isArray(parsed)) {
+    rawQuestions = parsed;
+  } else {
+    const obj = parsed as Record<string, unknown>;
+    if (Array.isArray(obj.questions)) {
+      rawQuestions = obj.questions;
+    } else if (Array.isArray(obj.new_questions)) {
+      rawQuestions = obj.new_questions;
+    } else if (Array.isArray(obj.quiz)) {
+      rawQuestions = obj.quiz;
+    } else {
+      for (const val of Object.values(obj)) {
+        if (Array.isArray(val) && val.length > 0) {
+          rawQuestions = val;
+          break;
+        }
+      }
+    }
+  }
+
   const validNewQuestions: QuizData["questions"] = [];
-  const startIndex = existingQuestions.length;
 
   for (const [, q] of rawQuestions.entries()) {
     if (typeof q !== "object" || q === null) continue;
@@ -452,8 +501,8 @@ ${material}`;
   }
 
   if (validNewQuestions.length === 0) {
-    console.warn("[gemini-quiz] Phase 2 produced 0 valid questions, keeping Phase 1.");
-    return existingQuiz;
+    console.error("[gemini-quiz] Phase 2 produced 0 valid questions. Raw was:", rawJson.slice(0, 300));
+    throw new Error("لم ينتج الذكاء الاصطناعي أي أسئلة صالحة إضافية متطابقة مع المعايير.");
   }
 
   console.log(

@@ -110,16 +110,33 @@ export async function POST(
   try {
     let finalQuizData;
     let addedCount = 0;
-    const existingQuestionsCount = resource.quiz_data?.questions?.length || 0;
+
+    // Safely parse existing quiz_data in case Supabase returns it as a string
+    let existingQuizData = resource.quiz_data;
+    if (typeof existingQuizData === "string") {
+      try {
+        existingQuizData = JSON.parse(existingQuizData);
+      } catch {
+        existingQuizData = null;
+      }
+    }
+
+    const existingQuestionsCount = Array.isArray(existingQuizData?.questions)
+      ? existingQuizData.questions.length
+      : 0;
 
     if (isExpand && existingQuestionsCount > 0) {
       finalQuizData = await expandQuizWithGemini(
         sourceText,
         resource.title,
-        resource.quiz_data,
+        existingQuizData,
         customCount
       );
       addedCount = finalQuizData.questions.length - existingQuestionsCount;
+
+      if (addedCount <= 0) {
+        throw new Error("لم يتمكن الذكاء الاصطناعي من إضافة أسئلة جديدة غير مكررة لهذه المادة.");
+      }
     } else {
       // Baseline generation (15 questions default, or custom count)
       finalQuizData = await generateQuizWithGemini(sourceText, resource.title, customCount || 15);
