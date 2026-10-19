@@ -297,14 +297,15 @@ POST /api/upload
 
 ---
 
-### 2.8 Auto-Watermarking Engine (The Organic Referral Loop)
+### 2.8 Auto-Watermarking Engine (The Branded Pill Badge & Organic Referral Loop)
 
 - **File:** [`src/lib/pipeline/watermark.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/watermark.ts) & [`src/app/api/upload/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/upload/route.ts)
-- **The Strategy:** Directly implements the viral growth loop from the README vision: when students download and forward summaries in private WhatsApp or Telegram groups, each page carries a subtle, permanent attribution stamp (`Indexed via Molakhasat • molakhasat.com — Academic Resource Hub`).
-- **Pure JavaScript Implementation (`pdf-lib`):**
-  - Requires **zero C++ binaries**, making it 100% portable across Windows, Linux, Docker, and Vercel Serverless.
-  - Dynamically calculates `(pageWidth - textWidth) / 2` to center the footer horizontally across any document aspect ratio (A4, Letter, custom scans).
-  - Uses `StandardFonts.Helvetica` with subtle opacity (`0.55`) and slate-gray tint (`rgb(0.35, 0.42, 0.52)`) positioned at `y = 14`, ensuring lecture content and diagrams are never occluded.
+- **The Strategy:** Directly implements the viral growth loop from the README vision: when students download and forward summaries in private WhatsApp or Telegram groups, every page carries a high-contrast, clickable attribution badge (`✦ molakhasat.me • Resources & Summaries`).
+- **Branded Pill Badge Architecture:**
+  - **High-Contrast Dark Container:** Stamped as a deep slate-950 capsule (`rgb(0.06, 0.09, 0.15)`, opacity `0.92`) with a subtle slate-600 border (`rgb(0.24, 0.32, 0.44)`). This guarantees 100% legibility on both dark presentation slides (teal, dark blue, black) and standard white document pages without being occluded by background graphics.
+  - **The WinAnsi Encoding Gotcha & Vector Sparkle:** Standard PDF 14 fonts (Helvetica) use WinAnsi (Windows-1252) encoding and instantly crash with `WinAnsi cannot encode "✦"` if passed Unicode symbols. Rather than embedding heavy TTF font binaries into serverless memory, we render the 4-pointed sparkle (`✦`) natively using SVG vector operators (`page.drawSvgPath`) tinted in brand emerald (`rgb(0.20, 0.85, 0.65)`).
+  - **Proportional Scaling:** Font size and pill dimensions scale dynamically based on page width (`Math.max(9.5, Math.min(13, Math.round(width * 0.014)))`), ensuring standard A4 portraits (~10pt) and 16:9 widescreen presentation slides (~13pt) maintain proportional visual balance.
+  - **Generous Mobile Touch Target:** The native PDF Link Annotation (`Subtype: Link`, `S: URI`) spans the complete pill bounding box (`Rect: [pillX, pillY, pillX + pillWidth, pillY + pillHeight]`, ~28pt tall), making it effortless for mobile students on iOS/Android PDF readers to tap anywhere on the badge and deep-link directly to `/r/:id`.
   - **Defensive Design:** Wrapped in try/catch to ensure corrupted or encrypted PDFs fallback gracefully without halting the upload pipeline.
 
 ---
