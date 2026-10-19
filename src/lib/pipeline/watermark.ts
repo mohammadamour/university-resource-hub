@@ -23,20 +23,21 @@ export interface WatermarkOptions {
 const SPARKLE_SVG_PATH =
   "M 4.5 0 L 5.7 3.2 L 9 4.5 L 5.7 5.8 L 4.5 9 L 3.3 5.8 L 0 4.5 L 3.3 3.2 Z";
 
-const DEFAULT_BRAND_TEXT = "molakhasat.me • Resources & Summaries";
+const DEFAULT_BRAND_TEXT = "molakhasat.me";
 
 /**
- * Stamps a high-contrast, branded "Pill Badge" watermark onto the bottom margin of every page in a PDF.
+ * Stamps a subtle, high-contrast "Micro-Pill" watermark onto the bottom margin of every page in a PDF.
  *
  * DESIGN RATIONALE:
- * 1. High-Contrast Dark Container: Drawing a deep slate capsule (`rgb(0.06, 0.09, 0.15)`) with a subtle
- *    slate border guarantees 100% legibility on both dark presentation slides (teal/black/blue) and white docs.
- * 2. Vector Sparkle Accent: Standard PDF fonts (Helvetica) use WinAnsi encoding and cannot encode unicode `✦`.
- *    We render a native 4-pointed sparkle via SVG vector operators in brand emerald (`rgb(0.20, 0.85, 0.65)`).
- * 3. Proportional Scaling: The font and pill scale dynamically to the page width (9.5pt on small docs,
- *    up to 13pt on wide 16:9 slides) so it's never comically small or oversized.
- * 4. Generous Touch Target: The native PDF Link Annotation covers the entire pill rectangle (~28pt height),
- *    making it effortless for mobile students on phones/tablets to tap and jump directly to /r/:id.
+ * 1. Compact Non-Intrusive Footprint: Trimmed brand copy to "✦ molakhasat.me" (~99pt width),
+ *    preventing the watermark from occluding lecture text and footnotes at the bottom of slides.
+ * 2. Bottom Margin Hugging: Positioned at y = 5 with height = 16pt (reaches y = 21pt max),
+ *    ensuring it sits safely inside the bottom gutter beneath standard presentation text.
+ * 3. Semi-Translucent Glassmorphism: Set to 72% opacity so in edge-case slides where text
+ *    runs all the way to the canvas edge, underlying words remain faintly readable through the pill.
+ * 4. Vector Sparkle Accent: Uses native SVG vector operators for ✦ in brand emerald (rgb(0.20, 0.85, 0.65))
+ *    to bypass WinAnsi font limitations while adding a distinctive visual touch.
+ * 5. Generous Clickable Hitbox: Link annotation covers the entire pill rectangle, making it easy to tap.
  */
 export async function watermarkPdf(
   inputBuffer: ArrayBuffer,
@@ -49,7 +50,7 @@ export async function watermarkPdf(
     });
 
     const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const pillOpacity = options.opacity ?? 0.92;
+    const pillOpacity = options.opacity ?? 0.72;
 
     // Resolve domain and target redirect URL
     const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || SITE_URL).replace(/\/+$/, "");
@@ -66,27 +67,27 @@ export async function watermarkPdf(
     for (const page of pages) {
       const { width } = page.getSize();
 
-      // Proportional font sizing: ~10pt on standard A4 (595pt width), ~13pt on 16:9 slides (960pt width)
-      const fontSize = options.fontSize ?? Math.max(9.5, Math.min(13, Math.round(width * 0.014)));
+      // Compact micro-pill typography (fixed 8.5pt keeps it non-intrusive on both A4 and 16:9 slides)
+      const fontSize = options.fontSize ?? 8.5;
       const textWidth = font.widthOfTextAtSize(displayText, fontSize);
       const textHeight = font.heightAtSize(fontSize);
 
-      // Icon & Layout Metrics
-      const sparkleSize = fontSize * 0.9;
+      // Icon & Layout Metrics (Micro footprint)
+      const sparkleSize = 7.5;
       const sparkleScale = sparkleSize / 9;
-      const gap = 7;
-      const padX = 14;
-      const padY = 6;
+      const gap = 5;
+      const padX = 10;
+      const padY = 3.5;
 
       const totalContentWidth = sparkleSize + gap + textWidth;
-      const pillWidth = totalContentWidth + padX * 2;
-      const pillHeight = Math.max(26, textHeight + padY * 2);
+      const pillWidth = Math.round(totalContentWidth + padX * 2);
+      const pillHeight = 16;
 
-      // Center pill horizontally at the bottom margin (14 points above the edge)
+      // Hug the bottom edge (5 points above canvas bottom) to stay below lecture text
       const pillX = Math.round((width - pillWidth) / 2);
-      const pillY = 14;
+      const pillY = 5;
 
-      // 1. Draw High-Contrast Pill Container (Slate-950 fill with subtle border)
+      // 1. Draw Glassmorphic Pill Container (Slate-950 fill with subtle border)
       page.drawRectangle({
         x: pillX,
         y: pillY,
@@ -95,8 +96,8 @@ export async function watermarkPdf(
         color: rgb(0.06, 0.09, 0.15), // Deep slate-950 (#0f1726)
         opacity: pillOpacity,
         borderColor: rgb(0.24, 0.32, 0.44), // Subtle slate-600 border (#3d5270)
-        borderWidth: 1,
-        borderOpacity: 0.85,
+        borderWidth: 0.75,
+        borderOpacity: 0.75,
       });
 
       // 2. Draw Vector Sparkle Icon (✦) in Brand Emerald-400
@@ -114,7 +115,7 @@ export async function watermarkPdf(
       // 3. Draw Crisp White Bold Brand Text
       const textX = contentStartX + sparkleSize + gap;
       // Align font baseline inside pill
-      const textY = pillY + (pillHeight - textHeight) / 2 + 1.5;
+      const textY = pillY + (pillHeight - textHeight) / 2 + 1;
 
       page.drawText(displayText, {
         x: textX,
