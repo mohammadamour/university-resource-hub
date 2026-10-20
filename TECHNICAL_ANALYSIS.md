@@ -45,6 +45,9 @@
    - [9.2 Phase 2: Immediate Sprint Priorities (Launch Readiness)](#92-phase-2-immediate-sprint-priorities-launch-readiness)
    - [9.3 Phase 3: Student Experience & Personalization](#93-phase-3-student-experience--personalization)
    - [9.4 Phase 4: Multi-University Scaling & Advanced Admin](#94-phase-4-multi-university-scaling--advanced-admin)
+10. [Pre-Launch Hardening, Risk Registry & Technical Audit (Claude Architecture Review)](#10-pre-launch-hardening-risk-registry--technical-audit-claude-architecture-review)
+    - [10.1 Immediate Pre-Launch Action Items (P0 / P1)](#101-immediate-pre-launch-action-items-p0--p1)
+    - [10.2 Mid-Term Architectural Backlog (Phase 3 / Post-Launch)](#102-mid-term-architectural-backlog-phase-3--post-launch)
 
 ---
 
@@ -56,7 +59,7 @@ University WhatsApp group chats are black holes of academic material: files get 
 
 ### The Molakhasat Solution
 
-A curated, permanent, mobile-first academic hub that acts as a single source of truth. We do not try to replace WhatsApp; instead, we provide permanent, unfurlable links that students drop **inside** WhatsApp chats (`molakhasat.com/courses/calculus-1`).
+A curated, permanent, mobile-first academic hub that acts as a single source of truth. We do not try to replace WhatsApp; instead, we provide permanent, unfurlable links that students drop **inside** WhatsApp chats (`molakhasat.me/courses/calculus-1`).
 
 ### The Three UX Axioms
 
@@ -173,7 +176,7 @@ POST /api/upload
     inputPath,
   ];
   ```
-- **The Serverless Constraint:** Vercel/AWS Lambda containers do not include the Ghostscript binary. We gate compression behind `process.env.NEXT_PUBLIC_ENABLE_COMPRESSION === "true"`. If running locally, you enable it (`winget install ArtifexSoftware.GhostScript`); if running on Vercel, it safely skips compression and uploads the original file without crashing.
+- **The Serverless Constraint & Security Boundary:** Vercel/AWS Lambda containers do not include the Ghostscript binary. We gate compression behind `process.env.NEXT_PUBLIC_ENABLE_COMPRESSION === "true"`. When running locally, Ghostscript downsamples images and neutralizes potential PDF exploits (malicious embedded scripts, corrupt xref tables); when running serverless on Vercel, compression is skipped and security relies primarily on magic-byte verification (`%PDF-`), strict `pdf-lib` parsing, and administrative moderation gates.
 
 ---
 
@@ -275,7 +278,7 @@ POST /api/upload
     thinkingConfig: { thinkingBudget: 0 },
   }
   ````
-- **Validation Before Persistence:** `validateQuizData()` verifies question integrity (4 choices, 0-indexed correct answer, valid Arabic explanations, and valid difficulty levels).
+- **Validation Before Persistence (Structural Integrity):** `validateQuizData()` strictly verifies schema structure (4 choices, 0-indexed correct answer, non-empty Arabic explanation, and valid difficulty levels). Note that this validates JSON shape and constraints, *not* semantic mathematical or domain truth. Mandatory curator spot-checking and test-playing remains essential before publishing to avoid student exam misinformation.
 
 ---
 
@@ -818,9 +821,74 @@ This living backlog serves as the authoritative North Star for future developmen
   - Enable the dormant `universities` and `departments` schema columns in UI navigation, transitioning Molakhasat from Jadara-only to Jordan-wide university selection.
 - [ ] **Role-Based Ambassador Access (Ambassador RBAC):**
   - Introduce scoped permissions allowing student representatives ("Dof'ah Ambassadors") to upload and curate summaries for their specific major/faculty without granting full super-admin access.
-- [ ] **Live Ingestion Progress via Server-Sent Events (SSE):**
-  - Upgrade the simulated frontend stepper in `/upload` to subscribe to `/api/upload/progress/[resourceId]` via SSE for enterprise-grade real-time feedback.
+- [x] **Live Ingestion Progress via Server-Sent Events (SSE):**
+  - Upgraded upload stepper to subscribe to `/api/upload/progress/[resourceId]` via SSE and Node.js `progressBus` with automatic database polling fallback.
 
 ---
 
-_Maintained continuously during development. Last updated: October 18, 2026._
+## 10. Pre-Launch Hardening, Risk Registry & Technical Audit (Claude Architecture Review)
+
+> **Context:** An independent architectural audit conducted in October 2026 identified key operational, security, and scaling risks. Each item below has been verified against the active codebase and slotted into our immediate pre-launch sprint or Phase 3 roadmap.
+
+### 10.1 🚨 Immediate Pre-Launch Action Items (P0 / P1)
+
+1. **Admin Secret in URL (`?key=ADMIN_SECRET` Leak Risk):**
+   - **Risk:** Passing credentials in query strings leaks secrets to browser history, proxy server logs, and HTTP `Referer` headers when clicking outbound links.
+   - **Fix:** Migrate to an HTTP-Only authentication cookie (`admin_session`) or header-based authorization for the `/admin` portal, keeping query strings clean.
+   - **Tracking:** Scheduled for Immediate Pre-Launch Hardening.
+
+2. **Public Endpoint Abuse Protection (`/api/quiz/record-attempt`):**
+   - **Risk:** The quiz attempt beacon uses the Supabase service role key to insert records without checking whether `resourceId` actually exists. A malicious script could flood `quiz_attempts` and exhaust Supabase free-tier database rows.
+   - **Fix:**
+     1. Verify `resourceId` exists in `resources` before inserting attempt rows.
+     2. Enforce IP-based rate limiting (e.g. max 10 attempts per minute per IP via in-memory sliding window or Edge middleware).
+     3. Cap payload size and reject question counts exceeding 50.
+
+3. **Supabase Free-Tier Storage & Egress Economics:**
+   - **Risk:** Supabase free tier caps storage at **1 GB** and egress at **5 GB / month**. Because Ghostscript is disabled on Vercel, phone scans (20–30 MB) can fill the storage bucket in ~35 uploads. In exam week, 300 students downloading five 10MB PDFs = 15 GB egress (triggering overage limits or site downtime).
+   - **Remediation Strategy:**
+     1. **Mandatory Local Pre-Compression:** Always run Ghostscript compression locally (`Content_Upload_SOP.md`) before uploading production summaries to keep file sizes under 2–4 MB.
+     2. **Cloudflare R2 Pull-Forward:** Migrate PDF binary storage from Supabase Storage to Cloudflare R2 (which provides 10 GB free storage and **zero egress fees**), keeping Supabase strictly for metadata and quiz JSON.
+
+4. **Curator Subject-Matter Verification (The Hallucination Guardrail):**
+   - **Risk:** `validateQuizData()` ensures structural shape (4 options, valid 0-3 index, Arabic text), but *cannot verify semantic correctness*. AI models frequently produce subtle sign errors, hallucinated theorems, or inverted explanations in Arabic Calculus and Discrete Math questions.
+   - **SOP Rule:** Every AI-generated quiz must be spot-checked and test-played by the admin/curator before being toggled to `active` in the course library.
+
+5. **Shortlink (`/r/:id`) Deletion Fallback:**
+   - **Risk:** The permanent watermarked shortlink `molakhasat.me/r/:id` is stamped onto hundreds of distributed PDFs. If a resource is deleted or replaced, students tapping the watermark encounter a dead 404.
+   - **Fix:** Update `src/app/r/[id]/route.ts`: if the resource UUID is not found or marked deleted, gracefully 307-redirect to `/courses` or the homepage with a friendly notification rather than throwing a raw 404.
+
+6. **Watermark Layout Resilience on Non-Standard PDFs:**
+   - **Risk:** PDFs with rotated pages (`/Rotate 90` or `270`), landscape slides, or custom `CropBox` offsets can cause the micro-pill badge to render off-screen or occlude central lecture content.
+   - **Verification:** Test watermarking against landscape slide decks, rotated lecture scans, and verify touch annotation tappability on mobile iOS Safari / Android PDF viewers.
+
+---
+
+### 10.2 📋 Mid-Term Architectural Backlog (Phase 3 / Post-Launch)
+
+1. **Copyright & Content Takedown SOP:**
+   - Add a transparent *"حقوق الملكية الفكرية وطلب إزالة المحتوى"* (DMCA / Removal Contact) link in the website footer.
+   - Note the caching caveat: Because PDFs are served with `Cache-Control: immutable, max-age=31536000`, a purged file can remain cached in student browser storage and local WhatsApp downloads.
+
+2. **Download & View Telemetry Counter:**
+   - Add an atomic incrementing column `downloads_count` on `resources` triggered via `/r/:id` redirects and PDF downloads to capture usage signals before building Phase 4 analytics.
+
+3. **Schema Normalization: Topic Column Migration:**
+   - Replace pipe-delimited titles (`"تفاضل 1 | ملخص النهايات"`) with an explicit nullable column `topic TEXT` and `display_order INT` on `resources` for clean chapter sorting as the library scales beyond 100+ files per course.
+
+4. **Arabic Search Normalization:**
+   - Implement Arabic character normalization (unifying `أ`, `إ`, `آ` ➔ `ا`, `ة` ➔ `ه`, `ى` ➔ `ي`, stripping tashkeel) to support fuzzy search as requested by students.
+
+5. **Disaster Recovery & Master Backup Cadence:**
+   - Maintain an offline local archive of all original master PDFs in a structured folder (`/archive/courses/<course_code>/`).
+   - Run scheduled weekly PostgreSQL schema & data dumps (`supabase db dump` / `pg_dump`).
+
+6. **Privacy Policy (Jordan Data Protection Law Compliance):**
+   - Add a concise 2-sentence privacy notice explaining that Molakhasat stores only anonymous guest session tokens in `localStorage` for quiz analytics and does not collect personal identity or track cross-site cookies.
+
+7. **Developer Sustainability (Solo Operator Cadence):**
+   - Given Ethan's 18-credit university schedule: Batch content curation strictly into pre-exam sprints (Midterm sprint, Final sprint) rather than daily ad-hoc uploads. Keep ongoing weekly maintenance to < 2 hours.
+
+---
+
+_Maintained continuously during development. Last updated: October 20, 2026._
