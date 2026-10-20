@@ -18,7 +18,10 @@ export type ResourceType =
   | "link"
   | "other";
 
+export type TargetExam = "midterm" | "final" | "other";
+
 // ─── Table Row Types ────────────────────────────────────────────────────────
+
 
 export interface University {
   id: string;
@@ -84,6 +87,14 @@ export interface Resource {
   quiz_data?: QuizData | null;
   source_text?: string | null;
   is_admin_uploaded?: boolean;
+  // Metadata & scope extensions
+  page_count?: number | null;
+  file_hash?: string | null;
+  target_exam?: TargetExam | string | null;
+  academic_year?: string | null;
+  professor_name?: string | null;
+  author_name?: string | null;
+  description?: string | null;
 }
 
 export interface Profile {

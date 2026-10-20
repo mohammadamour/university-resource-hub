@@ -86,7 +86,19 @@ CREATE TABLE resources (
     storage_url TEXT NOT NULL, -- Full URL to Cloudflare R2 or external link
     file_size_bytes BIGINT, -- For displaying file size in the UI
     uploaded_by UUID REFERENCES profiles (id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ DEFAULT now()
+    created_at TIMESTAMPTZ DEFAULT now(),
+    -- Ingestion pipeline, scope, and metadata fields
+    status TEXT NOT NULL DEFAULT 'active',
+    quiz_data JSONB DEFAULT NULL,
+    source_text TEXT DEFAULT NULL,
+    is_admin_uploaded BOOLEAN DEFAULT false,
+    page_count INT DEFAULT NULL,
+    file_hash TEXT DEFAULT NULL,
+    target_exam TEXT NOT NULL DEFAULT 'other',
+    academic_year TEXT NOT NULL DEFAULT '2025/2026',
+    professor_name TEXT DEFAULT NULL,
+    author_name TEXT DEFAULT NULL,
+    description TEXT DEFAULT NULL
 );
 
 -- ─── BOOKMARKS ──────────────────────────────────────────────────────────────
@@ -118,6 +130,14 @@ CREATE INDEX idx_courses_department ON courses (department_id);
 CREATE INDEX idx_resources_course ON resources (course_id);
 
 CREATE INDEX idx_resources_type ON resources(type);
+
+CREATE INDEX idx_resources_file_hash ON resources(file_hash);
+
+CREATE INDEX idx_resources_target_exam ON resources(target_exam);
+
+CREATE INDEX idx_resources_academic_year ON resources(academic_year);
+
+CREATE INDEX idx_resources_status ON resources(status);
 
 CREATE INDEX idx_bookmarks_user ON bookmarks (user_id);
 
