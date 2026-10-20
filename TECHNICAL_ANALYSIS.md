@@ -8,13 +8,16 @@
 ## 📑 Table of Contents
 
 1. [The Big Picture: Mental Model & Architecture](#1-the-big-picture-mental-model--architecture)
-2. [Deep Dive: The 4-Stage Ingestion Pipeline & Tricky Code Snippets](#2-deep-dive-the-4-stage-ingestion-pipeline--tricky-code-snippets)
+2. [Deep Dive: The Ingestion Pipeline & Tricky Code Snippets](#2-deep-dive-the-ingestion-pipeline--tricky-code-snippets)
    - [2.1 Magic Byte File Signature Verification (`%PDF-`)](#21-magic-byte-file-signature-verification-pdf-)
    - [2.2 Ghostscript PDF Compression & Exploit Neutralization](#22-ghostscript-pdf-compression--exploit-neutralization)
    - [2.3 Supabase Storage & The `ArrayBuffer` Corruption Gotcha](#23-supabase-storage--the-arraybuffer-corruption-gotcha)
    - [2.4 Eager / Speculative Client-Side Extraction via WebWorker](#24-eager--speculative-client-side-extraction-via-webworker)
    - [2.5 Robust CJS / ESM Interop for `pdf-parse`](#25-robust-cjs--esm-interop-for-pdf-parse)
    - [2.6 Decoupled On-Demand Quiz Engine & Round-Robin Key Pool](#26-decoupled-on-demand-quiz-engine--round-robin-key-pool)
+   - [2.7 Serverless Execution Protection via Next.js `after()`](#27-serverless-execution-protection-via-nextjs-after)
+   - [2.8 Auto-Watermarking Engine (The Micro-Pill Badge & Referral Loop)](#28-auto-watermarking-engine-the-micro-pill-badge--anti-occlusion-referral-loop)
+   - [2.9 Pre-Storage SHA-256 Duplicate Defense & Page-Count Resolution](#29-pre-storage-sha-256-duplicate-defense--page-count-resolution)
 3. [Deep Dive: Frontend & Interactive Components](#3-deep-dive-frontend--interactive-components)
    - [3.1 The "Topic | Title" Dynamic Grouping Pattern](#31-the-topic--title-dynamic-grouping-pattern)
    - [3.2 Next.js 16 Turbopack Segment Revalidation AST Quirk](#32-nextjs-16-turbopack-segment-revalidation-ast-quirk)
@@ -24,6 +27,7 @@
    - [4.1 Relational Hierarchy & "Fake Departments"](#41-relational-hierarchy--fake-departments)
    - [4.2 Row Level Security (RLS) Permission Matrix](#42-row-level-security-rls-permission-matrix)
    - [4.3 Caching & The Supabase Free-Tier Pause Defense](#43-caching--the-supabase-free-tier-pause-defense)
+   - [4.4 Metadata Expansion & Exam Scope Architecture (Migration 20261020)](#44-metadata-expansion--exam-scope-architecture-migration-20261020)
 5. [AI Seeding Engine & Adaptive Learning Roadmap](#5-ai-seeding-engine--adaptive-learning-roadmap)
    - [5.1 Bulk Seeding Script (`scripts/seed-quizzes.ts`)](#51-bulk-seeding-script-scriptsseed-quizzests)
    - [5.2 The Master AI Prompt](#52-the-master-ai-prompt)
@@ -31,8 +35,8 @@
    - [5.4 Diagnostic Mistake Remediation ("Train My Weaknesses")](#54-diagnostic-mistake-remediation-train-my-weaknesses)
 6. [Phase 4 Blueprint: Server-Sent Events (SSE) Live Status Stream](#6-phase-4-blueprint-server-sent-events-sse-live-status-stream)
 7. [Environment Quirks & Troubleshooting Encyclopedia](#7-environment-quirks--troubleshooting-encyclopedia)
-8. [Super-Admin Resource Manager & Content Seeding Architecture](#8-super-admin-resource-manager--content-seeding-architecture)
-   - [8.1 Pragmatic Zero-Auth Gate (`ADMIN_SECRET`)](#81-pragmatic-zero-auth-gate-admin_secret)
+8. [Super-Admin Resource Manager & Crowdsourcing Architecture](#8-super-admin-resource-manager--content-seeding-architecture)
+   - [8.1 Decoupled Public Funnel (`/upload`) vs. Admin Management](#81-decoupled-public-funnel-upload-vs-admin-management)
    - [8.2 What to Edit vs. What NOT to Edit (Binary Immutability)](#82-what-to-edit-vs-what-not-to-edit-binary-immutability)
    - [8.3 Atomic Storage & DB Purging (`/api/admin/resources/[id]`)](#83-atomic-storage--db-purging-apiadminresourcesid)
    - [8.4 Bidirectional RTL Formatting & Real-Time Metrics](#84-bidirectional-rtl-formatting--real-time-metrics)
@@ -96,24 +100,27 @@ A curated, permanent, mobile-first academic hub that acts as a single source of 
 
 ---
 
-## 2. Deep Dive: The 4-Stage Ingestion Pipeline & Tricky Code Snippets
+## 2. Deep Dive: The Ingestion Pipeline & Tricky Code Snippets
 
-When an admin uploads a file via `POST /api/upload`, here is the exact code execution path:
+When an upload request hits `POST /api/upload` (from either guest crowdsourcing or admin publishing), here is the exact execution flow:
 
 ```
 POST /api/upload
-  ├── 1. Auth Gate: Validate x-admin-secret header === process.env.ADMIN_SECRET
-  ├── 2. Size Gate: Reject 0-byte or >30MB files
-  ├── 3. Declared MIME Gate: Reject non-application/pdf
-  ├── 4. Magic Byte Gate: Verify ASCII "%PDF-" in first 1024 bytes (ISO 32000-1)
-  ├── 5. DB Reservation: Insert row with status='processing' and get UUID
-  ├── 6. HTTP 202 Response: Sent back to client stepper in <50ms
-  └── 7. processFileInBackground(rawBuffer, resourceId, ...) (FIRE-AND-FORGET)
+  ├── 1. Auth & Role Gate: Check x-admin-secret header === process.env.ADMIN_SECRET
+  │         ├── If Admin: targetStatus = 'active', author = 'Mohammad Al-Amour', is_admin_uploaded = true
+  │         └── If Guest: targetStatus = 'pending', author = null, is_admin_uploaded = false
+  ├── 2. Input & Size Gate: Reject missing required fields, 0-byte, or >30MB files
+  ├── 3. Magic Byte Gate: Verify ASCII "%PDF-" in first 1024 bytes (ISO 32000-1)
+  ├── 4. SHA-256 Duplicate Defense: Check existing file_hash for course_id -> HTTP 409 Conflict if duplicate
+  ├── 5. Page-Count Resolution: Extract client WebWorker pageCount or serverless fallback via pdf-lib
+  ├── 6. DB Reservation: Insert row with status='processing', initial metadata, and return UUID
+  ├── 7. HTTP 202 Response: Sent back to client instantly (< 50ms)
+  └── 8. processFileInBackground(...) (Scheduled via Next.js after())
             │
-            ├── Stage 2: Ghostscript Compression (Optional / local only)
+            ├── Stage 1: Ghostscript Compression (Optional / local only)
+            ├── Stage 2: Referral Watermarking (✦ molakhasat.me/r/:id)
             ├── Stage 3: Supabase Storage Upload (Buffered binary)
-            ├── Stage 4: DB Update (Mark active, set public storage URL)
-            └── Stage 5: Gemini 3.8 Flash AI Quiz Generation -> update quiz_data
+            └── Stage 4: DB Update (Mark targetStatus ['active' | 'pending'], save final size)
 ```
 
 ---
@@ -311,6 +318,38 @@ POST /api/upload
 
 ---
 
+### 2.9 Pre-Storage SHA-256 Duplicate Defense & Page-Count Resolution
+
+- **Files:** [`src/app/api/upload/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/upload/route.ts), [`src/lib/pipeline/client-pdf-extractor.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/client-pdf-extractor.ts)
+- **The Problem:** Storage buckets fill rapidly when different students or admins repeatedly re-upload the same official syllabus or slides under slightly different titles. Furthermore, running Ghostscript compression and PDF watermarking on duplicate files wastes compute.
+- **The SHA-256 Fingerprint Gate:**
+  Before writing bytes to Supabase Storage or invoking the background worker, the server calculates a cryptographic SHA-256 hash of `rawBuffer`:
+  ```typescript
+  const fileHash = crypto
+    .createHash("sha256")
+    .update(Buffer.from(rawBuffer))
+    .digest("hex");
+
+  const { data: existingDuplicate } = await supabase
+    .from("resources")
+    .select("id, title")
+    .eq("course_id", courseId)
+    .eq("file_hash", fileHash)
+    .maybeSingle();
+
+  if (existingDuplicate) {
+    return Response.json(
+      { error: `⚠️ هذا الملف تم رفعه مسبقاً لهذه المادة بعنوان: "${existingDuplicate.title}"` },
+      { status: 409 }
+    );
+  }
+  ```
+- **Dual-Layer Page-Count Resolution:**
+  1. **Client WebWorker (Zero Latency):** `extractPdfMetadataAndText()` captures `pdf.numPages` during speculative extraction in the browser, instantly showing a `📑 X صفحة` badge in the dropzone and passing `pageCount` in `FormData`.
+  2. **Server Fallback (`pdf-lib`):** If the client worker failed or was bypassed, the server queries `tempDoc.getPageCount()` from `pdf-lib` (already loaded for watermarking) without spawning child processes.
+
+---
+
 ## 3. Deep Dive: Frontend & Interactive Components
 
 ### 3.1 The "Topic | Title" Dynamic Grouping Pattern
@@ -478,6 +517,26 @@ universities (Jadara)
 - **The Defense:**
   1. Next.js **Incremental Static Regeneration (ISR)** caches landing pages for `3600s` and course pages for `60s`.
   2. Scheduled GitHub Action or uptime monitor pinging `/api/courses` every 24 hours generates active query traffic, preventing Supabase from ever triggering the auto-pause sequence.
+
+---
+
+### 4.4 Metadata Expansion & Exam Scope Architecture (Migration `20261020`)
+
+- **Migration File:** [`supabase/migrations/20261020_metadata_expansion.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/migrations/20261020_metadata_expansion.sql)
+- **Schema Enhancements:**
+  ```sql
+  ALTER TABLE resources 
+  ADD COLUMN IF NOT EXISTS page_count INT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS file_hash TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS target_exam TEXT NOT NULL DEFAULT 'other',
+  ADD COLUMN IF NOT EXISTS academic_year TEXT NOT NULL DEFAULT '2025/2026',
+  ADD COLUMN IF NOT EXISTS professor_name TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS author_name TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS description TEXT DEFAULT NULL;
+  ```
+- **Hierarchical Exam Scope (`target_exam`):** Categorizes materials into `midterm` ("مادة الميد"), `final` ("مادة الفاينل"), or `other` ("شامل / أخرى"). Eliminates student confusion and analysis paralysis during exam week.
+- **Academic Currency (`academic_year`):** Required dropdown pre-selected to current academic year (`2025/2026`), allowing students to distinguish active curriculum from outdated archives.
+- **Deduplication & Filter Indexes:** Dedicated B-Tree indexes on `file_hash`, `target_exam`, `academic_year`, `status`, and `created_at DESC` guarantee sub-millisecond lookups and instant duplicate prevention.
 
 ---
 
@@ -657,11 +716,16 @@ export interface PipelineProgressEvent {
 
 ## 8. Super-Admin Resource Manager & Content Seeding Architecture
 
-### 8.1 Pragmatic Zero-Auth Gate (`ADMIN_SECRET`)
+### 8.1 Decoupled Public Funnel (`/upload`) vs. Admin Management
 
-- During the MVP phase, multi-tenant authentication and permission hierarchies (department ambassadors vs. students) introduce unnecessary friction before content density is established.
-- Both `/upload` and `/admin/resources` require `?key=${ADMIN_SECRET}`. Without this key matching `process.env.ADMIN_SECRET`, Next.js throws an immediate `notFound()` 404 to avoid exposing administrative presence.
-- A shared `<AdminTabs />` component preserves `?key=${adminSecret}` across internal navigation (`[ 📤 رفع مادة جديدة ]` ⟷ `[ 🗂️ إدارة الموارد المرفوعة ]`).
+- **Architectural Decoupling:**
+  Previously, `/upload` required `?key=${ADMIN_SECRET}` and returned a 404 for unauthenticated visitors. In Phase 2:
+  - **Public Crowdsourcing (`/upload` without key):** Frictionless submission gateway for students. No password required, zero admin tabs, and resources are automatically routed to `status = 'pending'` for moderation.
+  - **Admin Publishing (`/upload?key=...`):** Retains administrative tabs (`<AdminTabs />`), publishes immediately (`status = 'active'`), auto-attributes to `Mohammad Al-Amour` (`is_admin_uploaded = true`), and connects to real-time SSE telemetry streams.
+- **Guest UX Protection (Frozen Appreciation State):**
+  While admin uploads auto-reset after 5 seconds to facilitate rapid multi-file batch uploads, guest uploads **freeze** on submission. The green appreciation card with the permanent reference ID (`رقم المرجع: [id]`) stays visible with an explicit `[ 📤 مساهمة بملف آخر ]` button so mobile students are never left wondering if their submission went through.
+- **Description Guardrail:** Optional notes field is capped at 150 characters with a live counter (`{length}/150 حرف`) to prevent uploader comment bloat.
+- **Deep-Linked Pre-Selection:** Accepts `?courseId=...&title=...` query parameters to pre-fill the course dropdown and title template when students click crowdsourcing callouts from empty course pages.
 
 ### 8.2 What to Edit vs. What NOT to Edit (Binary Immutability)
 
@@ -714,10 +778,14 @@ This living backlog serves as the authoritative North Star for future developmen
 ### 9.2 Phase 2: Immediate Launch Sprint (Seed & Polish)
 *Target: Freshman Semester Kickoff (Jadara University)*
 
+- [x] **Metadata Expansion & Exam Scope Architecture (Migration `20261020`):** Extended `resources` schema with `page_count`, `file_hash`, `target_exam` (midterm/final/other), `academic_year`, `professor_name`, `author_name`, and `description`.
+- [x] **Pre-Storage SHA-256 Duplicate Defense:** Cryptographic duplicate rejection (`HTTP 409 Conflict`) preventing duplicate storage bloat and redundant serverless compute.
+- [x] **Decoupled Crowdsourcing Funnel (`/upload`):** Opened public student upload gateway with pending moderation queue, frozen appreciation card, deep-linking pre-selection, and 150-char description guardrail.
+- [ ] **Admin Moderation Queue (`/admin/resources`):** Add pending review filter tab with one-click approve/publish and PDF preview actions.
 - [ ] **Content Seeding Engine (7 Core Courses):**
   - Populate initial high-yield summaries for Calculus 1, C++, Data Structures, Discrete Math, Linear Algebra, and University Electives (National Education, Military Sciences) strictly following [`Content_Upload_SOP.md`](file:///c:/Users/somet/Downloads/Coding/Personal/Content_Upload_SOP.md).
 - [ ] **Dynamic Homepage Metrics (`/`):**
-  - Replace static/mock counters on course cards with live Supabase relational aggregations (`{resource_count} ملخص • {quiz_count} كويز`).
+  - Replace static/mock counters on course cards with live Supabase relational aggregations (`{resource_count} مورد • {quiz_count} كويز`).
 - [ ] **IT Student Community Portal:**
   - Embed direct Telegram/WhatsApp feedback group invite link in the application footer for freshman peer support and bug reporting.
 - [ ] **Admin Question Bank Expansion Action:**
