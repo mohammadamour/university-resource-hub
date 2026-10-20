@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import type { ResourceType } from "@/types/database";
+import type { ResourceType, TargetExam } from "@/types/database";
 
 export interface CourseResourceSummary {
   id: string;
@@ -27,8 +27,8 @@ export interface PipelineStep {
 
 const PIPELINE_STEPS: PipelineStep[] = [
   { id: "upload", label: "فحص ورفع الملف", description: "التحقق من سلامة ونقل الملف للسحابة", icon: "⬆️" },
-  { id: "process", label: "العلامة المرجعية", description: "تضمين رابط المورد الدائم molakhasat.me/r/:id", icon: "🔖" },
-  { id: "save", label: "الحفظ والنشر", description: "اعتماد المورد وإتاحته فوراً للطلاب", icon: "🚀" },
+  { id: "process", label: "التدقيق والترميز", description: "استخراج البيانات والفحص الأمني", icon: "🔖" },
+  { id: "save", label: "الحفظ والاعتماد", description: "تسجيل المورد في قاعدة البيانات", icon: "🚀" },
 ];
 
 const RESOURCE_TYPES: { value: ResourceType; label: string; emoji: string }[] = [
@@ -37,26 +37,58 @@ const RESOURCE_TYPES: { value: ResourceType; label: string; emoji: string }[] = 
   { value: "guide", label: "دليل دراسي", emoji: "📖" },
 ];
 
+const TARGET_EXAMS: { value: TargetExam; label: string; emoji: string }[] = [
+  { value: "midterm", label: "مادة الميد", emoji: "🎯" },
+  { value: "final", label: "مادة الفاينل", emoji: "🏁" },
+  { value: "other", label: "شامل / أخرى", emoji: "🌐" },
+];
+
+const ACADEMIC_YEARS = [
+  "2025/2026",
+  "2024/2025",
+  "2023/2024",
+  "2022/2023",
+  "2021/2022",
+];
+
 const MAX_FILE_SIZE_MB = 30;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface UploadFormProps {
   initialCourses?: UploadCourse[];
-  /** Passed from the server-rendered page (already validated). Used as API auth header. */
-  adminSecret: string;
+  /** Optional auth secret. If provided, uploads are published immediately as admin ('active'). Otherwise submitted as guest ('pending'). */
+  adminSecret?: string;
+  /** Optional courseId passed via query params (e.g. from empty course funnel) */
+  initialCourseId?: string;
+  /** Optional title template passed via query params */
+  initialTitle?: string;
 }
 
-export default function UploadForm({ initialCourses = [], adminSecret }: UploadFormProps) {
+export default function UploadForm({
+  initialCourses = [],
+  adminSecret,
+  initialCourseId = "",
+  initialTitle = "",
+}: UploadFormProps) {
   // Form state
   const [courses, setCourses] = useState<UploadCourse[]>(initialCourses);
-  const [selectedCourseId, setSelectedCourseId] = useState("");
-  const [title, setTitle] = useState("");
+  const [selectedCourseId, setSelectedCourseId] = useState(initialCourseId);
+  const [title, setTitle] = useState(initialTitle);
   const [resourceType, setResourceType] = useState<ResourceType>("summary");
+  const [targetExam, setTargetExam] = useState<TargetExam>("midterm");
+  const [academicYear, setAcademicYear] = useState<string>("2025/2026");
   const [file, setFile] = useState<File | null>(null);
+  const [pageCount, setPageCount] = useState<number | null>(null);
 
-  // Eager text extraction state (speculative: runs as soon as file + quiz toggle are set)
+  // Optional metadata state
+  const [showOptionalFields, setShowOptionalFields] = useState(false);
+  const [professorName, setProfessorName] = useState("");
+  const [authorName, setAuthorName] = useState("");
+  const [description, setDescription] = useState("");
+
+  // Eager text extraction state (speculative)
   const [extractedSourceText, setExtractedSourceText] = useState<string | null>(null);
-  const [extractionStatus, setExtractionStatus] = useState<"idle" | "extracting" | "done" | "failed">("idle");
+  const [, setExtractionStatus] = useState<"idle" | "extracting" | "done" | "failed">("idle");
 
   // Progressive UX state
   const [isDragging, setIsDragging] = useState(false);
@@ -69,14 +101,25 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ─── Eager PDF text extraction (speculative) ───────────────────────────────
-  // Fires as soon as a valid PDF file is selected.
-  // Result is held in `extractedSourceText` and attached to FormData on submit if generateQuiz is true.
-  // This means by the time the user types the title or toggles quiz, text is already ready —
-  // eliminating any waiting time for client-side extraction.
+  // Synchronize initialCourseId and initialTitle when props change
+  useEffect(() => {
+    if (initialCourseId) {
+      setSelectedCourseId(initialCourseId);
+    }
+  }, [initialCourseId]);
+
+  useEffect(() => {
+    if (initialTitle) {
+      setTitle(initialTitle);
+    }
+  }, [initialTitle]);
+
+  // ─── Eager PDF text & metadata extraction ──────────────────────────────────
+  // Automatically extracts page count and selectable text as soon as a file is selected.
   useEffect(() => {
     if (!file) {
       setExtractedSourceText(null);
+      setPageCount(null);
       setExtractionStatus("idle");
       return;
     }
@@ -85,9 +128,12 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
     setExtractionStatus("extracting");
 
     import("@/lib/pipeline/client-pdf-extractor")
-      .then(({ extractTextFromPdf }) => extractTextFromPdf(file))
-      .then((text) => {
+      .then(({ extractPdfMetadataAndText }) => extractPdfMetadataAndText(file))
+      .then(({ text, pageCount: numPages }) => {
         if (cancelled) return;
+        if (numPages) {
+          setPageCount(numPages);
+        }
         if (text) {
           setExtractedSourceText(text);
           setExtractionStatus("done");
@@ -142,7 +188,7 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
       return;
     }
     setFile(incoming);
-    // Reset extraction when a new file is chosen
+    setPageCount(null);
     setExtractedSourceText(null);
     setExtractionStatus("idle");
   }, []);
@@ -163,7 +209,7 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
     [validateAndSetFile]
   );
 
-  // ─── Progressive Submission (SSE & Stream Capable) ─────────────────────────
+  // ─── Submission Handling ───────────────────────────────────────────────────
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -212,21 +258,39 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
       formData.append("courseId", selectedCourseId);
       formData.append("title", title.trim());
       formData.append("type", resourceType);
+      formData.append("targetExam", targetExam);
+      formData.append("academicYear", academicYear);
 
-      // Attach eagerly-extracted text if available so it is preserved in DB for on-demand quizzes
+      if (pageCount) {
+        formData.append("pageCount", String(pageCount));
+      }
       if (extractedSourceText) {
         formData.append("sourceText", extractedSourceText);
       }
+      if (professorName.trim()) {
+        formData.append("professorName", professorName.trim());
+      }
+      if (authorName.trim()) {
+        formData.append("authorName", authorName.trim());
+      }
+      if (description.trim()) {
+        formData.append("description", description.trim());
+      }
 
-      // Update to Step 1 (Upload)
+      // Step 1: Uploading
       setCurrentStepIndex(0);
       setProgressPercent(30);
       const extractHint = extractedSourceText ? " (النص مُستخرَج مسبقاً ✓)" : "";
       setStatusLog(`جارٍ رفع الملف إلى خوادم التخزين...${extractHint}`);
 
+      const reqHeaders: Record<string, string> = {};
+      if (adminSecret) {
+        reqHeaders["x-admin-secret"] = adminSecret;
+      }
+
       const response = await fetch("/api/upload", {
         method: "POST",
-        headers: { "x-admin-secret": adminSecret },
+        headers: reqHeaders,
         body: formData,
       });
 
@@ -238,78 +302,90 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
 
       const resourceId = data.resourceId;
 
-      // ── Connect to SSE telemetry stream for live pipeline updates ───────────
-      setStatusLog("تم تسجيل الملف، وجارٍ متابعة المعالجة الحية من الخادم...");
-      setProgressPercent(20);
+      if (adminSecret) {
+        // ── Admin Flow: Connect to SSE telemetry stream for live processing ──
+        setStatusLog("تم تسجيل الملف، وجارٍ متابعة المعالجة الحية من الخادم...");
+        setProgressPercent(40);
 
-      const sseResponse = await fetch(`/api/upload/progress/${resourceId}`, {
-        headers: { "x-admin-secret": adminSecret },
-      });
+        const sseResponse = await fetch(`/api/upload/progress/${resourceId}`, {
+          headers: { "x-admin-secret": adminSecret },
+        });
 
-      if (
-        sseResponse.ok &&
-        sseResponse.body &&
-        sseResponse.headers.get("content-type")?.includes("text/event-stream")
-      ) {
-        const reader = sseResponse.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
+        if (
+          sseResponse.ok &&
+          sseResponse.body &&
+          sseResponse.headers.get("content-type")?.includes("text/event-stream")
+        ) {
+          const reader = sseResponse.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
-          const parts = buffer.split("\n\n");
-          buffer = parts.pop() || "";
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop() || "";
 
-          for (const part of parts) {
-            const line = part.trim();
-            if (line.startsWith("data: ")) {
-              try {
-                const eventData = JSON.parse(line.slice(6));
+            for (const part of parts) {
+              const line = part.trim();
+              if (line.startsWith("data: ")) {
+                try {
+                  const eventData = JSON.parse(line.slice(6));
 
-                if (eventData.stage === "uploading") {
-                  setCurrentStepIndex(0);
-                  setProgressPercent(eventData.percent ?? 30);
-                  if (eventData.message) setStatusLog(eventData.message);
-                } else if (eventData.stage === "processing") {
-                  setCurrentStepIndex(1);
-                  setProgressPercent(eventData.percent ?? 65);
-                  if (eventData.message) setStatusLog(eventData.message);
-                } else if (eventData.stage === "done") {
-                  setCurrentStepIndex(2);
-                  setProgressPercent(100);
-                  setStatusLog(eventData.message || "اكتملت جميع مراحل المعالجة بنجاح!");
-                  const finalId = eventData.resourceId || resourceId;
-                  setSuccessResourceId(finalId);
-                  optimisticallyAddResource(finalId);
-                } else if (eventData.stage === "error") {
-                  throw new Error(eventData.error || eventData.message || "فشل خط معالجة الملف.");
-                }
-              } catch (parseErr) {
-                if (parseErr instanceof Error && !parseErr.message.includes("JSON")) {
-                  throw parseErr;
+                  if (eventData.stage === "uploading") {
+                    setCurrentStepIndex(0);
+                    setProgressPercent(eventData.percent ?? 30);
+                    if (eventData.message) setStatusLog(eventData.message);
+                  } else if (eventData.stage === "processing") {
+                    setCurrentStepIndex(1);
+                    setProgressPercent(eventData.percent ?? 65);
+                    if (eventData.message) setStatusLog(eventData.message);
+                  } else if (eventData.stage === "done") {
+                    setCurrentStepIndex(2);
+                    setProgressPercent(100);
+                    setStatusLog(eventData.message || "اكتملت جميع مراحل المعالجة بنجاح!");
+                    const finalId = eventData.resourceId || resourceId;
+                    setSuccessResourceId(finalId);
+                    optimisticallyAddResource(finalId);
+                  } else if (eventData.stage === "error") {
+                    throw new Error(eventData.error || eventData.message || "فشل خط معالجة الملف.");
+                  }
+                } catch (parseErr) {
+                  if (parseErr instanceof Error && !parseErr.message.includes("JSON")) {
+                    throw parseErr;
+                  }
                 }
               }
             }
           }
+        } else {
+          // Fallback if SSE stream could not be established
+          setCurrentStepIndex(2);
+          setProgressPercent(100);
+          setStatusLog("تم نشر المورد بنجاح في المنصة.");
+          setSuccessResourceId(resourceId);
+          optimisticallyAddResource(resourceId);
         }
       } else {
-        // Fallback if SSE stream could not be established
+        // ── Guest Crowdsourcing Flow: Completed into moderation queue ────────
         setCurrentStepIndex(2);
         setProgressPercent(100);
-        setStatusLog("تم تسجيل المورد وجارٍ إتاحته في المنصة.");
+        setStatusLog("تم استلام الملف بنجاح وإرساله للمراجعة! شكراً لمساهمتك القيّمة.");
         setSuccessResourceId(resourceId);
-        optimisticallyAddResource(resourceId);
       }
 
       // Reset form after 5 seconds on success (keep selectedCourseId for rapid batch uploads)
       setTimeout(() => {
         setFile(null);
+        setPageCount(null);
         setTitle("");
-        // Keep selectedCourseId so admin can upload multiple resources for the same course smoothly
         setResourceType("summary");
+        setTargetExam("midterm");
+        setProfessorName("");
+        setAuthorName("");
+        setDescription("");
         setIsSubmitting(false);
         setCurrentStepIndex(-1);
         setProgressPercent(0);
@@ -439,39 +515,94 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
         </p>
       </div>
 
-      {/* ── 3. Resource Type ───────────────────────────────────────── */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-foreground">
-          نوع المورد <span className="text-destructive">*</span>
-        </label>
-        <div
-          role="group"
-          aria-label="نوع المورد"
-          className="grid grid-cols-3 gap-2"
-        >
-          {RESOURCE_TYPES.map(({ value, label, emoji }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => {
-                setResourceType(value);
-              }}
-              disabled={isSubmitting}
-              aria-pressed={resourceType === value}
-              className={`flex flex-col items-center gap-1.5 rounded-xl border py-3 px-2 text-xs font-medium transition-all disabled:opacity-50 ${
-                resourceType === value
-                  ? "border-ring bg-accent/10 text-accent font-semibold shadow-2xs"
-                  : "border-border bg-secondary text-muted-foreground hover:border-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <span className="text-xl">{emoji}</span>
-              {label}
-            </button>
-          ))}
+      {/* ── 3. Resource Type & Target Exam Scope ──────────────────── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {/* Resource Type */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-foreground">
+            نوع المورد <span className="text-destructive">*</span>
+          </label>
+          <div
+            role="group"
+            aria-label="نوع المورد"
+            className="grid grid-cols-3 gap-2"
+          >
+            {RESOURCE_TYPES.map(({ value, label, emoji }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setResourceType(value)}
+                disabled={isSubmitting}
+                aria-pressed={resourceType === value}
+                className={`flex flex-col items-center gap-1.5 rounded-xl border py-3 px-2 text-xs font-medium transition-all disabled:opacity-50 ${
+                  resourceType === value
+                    ? "border-ring bg-accent/10 text-accent font-semibold shadow-2xs"
+                    : "border-border bg-secondary text-muted-foreground hover:border-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span className="text-xl">{emoji}</span>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Target Exam Scope */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-foreground">
+            نطاق التغطية / الامتحان <span className="text-destructive">*</span>
+          </label>
+          <div
+            role="group"
+            aria-label="نطاق التغطية"
+            className="grid grid-cols-3 gap-2"
+          >
+            {TARGET_EXAMS.map(({ value, label, emoji }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTargetExam(value)}
+                disabled={isSubmitting}
+                aria-pressed={targetExam === value}
+                className={`flex flex-col items-center gap-1.5 rounded-xl border py-3 px-2 text-xs font-medium transition-all disabled:opacity-50 ${
+                  targetExam === value
+                    ? "border-accent bg-accent/15 text-accent font-semibold shadow-2xs"
+                    : "border-border bg-secondary text-muted-foreground hover:border-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span className="text-xl">{emoji}</span>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* ── 4. File Dropzone ───────────────────────────────────────── */}
+      {/* ── 4. Academic Year Dropdown ─────────────────────────────── */}
+      <div className="space-y-2">
+        <label
+          htmlFor="upload-academic-year"
+          className="block text-sm font-medium text-foreground"
+        >
+          السنة الأكاديمية للملخص / الأسئلة <span className="text-destructive">*</span>
+        </label>
+        <select
+          id="upload-academic-year"
+          value={academicYear}
+          onChange={(e) => setAcademicYear(e.target.value)}
+          disabled={isSubmitting}
+          className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground transition-colors focus:border-ring focus:outline-none disabled:opacity-50"
+          required
+        >
+          {ACADEMIC_YEARS.map((year) => (
+            <option key={year} value={year}>
+              {year === "2025/2026" ? `${year} (العام الحالي)` : year}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* ── 5. File Dropzone ───────────────────────────────────────── */}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-foreground">
           ملف PDF <span className="text-destructive">*</span>
@@ -500,18 +631,27 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
           {file ? (
             <>
               <span className="text-2xl">📄</span>
-              <span className="text-sm font-medium text-foreground">
+              <span className="text-sm font-medium text-foreground max-w-[80%] truncate">
                 {file.name}
               </span>
-              <span className="text-xs text-muted-foreground">
-                {(file.size / 1024 / 1024).toFixed(2)} MB
-              </span>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                {pageCount !== null && (
+                  <>
+                    <span>•</span>
+                    <span className="inline-flex items-center gap-1 rounded bg-accent/15 px-2 py-0.5 text-accent font-semibold">
+                      📑 {pageCount} {pageCount === 1 ? "صفحة" : pageCount === 2 ? "صفحتان" : pageCount <= 10 ? "صفحات" : "صفحة"}
+                    </span>
+                  </>
+                )}
+              </div>
               {!isSubmitting && (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setFile(null);
+                    setPageCount(null);
                   }}
                   className="absolute top-2 left-2 rounded-full p-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
                   aria-label="إزالة الملف"
@@ -543,17 +683,78 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
         />
       </div>
 
-      {/* ── 5. Admin Quiz Notice ───────────────────────────────────── */}
-      <div className="flex items-center gap-3 rounded-xl border border-purple-500/20 bg-purple-500/5 px-4 py-3 text-xs text-muted-foreground">
-        <span className="text-xl">✨</span>
-        <div className="flex flex-col gap-0.5">
-          <span className="font-semibold text-foreground">
-            توليد بنوك الأسئلة والكويزات
+      {/* ── 6. Collapsible Optional Details ───────────────────────── */}
+      <div className="rounded-xl border border-border/80 bg-secondary/30 transition-all overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowOptionalFields((prev) => !prev)}
+          className="flex w-full items-center justify-between px-4 py-3 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <span>⚙️</span>
+            <span>تفاصيل وخيارات إضافية (اختياري)</span>
+            {(professorName || authorName || description) && (
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+            )}
           </span>
-          <span>
-            يتم توليد الكويزات التفاعلية للملخصات المختارة مباشرة عبر لوحة إدارة الموارد، لتوفير السرعة القصوى أثناء الرفع وضمان أعلى جودة للأسئلة.
+          <span
+            className="text-sm transition-transform duration-200"
+            style={{ transform: showOptionalFields ? "rotate(180deg)" : "rotate(0deg)" }}
+          >
+            ▾
           </span>
-        </div>
+        </button>
+
+        {showOptionalFields && (
+          <div className="space-y-4 border-t border-border/50 p-4 animate-in fade-in-50 duration-150">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label htmlFor="upload-professor" className="block text-xs font-medium text-foreground">
+                  اسم المدرس / الدكتور
+                </label>
+                <input
+                  id="upload-professor"
+                  type="text"
+                  value={professorName}
+                  onChange={(e) => setProfessorName(e.target.value)}
+                  disabled={isSubmitting}
+                  placeholder="مثال: د. أحمد المحاسنة"
+                  className="w-full rounded-xl border border-border bg-secondary px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground transition-colors focus:border-ring focus:outline-none disabled:opacity-50"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="upload-author" className="block text-xs font-medium text-foreground">
+                  {adminSecret ? "اسم الناشر / المُعِد" : "اسمك أو لقبك (المُعِد / المساهم)"}
+                </label>
+                <input
+                  id="upload-author"
+                  type="text"
+                  value={authorName}
+                  onChange={(e) => setAuthorName(e.target.value)}
+                  disabled={isSubmitting}
+                  placeholder={adminSecret ? "افتراضي: Mohammad Al-Amour" : "مثال: إعداد الطالب / دفعة 2023"}
+                  className="w-full rounded-xl border border-border bg-secondary px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground transition-colors focus:border-ring focus:outline-none disabled:opacity-50"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="upload-description" className="block text-xs font-medium text-foreground">
+                ملاحظات أو وصف إضافي
+              </label>
+              <textarea
+                id="upload-description"
+                rows={2}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                disabled={isSubmitting}
+                placeholder="مثال: يغطي الوحدات 1 حتى 3 مع أسئلة المقترحة وشرح القوانين..."
+                className="w-full rounded-xl border border-border bg-secondary px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground transition-colors focus:border-ring focus:outline-none disabled:opacity-50 resize-none"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Progressive Pipeline Progress Stepper ──────────────────── */}
@@ -630,15 +831,19 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
       {isCompleted && (
         <div
           role="status"
-          className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400 space-y-1"
+          className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-4 text-emerald-400 space-y-1.5 animate-in fade-in-50"
         >
-          <div className="font-semibold">✅ تم رفع ومعالجة الملف بنجاح!</div>
-          <p className="text-xs text-emerald-400/80">
-            أصبح المورد الآن متاحاً فورياً لطلاب المادة على المنصة.
+          <div className="flex items-center gap-2 font-semibold text-base">
+            <span>{adminSecret ? "✅ تم رفع ونشر المورد بنجاح!" : "🎉 شكراً جزيلاً لمساهمتك القيمة!"}</span>
+          </div>
+          <p className="text-xs text-emerald-400/90 leading-relaxed">
+            {adminSecret
+              ? "أصبح المورد الآن متاحاً فورياً لطلاب المادة على المنصة."
+              : "تم استلام الملف بنجاح! سيتم تدقيقه ونشره قريباً من قِبل إدارة المنصة ليظهر لجميع زملائك الطلبة."}
           </p>
           {successResourceId && (
             <span className="block font-mono text-[11px] text-emerald-400/60 mt-1">
-              معرّف المورد: {successResourceId}
+              رقم المرجع: {successResourceId}
             </span>
           )}
         </div>
@@ -663,9 +868,9 @@ export default function UploadForm({ initialCourses = [], adminSecret }: UploadF
             <span>جارٍ معالجة المستند...</span>
           </span>
         ) : isCompleted ? (
-          "تم النشر بنجاح! ✅"
+          adminSecret ? "تم النشر بنجاح! ✅" : "تم الإرسال للمراجعة! ✅"
         ) : (
-          "بدء المعالجة والرفع 🚀"
+          adminSecret ? "بدء المعالجة والنشر 🚀" : "إرسال المورد للمراجعة 📤"
         )}
       </button>
     </form>
