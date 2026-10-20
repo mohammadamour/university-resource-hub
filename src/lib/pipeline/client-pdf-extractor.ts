@@ -13,14 +13,21 @@
 
 const MAX_CHARS = 300_000;
 
+export interface ClientPdfExtractionResult {
+  text: string | null;
+  pageCount: number;
+}
+
 /**
- * Extracts raw text from a PDF File using pdf.js running in the browser.
+ * Extracts raw text and page count from a PDF File using pdf.js running in the browser.
  * Dynamically imports pdfjs-dist to keep it out of the server bundle.
  *
  * @param file  The PDF File object selected by the user
- * @returns     Extracted text (capped at MAX_CHARS) or null if extraction failed
+ * @returns     Object containing extracted text (capped at MAX_CHARS) and pageCount
  */
-export async function extractTextFromPdf(file: File): Promise<string | null> {
+export async function extractPdfMetadataAndText(
+  file: File
+): Promise<ClientPdfExtractionResult> {
   try {
     // Dynamic import: pdfjs-dist relies on browser APIs (Canvas, Worker)
     // and must NOT be imported at the top level in a Next.js app
@@ -35,6 +42,7 @@ export async function extractTextFromPdf(file: File): Promise<string | null> {
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
 
+    const pageCount = pdf.numPages || 1;
     let fullText = "";
 
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -55,14 +63,24 @@ export async function extractTextFromPdf(file: File): Promise<string | null> {
 
     if (!trimmed) {
       // PDF is likely a scanned image with no selectable text
-      console.warn("[client-extractor] PDF appears to be an image scan — no selectable text found.");
-      return null;
+      console.warn(
+        "[client-extractor] PDF appears to be an image scan — no selectable text found."
+      );
+      return { text: null, pageCount };
     }
 
-    return trimmed;
+    return { text: trimmed, pageCount };
   } catch (err) {
     // Non-fatal: extraction failure just means the server will do it instead
     console.warn("[client-extractor] Failed to extract text from PDF:", err);
-    return null;
+    return { text: null, pageCount: 1 };
   }
+}
+
+/**
+ * Backward-compatible helper returning just the extracted text string.
+ */
+export async function extractTextFromPdf(file: File): Promise<string | null> {
+  const result = await extractPdfMetadataAndText(file);
+  return result.text;
 }

@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { after } from "next/server";
 import dns from "node:dns";
-import type { ResourceType } from "@/types/database";
+import crypto from "node:crypto";
+import type { ResourceType, TargetExam } from "@/types/database";
 
 // ─── Serverless & Network Runtime Config ──────────────────────────────────────
 // Next.js Route Segment Config: allow up to 60s execution for background AI synthesis
@@ -59,7 +60,9 @@ async function processFileInBackground(
   /** Pre-extracted text from client-side pdfjs saved in DB for on-demand quiz generation */
   preExtractedText: string | null = null,
   /** Resource title */
-  title: string = ""
+  title: string = "",
+  /** Final status to set after processing: 'active' for admin uploads, 'pending' for crowdsourced guest uploads */
+  targetStatus: "active" | "pending" = "active"
 ) {
   const supabase = createAdminClient();
 
@@ -108,7 +111,7 @@ async function processFileInBackground(
     }
 
     // ── Stage 2.5: Auto-Watermarking (Organic Referral Stamp) ────────────────
-    // Stamps "For more course summaries and resources, visit molakhasat.me/r/:id" on the bottom margin.
+    // Stamps the high-contrast micro-pill badge (✦ molakhasat.me) on the bottom margin.
     // When students share the PDF on WhatsApp, it drives organic peer referrals back to the hub.
     try {
       progressBus.publish(resourceId, {
@@ -172,15 +175,16 @@ async function processFileInBackground(
         `Size: ${rawBuffer.byteLength} → ${finalSize} bytes (${compressionRatio})`
     );
 
-    // ── Stage 4: Update DB row with storage URL & activate immediately ────────
-    // Decoupled architecture: resources become active immediately upon successful storage upload.
-    // Pre-extracted client text is preserved in source_text so admins can generate quizzes on-demand with zero delay.
+    // ── Stage 4: Update DB row with storage URL & target status ──────────────
+    // Decoupled architecture: resources become active (admin) or pending (crowdsourced guest)
+    // immediately upon successful storage upload.
+    // Pre-extracted client text is preserved in source_text so admins can generate quizzes on-demand.
     const { error: updateError } = await supabase
       .from("resources")
       .update({
         storage_url: publicUrl,
         file_size_bytes: finalSize,
-        status: "active",
+        status: targetStatus,
         source_text: preExtractedText ? preExtractedText.slice(0, 100_000) : null,
       })
       .eq("id", resourceId);
@@ -190,15 +194,20 @@ async function processFileInBackground(
     }
 
     // ── Stage 5: Notify client of 100% completion ─────────────────────────────
+    const completionMessage =
+      targetStatus === "active"
+        ? "تم حفظ المستند، تضمين العلامة المرجعية، ونشره بنجاح للطلاب!"
+        : "تم استلام الملف بنجاح! سيتم مراجعته ونشره في مكتبة المادة قريباً.";
+
     progressBus.publish(resourceId, {
       stage: "done",
       percent: 100,
-      message: "تم حفظ المستند، تضمين العلامة المرجعية، ونشره بنجاح للطلاب!",
+      message: completionMessage,
       resourceId,
     });
 
     console.log(
-      `[pipeline] ✅ Resource ${resourceId} is now active. URL: ${publicUrl}`
+      `[pipeline] ✅ Resource ${resourceId} is now ${targetStatus}. URL: ${publicUrl}`
     );
   } catch (error) {
     // Mark the row as rejected so the admin can identify failed uploads
@@ -236,17 +245,13 @@ async function processFileInBackground(
 // ─── POST Handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
-  // ── Auth gate: only callable from our app with ADMIN_SECRET ─────────────────
-  // (The URL key check on the page is the primary gate; this is a secondary
-  //  server-side guard so the endpoint can't be called directly by outsiders.)
+  // ── Auth gate & role evaluation ─────────────────────────────────────────────
+  // If the request contains a valid ADMIN_SECRET, it is published immediately ('active')
+  // and attributed to Mohammad Al-Amour.
+  // Otherwise, it is treated as a crowdsourced guest upload ('pending') for admin moderation.
   const adminSecret = process.env.ADMIN_SECRET;
   const authHeader = req.headers.get("x-admin-secret");
-  if (!adminSecret || authHeader !== adminSecret) {
-    return Response.json(
-      { error: "Unauthorized." },
-      { status: 401 }
-    );
-  }
+  const isAdmin = Boolean(adminSecret && authHeader === adminSecret);
 
   // ── Parse multipart form ─────────────────────────────────────────────────────
   let formData: FormData;
@@ -263,6 +268,18 @@ export async function POST(req: Request) {
   const generateQuiz = formData.get("generateQuiz") === "true";
   // Optional: pre-extracted text from client-side pdfjs (eager extraction optimization)
   const sourceText = (formData.get("sourceText") as string | null) || null;
+
+  // Metadata extensions
+  const pageCountStr = formData.get("pageCount") as string | null;
+  const targetExam = ((formData.get("targetExam") as string | null) || "other").trim();
+  const academicYear = ((formData.get("academicYear") as string | null) || "2025/2026").trim();
+  const professorName = (formData.get("professorName") as string | null)?.trim() || null;
+  const authorNameInput = (formData.get("authorName") as string | null)?.trim() || null;
+  const description = (formData.get("description") as string | null)?.trim() || null;
+
+  // Author attribution: if admin, default to "Mohammad Al-Amour", else null for guests
+  const authorName = isAdmin ? (authorNameInput || "Mohammad Al-Amour") : null;
+  const targetStatus: "active" | "pending" = isAdmin ? "active" : "pending";
 
   // ── Stage 1: Input Validation & Magic Byte Check (SYNC, <10ms) ───────────────
   if (!file || !courseId || !title || !type) {
@@ -323,11 +340,43 @@ export async function POST(req: Request) {
     );
   }
 
-  // ── Stage 2: Insert initial DB row (SYNC) ────────────────────────────────────
-  // We insert with status='processing' and a placeholder storage_url.
-  // The background pipeline will update both once the upload finishes.
   const supabase = createAdminClient();
 
+  // ── Duplicate Defense: SHA-256 Fingerprint Check ─────────────────────────────
+  const fileHash = crypto
+    .createHash("sha256")
+    .update(Buffer.from(rawBuffer))
+    .digest("hex");
+
+  const { data: existingDuplicate } = await supabase
+    .from("resources")
+    .select("id, title")
+    .eq("course_id", courseId)
+    .eq("file_hash", fileHash)
+    .maybeSingle();
+
+  if (existingDuplicate) {
+    return Response.json(
+      { error: `⚠️ هذا الملف تم رفعه مسبقاً لهذه المادة بعنوان: "${existingDuplicate.title}"` },
+      { status: 409 }
+    );
+  }
+
+  // ── Page Count Resolution (Client pre-extracted or server fallback via pdf-lib) ──
+  let pageCount: number | null = pageCountStr ? parseInt(pageCountStr, 10) : null;
+  if (!pageCount || isNaN(pageCount)) {
+    try {
+      const { PDFDocument } = await import("pdf-lib");
+      const tempDoc = await PDFDocument.load(rawBuffer, { ignoreEncryption: true });
+      pageCount = tempDoc.getPageCount();
+    } catch {
+      pageCount = null;
+    }
+  }
+
+  // ── Stage 2: Insert initial DB row (SYNC) ────────────────────────────────────
+  // Insert with status='processing' and placeholder storage_url.
+  // The background pipeline updates both once upload and watermarking finish.
   const { data: newResource, error: insertError } = await supabase
     .from("resources")
     .insert({
@@ -336,8 +385,15 @@ export async function POST(req: Request) {
       type,
       storage_url: "__processing__", // Replaced by background pipeline
       file_size_bytes: file.size,    // Updated with compressed size later
-      is_admin_uploaded: true,
+      is_admin_uploaded: isAdmin,
       status: "processing",
+      file_hash: fileHash,
+      page_count: pageCount,
+      target_exam: targetExam,
+      academic_year: academicYear,
+      professor_name: professorName,
+      author_name: authorName,
+      description,
     })
     .select("id")
     .single();
@@ -356,7 +412,7 @@ export async function POST(req: Request) {
   progressBus.publish(resourceId, {
     stage: "uploading",
     percent: 10,
-    message: "تم إنشاء السجل في قاعدة البيانات وبدء المعالجة في الخلفية...",
+    message: "تم فحص الملف والتحقق من عدم تكراره، وجارٍ بدء المعالجة في الخلفية...",
   });
 
   // ── Stage 3: Hand off to background pipeline via Next.js after() ─────────────
@@ -364,7 +420,14 @@ export async function POST(req: Request) {
   // or destroy the container before the background processing completes, while still
   // allowing us to return an instant 202 Accepted response to the browser.
   after(async () => {
-    await processFileInBackground(rawBuffer, resourceId, courseId, sourceText, title);
+    await processFileInBackground(
+      rawBuffer,
+      resourceId,
+      courseId,
+      sourceText,
+      title,
+      targetStatus
+    );
   });
 
   // ── Respond immediately ───────────────────────────────────────────────────────
