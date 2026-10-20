@@ -171,6 +171,26 @@ export default function UploadForm({
     [courses, selectedCourseId]
   );
 
+  // Reusable helper to reset form fields after submission while preserving selectedCourseId
+  const resetFormState = useCallback(() => {
+    setFile(null);
+    setPageCount(null);
+    setTitle("");
+    setResourceType("summary");
+    setTargetExam("midterm");
+    setProfessorName("");
+    setAuthorName("");
+    setDescription("");
+    setIsSubmitting(false);
+    setCurrentStepIndex(-1);
+    setProgressPercent(0);
+    setStatusLog("");
+    setSuccessResourceId(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, []);
+
   // ─── File Handling ─────────────────────────────────────────────────────────
 
   const validateAndSetFile = useCallback((incoming: File | null) => {
@@ -376,25 +396,15 @@ export default function UploadForm({
         setSuccessResourceId(resourceId);
       }
 
-      // Reset form after 5 seconds on success (keep selectedCourseId for rapid batch uploads)
-      setTimeout(() => {
-        setFile(null);
-        setPageCount(null);
-        setTitle("");
-        setResourceType("summary");
-        setTargetExam("midterm");
-        setProfessorName("");
-        setAuthorName("");
-        setDescription("");
+      // Reset behavior: Admin auto-resets after 5s for rapid batches; Guest state remains frozen for reading
+      if (adminSecret) {
+        setTimeout(() => {
+          resetFormState();
+        }, 5000);
+      } else {
+        // Release submitting lock so guest can read appreciation notice and reference ID
         setIsSubmitting(false);
-        setCurrentStepIndex(-1);
-        setProgressPercent(0);
-        setStatusLog("");
-        setSuccessResourceId(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
-      }, 5000);
+      }
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "حدث خطأ غير متوقع أثناء الرفع.");
       setIsSubmitting(false);
@@ -740,12 +750,18 @@ export default function UploadForm({
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="upload-description" className="block text-xs font-medium text-foreground">
-                ملاحظات أو وصف إضافي
-              </label>
+              <div className="flex items-center justify-between">
+                <label htmlFor="upload-description" className="block text-xs font-medium text-foreground">
+                  ملاحظات أو وصف إضافي
+                </label>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {description.length}/150 حرف
+                </span>
+              </div>
               <textarea
                 id="upload-description"
                 rows={2}
+                maxLength={150}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={isSubmitting}
@@ -831,7 +847,7 @@ export default function UploadForm({
       {isCompleted && (
         <div
           role="status"
-          className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-4 text-emerald-400 space-y-1.5 animate-in fade-in-50"
+          className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-4 text-emerald-400 space-y-2 animate-in fade-in-50"
         >
           <div className="flex items-center gap-2 font-semibold text-base">
             <span>{adminSecret ? "✅ تم رفع ونشر المورد بنجاح!" : "🎉 شكراً جزيلاً لمساهمتك القيمة!"}</span>
@@ -845,6 +861,18 @@ export default function UploadForm({
             <span className="block font-mono text-[11px] text-emerald-400/60 mt-1">
               رقم المرجع: {successResourceId}
             </span>
+          )}
+          {!adminSecret && (
+            <div className="pt-1.5">
+              <button
+                type="button"
+                onClick={resetFormState}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/30 active:scale-95 transition-all"
+              >
+                <span>📤</span>
+                <span>مساهمة بملف آخر</span>
+              </button>
+            </div>
           )}
         </div>
       )}
