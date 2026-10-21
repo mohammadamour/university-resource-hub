@@ -903,6 +903,22 @@ This living backlog serves as the authoritative North Star for future developmen
 7. **Developer Sustainability (Solo Operator Cadence):**
    - Given Ethan's 18-credit university schedule: Batch content curation strictly into pre-exam sprints (Midterm sprint, Final sprint) rather than daily ad-hoc uploads. Keep ongoing weekly maintenance to < 2 hours.
 
+8. **Observability, Real-Time Webhook Alerts & Product Telemetry:**
+   - **Operational Philosophy:** A solo founder cannot monitor production dashboards 24/7. Immediate push alerts to a mobile channel (Discord or Telegram webhook) provide instant situational awareness with zero infrastructure overhead.
+   - **Automated Webhook Alerting (Low-Effort Push Notifications):**
+     - *Critical Backend Failures:* Wrap AI quiz generation (`/api/admin/resources/[id]/quiz`) and upload processing in a lightweight catch helper that sends a formatted markdown message to a private Discord/Telegram webhook via standard `fetch()` when an unexpected 500 or repeated quota failure occurs.
+     - *Community Ingestion Beacon:* Trigger a webhook message whenever a guest submits a new summary via `/upload`, enabling rapid moderation and approval from mobile without manually polling the admin dashboard.
+   - **Telemetry & Event Logging (`analytics_events` Table):**
+     - Create a lightweight Supabase table (`id, event_type, resource_id, metadata JSONB, created_at`) to log critical engagement milestones:
+       1. `quiz_started` vs. `quiz_completed` (reveals question drop-off rates and completion friction).
+       2. `search_query` (logs raw user queries to identify high-demand courses/topics missing from the platform).
+       3. `resource_viewed` & `resource_downloaded` (pinpoints the top 20% of materials driving 80%+ of campus traffic).
+   - **Key Actionable Insights:**
+     - *Fill Content Gaps:* Search query logs tell Ethan exactly what subjects to source or summarize next.
+     - *Calibrate Question Difficulty:* High failure rates on specific questions highlight poorly tuned AI questions or tricky exam traps.
+     - *Exam Season Surge Tracking:* Measure real adoption spikes during Midterms and Finals to quantify campus penetration.
+
 ---
 
-_Maintained continuously during development. Last updated: October 20, 2026._
+_Maintained continuously during development. Last updated: October 21, 2026._
+
