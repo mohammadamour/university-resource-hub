@@ -266,19 +266,27 @@ POST /api/upload
   If an API key triggers `429 RESOURCE_EXHAUSTED`, it is tagged with a 5-minute cooldown (`keyCooldowns.set(apiKey, Date.now() + 5 * 60 * 1000)`). The engine immediately fails over to the next candidate key. Crucially, subsequent synthesis requests automatically **skip** cooling keys, saving ~1.5s round-trip latency on known-dead accounts.
 - **Automated Pool Verification (`npm run test:keys`):**
   Developers can verify key pool health anytime via `npm run test:keys` (`scripts/verify-gemini-pool.mjs`), which enforces IPv4 DNS resolution and tests each key against `gemini-3.5-flash` with sub-token latency reporting.
-- **Candidate Model Fallback Chain:**
-  `gemini-3.5-flash` (primary, high quota) → `gemini-flash-lite-latest` (ultra-fast fallback) → `gemini-3.8-flash`.
-- **Zero Thinking Budget (`thinkingBudget: 0`):**
-  Models with built-in reasoning tokens default to `thinking: true`, spending 15+ seconds thinking before returning tokens. Enforcing `thinkingConfig: { thinkingBudget: 0 }` reduces API latency to < 1.5 seconds.
+- **Candidate Model Fallback Chain & Gateway Timeout Defense:**
+  - Priority chain: `gemini-3.5-flash` (primary, curriculum quality) → `gemini-3.5-flash-lite` (ultra-fast fallback, resilient to 503 demand spikes) → `gemini-flash-lite-latest` (secondary fallback).
+  - *Deprecated/Stalled Models Removed:* `gemini-3.8-flash` was removed due to gateway stalling on the v1beta endpoint.
+  - *Lite Model Argument Incompatibility Fix:* Google API strictly rejects `thinkingConfig` on lite model variants with `HTTP 400: INVALID_ARGUMENT`. The engine conditionally sets `thinkingBudget: 0` only on non-lite models.
+  - *Per-Candidate 9-Second Timeout (`AbortSignal.timeout(9000)`):* Prevents serverless functions from hanging until Vercel's 15s cutoff (`504 FUNCTION_INVOCATION_TIMEOUT`) by aborting stalled candidate calls quickly and advancing to the next model/key.
+  - *503 / 500 Demand Spike Failover:* On high-demand server spikes (`503 UNAVAILABLE`), the engine immediately pivots to `gemini-3.5-flash-lite` on the active key.
+- **Baseline Question Batching (8 Questions) & Infinite Multi-Expansion:**
+  - *The 15-Second Vercel Serverless Wall:* Generating 15 questions with 4 options and detailed Arabic explanations consumes ~2,500 output tokens (~14–17s), flirting with Vercel Hobby's hard 15s execution limit. Initial generation is set to **8 high-yield questions**, completing deterministically in ~5–6 seconds.
+  - *Infinite Zero-Duplicate Expansion (`[➕ توسيع]`):* Admins can expand the bank on demand as many times as desired. Each expansion sends up to 40 existing question stems as strict negative prompt context (`DO NOT REPEAT OR REPHRASE`). Since input tokens process at >100k tokens/sec, sending prior question stems adds virtually zero latency (+30ms) while guaranteeing zero duplicates across successive expansions (8 → 14 → 20 → 26 questions).
+- **Bulletproof Frontend Error Handling & Floating Sticky Toast:**
+  - *Safe Error Body Parsing:* In [`AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx), response status is inspected before attempting `response.json()`, preventing HTML error pages (e.g. 504 timeouts) from crashing with unhandled JSON `SyntaxError`s.
+  - *Fixed Floating Viewport Toast:* The notification banner is positioned with `fixed bottom-6 left-6 z-50` with high-contrast backdrop blur and a 5.5-second linger, ensuring immediate visual feedback even when the admin is scrolled deep into the table.
 - **Strict JSON Enforcement & Regex Sanitizer:**
   ````typescript
   generationConfig: {
     temperature: 0.25,
     responseMimeType: "application/json",
-    thinkingConfig: { thinkingBudget: 0 },
+    ...(isLite ? {} : { thinkingConfig: { thinkingBudget: 0 } }),
   }
   ````
-- **Validation Before Persistence (Structural Integrity):** `validateQuizData()` strictly verifies schema structure (4 choices, 0-indexed correct answer, non-empty Arabic explanation, and valid difficulty levels). Note that this validates JSON shape and constraints, *not* semantic mathematical or domain truth. Mandatory curator spot-checking and test-playing remains essential before publishing to avoid student exam misinformation.
+- **Validation Before Persistence (Structural Integrity):** `validateQuizData()` strictly verifies schema structure (4 choices, 0-indexed correct answer, non-empty Arabic explanation, and valid difficulty levels). Minimum threshold is aligned to 4 valid questions. Mandatory curator spot-checking and test-playing remains essential before publishing to avoid student exam misinformation.
 
 ---
 

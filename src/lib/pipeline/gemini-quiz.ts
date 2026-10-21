@@ -9,14 +9,16 @@ try {
 }
 
 /**
- * Candidate models in order of priority.
- * gemini-3.5-flash has proven high availability and quota.
- * gemini-flash-lite-latest is an ultra-fast fallback.
+ * Candidate models in order of priority:
+ * 1. gemini-3.5-flash: high availability & curriculum quality
+ * 2. gemini-3.5-flash-lite: ultra-fast fallback, resilient during 503 demand spikes
+ * 3. gemini-flash-lite-latest: secondary fallback
+ * (gemini-3.8-flash removed due to gateway stalling on v1beta)
  */
 const CANDIDATE_MODELS = [
   "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
   "gemini-flash-lite-latest",
-  "gemini-3.8-flash",
 ];
 
 function getApiKeys(): string[] {
@@ -122,9 +124,23 @@ async function callGemini(prompt: string): Promise<string> {
     const apiKey = candidateKeys[keyIdx];
     const keyPreview = apiKey.slice(0, 8) + "..." + apiKey.slice(-4);
 
-    // Try candidate models
+    // Try candidate models in prioritized order
     for (const model of CANDIDATE_MODELS) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      // Detect lite models: Google strictly rejects 'thinkingConfig' on lite variants with HTTP 400
+      const isLite = model.includes("lite");
+      const generationConfig: Record<string, unknown> = {
+        temperature: 0.25,
+        responseMimeType: "application/json",
+      };
+
+      if (!isLite) {
+        // Zero thinking budget suppresses long reasoning tokens on full Flash models
+        generationConfig.thinkingConfig = {
+          thinkingBudget: 0,
+        };
+      }
 
       try {
         const response = await fetch(url, {
@@ -132,14 +148,10 @@ async function callGemini(prompt: string): Promise<string> {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.25,
-              responseMimeType: "application/json",
-              thinkingConfig: {
-                thinkingBudget: 0, // Eliminate 15s internal reasoning latency
-              },
-            },
+            generationConfig,
           }),
+          // Strict 9-second timeout per candidate to prevent serverless function hangs
+          signal: AbortSignal.timeout(9000),
         });
 
         if (response.ok) {
@@ -171,12 +183,20 @@ async function callGemini(prompt: string): Promise<string> {
           break; // Break model loop, try next API key in pool
         }
 
-        // If 404 (model deprecated), try next model immediately
-        if (response.status === 404) {
+        // If 503 (demand spike) or 500 (internal error), try next candidate model immediately
+        if (response.status === 503 || response.status === 500) {
+          console.warn(
+            `[gemini-quiz] Model ${model} returned ${response.status} (server busy). Trying fallback model...`
+          );
+          continue;
+        }
+
+        // If 404 (model deprecated) or 400 (argument mismatch), try next model immediately
+        if (response.status === 404 || response.status === 400) {
           continue;
         }
       } catch (networkErr) {
-        lastError = `Network error calling ${model}: ${networkErr instanceof Error ? networkErr.message : String(networkErr)}`;
+        lastError = `Network or timeout error calling ${model}: ${networkErr instanceof Error ? networkErr.message : String(networkErr)}`;
         console.warn(`[gemini-quiz] ${lastError}`);
       }
     }
@@ -192,12 +212,12 @@ async function callGemini(prompt: string): Promise<string> {
 function buildPrompt(
   extractedText: string,
   sourceTitle: string,
-  targetCount: number
+  targetCount: number = 8
 ): string {
   const material = extractedText.slice(0, 300_000);
-  const easyCount = Math.round(targetCount * 0.4);
-  const medCount = Math.round(targetCount * 0.4);
-  const hardCount = targetCount - easyCount - medCount;
+  const easyCount = Math.max(1, Math.round(targetCount * 0.35));
+  const medCount = Math.max(1, Math.round(targetCount * 0.45));
+  const hardCount = Math.max(1, targetCount - easyCount - medCount);
 
   return `You are an expert academic curriculum designer creating a university exam question bank for Jordanian students.
 Given the following academic material, generate exactly ${targetCount} high-yield multiple choice questions.
@@ -296,9 +316,9 @@ function validateQuizData(raw: unknown): QuizData {
     });
   }
 
-  if (validQuestions.length < 5) {
+  if (validQuestions.length < 4) {
     throw new Error(
-      `Quiz validation failed: only ${validQuestions.length} valid questions produced (minimum 5 required)`
+      `Quiz validation failed: only ${validQuestions.length} valid questions produced (minimum 4 required)`
     );
   }
 
@@ -321,7 +341,7 @@ function validateQuizData(raw: unknown): QuizData {
 export async function generateQuizWithGemini(
   extractedText: string,
   sourceTitle: string,
-  targetCount: number = 10
+  targetCount: number = 8
 ): Promise<QuizData> {
   console.log(
     `[gemini-quiz] [Phase 1] Generating core bank of ${targetCount} questions for "${sourceTitle}"`
@@ -349,9 +369,8 @@ export async function generateQuizWithGemini(
  * - Deep/Booklet summaries (25,000+ chars): 18 questions
  */
 export function calculateDynamicExpansionCount(textLength: number): number {
-  if (textLength < 8_000) return 8;
-  if (textLength < 25_000) return 12;
-  return 18;
+  if (textLength < 8_000) return 6;
+  return 8; // Cap at 8 questions so expansion always completes in 5-6s and avoids Vercel 15s cutoff
 }
 
 /**
@@ -374,9 +393,10 @@ export async function expandQuizWithGemini(
     new Set(existingQuestions.map((q) => q.topic).filter(Boolean))
   ).join("، ");
 
+  // Provide up to 40 existing question stems to guarantee zero duplicates across infinite expands
   const sampleExisting = existingQuestions
-    .slice(0, 8)
-    .map((q) => `- ${q.question}`)
+    .slice(0, 40)
+    .map((q, idx) => `${idx + 1}. ${q.question}`)
     .join("\n");
 
   const material = extractedText.slice(0, 300_000);

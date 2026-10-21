@@ -138,8 +138,8 @@ export async function POST(
         throw new Error("لم يتمكن الذكاء الاصطناعي من إضافة أسئلة جديدة غير مكررة لهذه المادة.");
       }
     } else {
-      // Baseline generation (15 questions default, or custom count)
-      finalQuizData = await generateQuizWithGemini(sourceText, resource.title, customCount || 15);
+      // Baseline generation (8 high-yield questions default, finishes in ~5-6s well within Vercel's 15s limit)
+      finalQuizData = await generateQuizWithGemini(sourceText, resource.title, customCount || 8);
       addedCount = finalQuizData.questions.length;
     }
 

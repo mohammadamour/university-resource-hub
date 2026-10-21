@@ -152,11 +152,22 @@ export default function AdminResourceManager({
         headers: { "x-admin-secret": adminSecret },
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || "فشل توليد بنك الأسئلة.");
+        let errorMsg = "فشل توليد بنك الأسئلة.";
+        try {
+          const errData = await response.json();
+          errorMsg = errData.error || errorMsg;
+        } catch {
+          if (response.status === 504) {
+            errorMsg = "انتهت مهلة استجابة الخادم (15s Timeout). يرجى المحاولة مرة أخرى.";
+          } else {
+            errorMsg = `خطأ من الخادم (رمز ${response.status}).`;
+          }
+        }
+        throw new Error(errorMsg);
       }
+
+      const data = await response.json();
 
       // Update state in-place with the fresh quiz bank
       setResources((prev) =>
@@ -167,7 +178,7 @@ export default function AdminResourceManager({
 
       showNotification(
         "success",
-        `تم توليد بنك الأسئلة بنجاح (${data.count} سؤال) للمورد: "${res.title}"`
+        `تم توليد بنك الأسئلة بنجاح (${data.count} أسئلة) للمورد: "${res.title}"`
       );
     } catch (err) {
       showNotification(
@@ -193,11 +204,22 @@ export default function AdminResourceManager({
         body: JSON.stringify({ action: "expand" }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || "فشل توسيع بنك الأسئلة.");
+        let errorMsg = "فشل توسيع بنك الأسئلة.";
+        try {
+          const errData = await response.json();
+          errorMsg = errData.error || errorMsg;
+        } catch {
+          if (response.status === 504) {
+            errorMsg = "انتهت مهلة استجابة الخادم أثناء التوسيع (15s Timeout).";
+          } else {
+            errorMsg = `خطأ من الخادم (رمز ${response.status}).`;
+          }
+        }
+        throw new Error(errorMsg);
       }
+
+      const data = await response.json();
 
       // Update state in-place with the expanded quiz bank
       setResources((prev) =>
@@ -220,14 +242,14 @@ export default function AdminResourceManager({
     }
   };
 
-  // Global notification banner
+  // Global floating toast notification
   const [notification, setNotification] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const showNotification = (type: "success" | "error", text: string) => {
     setNotification({ type, text });
     setTimeout(() => {
       setNotification((curr) => (curr?.text === text ? null : curr));
-    }, 4500);
+    }, 5500);
   };
 
   // ─── Metrics Calculation ──────────────────────────────────────────────────
@@ -394,14 +416,14 @@ export default function AdminResourceManager({
 
   return (
     <div className="space-y-6" dir="rtl">
-      {/* Toast Notification */}
+      {/* Floating Sticky Toast Notification (Always visible in viewport regardless of scroll position) */}
       {notification && (
         <div
           role="status"
-          className={`flex items-center justify-between gap-3 rounded-xl border p-4 text-sm font-medium transition-all ${
+          className={`fixed bottom-6 left-6 z-50 flex items-center justify-between gap-3 rounded-2xl border p-4 text-sm font-medium shadow-2xl backdrop-blur-md transition-all duration-300 max-w-md ${
             notification.type === "success"
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-              : "border-red-500/30 bg-red-500/10 text-red-400"
+              ? "border-emerald-500/40 bg-card/95 text-emerald-400"
+              : "border-red-500/40 bg-card/95 text-red-400"
           }`}
         >
           <span>{notification.text}</span>
