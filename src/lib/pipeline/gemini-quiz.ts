@@ -1,5 +1,5 @@
 import dns from "node:dns";
-import type { QuizData } from "@/types/database";
+import type { QuizData, QuizQuestion } from "@/types/database";
 
 // Force IPv4 resolution to prevent 30-second IPv6 socket timeouts
 try {
@@ -258,6 +258,92 @@ ${material}`;
 }
 
 /**
+ * Rigorously sanity-checks and sanitizes an individual LLM-generated question:
+ * 1. Checks that question text is a non-empty string.
+ * 2. Checks that options is an array of exactly 4 non-empty strings.
+ * 3. Ensures no duplicate options exist (e.g. model repeating "5" for A and B).
+ * 4. Ensures correctIndex is an integer strictly within 0..3 (pointing to a valid option).
+ * 5. Ensures explanation is a non-empty string.
+ * 6. Logs a descriptive console.warn detailing the exact failure reason when dropping a question.
+ */
+function sanitizeAndValidateQuestion(
+  raw: unknown,
+  index: number,
+  phase: string
+): QuizQuestion | null {
+  if (typeof raw !== "object" || raw === null) {
+    console.warn(`[gemini-quiz] [${phase}] Dropping question #${index + 1}: item is not an object.`);
+    return null;
+  }
+
+  const q = raw as Record<string, unknown>;
+
+  if (typeof q.question !== "string" || !q.question.trim()) {
+    console.warn(`[gemini-quiz] [${phase}] Dropping question #${index + 1}: question stem is missing or empty.`);
+    return null;
+  }
+
+  if (!Array.isArray(q.options) || q.options.length !== 4) {
+    console.warn(
+      `[gemini-quiz] [${phase}] Dropping question #${index + 1}: expected 4 options, got ${
+        Array.isArray(q.options) ? q.options.length : typeof q.options
+      }.`
+    );
+    return null;
+  }
+
+  const sanitizedOptions = q.options.map((opt) => String(opt ?? "").trim());
+  if (sanitizedOptions.some((opt) => opt.length === 0)) {
+    console.warn(`[gemini-quiz] [${phase}] Dropping question #${index + 1}: one or more options are blank.`);
+    return null;
+  }
+
+  // Deduplication check: drop question if LLM hallucinated identical options
+  const uniqueOptions = new Set(sanitizedOptions);
+  if (uniqueOptions.size !== 4) {
+    console.warn(
+      `[gemini-quiz] [${phase}] Dropping question #${index + 1}: duplicate options detected (${uniqueOptions.size}/4 unique).`
+    );
+    return null;
+  }
+
+  if (
+    typeof q.correctIndex !== "number" ||
+    !Number.isInteger(q.correctIndex) ||
+    q.correctIndex < 0 ||
+    q.correctIndex >= sanitizedOptions.length
+  ) {
+    console.warn(
+      `[gemini-quiz] [${phase}] Dropping question #${index + 1}: correctIndex (${q.correctIndex}) is out of range [0..${
+        sanitizedOptions.length - 1
+      }].`
+    );
+    return null;
+  }
+
+  if (typeof q.explanation !== "string" || !q.explanation.trim()) {
+    console.warn(`[gemini-quiz] [${phase}] Dropping question #${index + 1}: explanation is missing or blank.`);
+    return null;
+  }
+
+  let difficulty: "easy" | "medium" | "hard" = "medium";
+  if (q.difficulty === "easy" || q.difficulty === "medium" || q.difficulty === "hard") {
+    difficulty = q.difficulty;
+  }
+
+  const topic = typeof q.topic === "string" && q.topic.trim() ? q.topic.trim() : undefined;
+
+  return {
+    question: q.question.trim(),
+    options: sanitizedOptions,
+    correctIndex: q.correctIndex,
+    explanation: q.explanation.trim(),
+    difficulty,
+    topic,
+  };
+}
+
+/**
  * Validates and sanitizes the raw Gemini response into a sound QuizData object.
  */
 function validateQuizData(raw: unknown): QuizData {
@@ -275,45 +361,13 @@ function validateQuizData(raw: unknown): QuizData {
     throw new Error("Quiz response has no questions array");
   }
 
-  const validQuestions = [];
+  const validQuestions: QuizQuestion[] = [];
 
   for (const [i, q] of (obj.questions as unknown[]).entries()) {
-    if (typeof q !== "object" || q === null) continue;
-    const question = q as Record<string, unknown>;
-
-    if (
-      typeof question.question !== "string" ||
-      !Array.isArray(question.options) ||
-      question.options.length !== 4 ||
-      typeof question.correctIndex !== "number" ||
-      question.correctIndex < 0 ||
-      question.correctIndex > 3 ||
-      typeof question.explanation !== "string"
-    ) {
-      console.warn(`[gemini-quiz] Skipping malformed question at index ${i}`);
-      continue;
+    const validated = sanitizeAndValidateQuestion(q, i, "Phase 1 - Baseline");
+    if (validated) {
+      validQuestions.push(validated);
     }
-
-    // Sanitize optional difficulty
-    let difficulty: "easy" | "medium" | "hard" = "medium";
-    if (
-      question.difficulty === "easy" ||
-      question.difficulty === "medium" ||
-      question.difficulty === "hard"
-    ) {
-      difficulty = question.difficulty;
-    }
-
-    // Sanitize optional topic
-    const topic = typeof question.topic === "string" ? question.topic.trim() : undefined;
-    validQuestions.push({
-      question: question.question.trim(),
-      options: question.options.map((opt) => String(opt).trim()),
-      correctIndex: question.correctIndex,
-      explanation: question.explanation.trim(),
-      difficulty,
-      topic,
-    });
   }
 
   if (validQuestions.length < 4) {
@@ -481,43 +535,13 @@ ${material}`;
     }
   }
 
-  const validNewQuestions: QuizData["questions"] = [];
+  const validNewQuestions: QuizQuestion[] = [];
 
-  for (const [, q] of rawQuestions.entries()) {
-    if (typeof q !== "object" || q === null) continue;
-    const question = q as Record<string, unknown>;
-
-    if (
-      typeof question.question !== "string" ||
-      !Array.isArray(question.options) ||
-      question.options.length !== 4 ||
-      typeof question.correctIndex !== "number" ||
-      question.correctIndex < 0 ||
-      question.correctIndex > 3 ||
-      typeof question.explanation !== "string"
-    ) {
-      continue;
+  for (const [i, q] of rawQuestions.entries()) {
+    const validated = sanitizeAndValidateQuestion(q, i, "Phase 2 - Expansion");
+    if (validated) {
+      validNewQuestions.push(validated);
     }
-
-    let difficulty: "easy" | "medium" | "hard" = "medium";
-    if (
-      question.difficulty === "easy" ||
-      question.difficulty === "medium" ||
-      question.difficulty === "hard"
-    ) {
-      difficulty = question.difficulty;
-    }
-
-    const topic = typeof question.topic === "string" ? question.topic.trim() : undefined;
-
-    validNewQuestions.push({
-      question: question.question.trim(),
-      options: question.options.map((opt) => String(opt).trim()),
-      correctIndex: question.correctIndex,
-      explanation: question.explanation.trim(),
-      difficulty,
-      topic,
-    });
   }
 
   if (validNewQuestions.length === 0) {

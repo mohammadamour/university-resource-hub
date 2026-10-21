@@ -858,9 +858,15 @@ This living backlog serves as the authoritative North Star for future developmen
      1. **Mandatory Local Pre-Compression:** Always run Ghostscript compression locally (`Content_Upload_SOP.md`) before uploading production summaries to keep file sizes under 2–4 MB.
      2. **Cloudflare R2 Pull-Forward:** Migrate PDF binary storage from Supabase Storage to Cloudflare R2 (which provides 10 GB free storage and **zero egress fees**), keeping Supabase strictly for metadata and quiz JSON.
 
-4. **Curator Subject-Matter Verification (The Hallucination Guardrail):**
-   - **Risk:** `validateQuizData()` ensures structural shape (4 options, valid 0-3 index, Arabic text), but *cannot verify semantic correctness*. AI models frequently produce subtle sign errors, hallucinated theorems, or inverted explanations in Arabic Calculus and Discrete Math questions.
-   - **SOP Rule:** Every AI-generated quiz must be spot-checked and test-played by the admin/curator before being toggled to `active` in the course library.
+4. **Automated Backend Validation Loop & Curator Subject-Matter Verification:**
+   - **Risk:** LLM generation can occasionally produce malformed questions (bad option count, out-of-bounds `correctIndex`, duplicate choices, or empty text) or subtle sign errors in Calculus/CS questions.
+   - **Completed Defense (Automated Sanity Loop):** [`sanitizeAndValidateQuestion()`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/gemini-quiz.ts) runs on every LLM-produced question before Supabase insertion (in both Baseline and Expansion phases). It strictly verifies:
+     1. `options` is an array of exactly 4 non-blank strings.
+     2. Zero duplicate options (`Set(options).size === 4`).
+     3. `correctIndex` is an integer strictly within `[0..3]`.
+     4. Question stem and explanation are non-empty strings.
+     5. Malformed questions are dropped with descriptive console warnings (`[gemini-quiz] Dropping question #...: reason`) without crashing the valid batch.
+   - **Next Action (Curator 1-Click Audit Modal):** Build an admin inspect modal in [`AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx) with a "📋 Copy for AI Review" button to spot-check semantic truth against Claude/ChatGPT before publishing.
 
 5. **Shortlink (`/r/:id`) Deletion Fallback:**
    - **Risk:** The permanent watermarked shortlink `molakhasat.me/r/:id` is stamped onto hundreds of distributed PDFs. If a resource is deleted or replaced, students tapping the watermark encounter a dead 404.
