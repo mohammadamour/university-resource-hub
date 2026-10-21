@@ -48,6 +48,11 @@
 10. [Pre-Launch Hardening, Risk Registry & Technical Audit (Claude Architecture Review)](#10-pre-launch-hardening-risk-registry--technical-audit-claude-architecture-review)
     - [10.1 Immediate Pre-Launch Action Items (P0 / P1)](#101-immediate-pre-launch-action-items-p0--p1)
     - [10.2 Mid-Term Architectural Backlog (Phase 3 / Post-Launch)](#102-mid-term-architectural-backlog-phase-3--post-launch)
+11. [Sustainability, Non-Intrusive Monetization & Community Contributor Strategy](#11-sustainability-non-intrusive-monetization--community-contributor-strategy)
+    - [11.1 The Ethical Reframing & Core Freemium Boundary](#111-the-ethical-reframing--core-freemium-boundary)
+    - [11.2 The Jadara Playbook: Hyper-Local Campus B2B Sponsorships](#112-the-jadara-playbook-hyper-local-campus-b2b-sponsorships)
+    - [11.3 Value-Add Freemium Horizons (Phase 4)](#113-value-add-freemium-horizons-phase-4)
+    - [11.4 Contributor & Ambassador Retention Engine (The Modder Mindset)](#114-contributor--ambassador-retention-engine-the-modder-mindset)
 
 ---
 
@@ -920,5 +925,67 @@ This living backlog serves as the authoritative North Star for future developmen
 
 ---
 
-_Maintained continuously during development. Last updated: October 21, 2026._
+## 11. Sustainability, Non-Intrusive Monetization & Community Contributor Strategy
+
+> **Context & Vision:** Molakhasat is designed to be a durable, permanent academic public utility for Jordanian university students. To survive across multiple academic years without founder burnout, the platform requires an ethical, non-intrusive sustainability engine and a structured contributor retention architecture.
+
+---
+
+### 11.1 The Ethical Reframing & Core Freemium Boundary
+
+- **The Intellectual Trap of "Unethical Monetization":**
+  Solo developers frequently assume that charging money or monetizing is antithetical to helping students. In software reality, un-monetized academic tools almost universally die within 12–18 months when server bills, LLM token quotas, and domain fees turn into financial drag on an exhausted student founder. Monetization is the operational engine that ensures the free tier can exist permanently.
+- **The Non-Negotiable Core Boundary (The Golden Rule):**
+  - **Zero-Login Reading & PDF Downloads are 100% Free Forever:** No paywalls on course summaries, slides, or formula sheets. No signup barriers for guest mobile reading.
+  - **Free Tier Integrity:** The public good remains pristine. Monetization is strictly confined to B2B campus sponsorships or heavy compute power-user add-ons.
+
+---
+
+### 11.2 The Jadara Playbook: Hyper-Local Campus B2B Sponsorships
+
+- **The Jordan Student Payment Reality:**
+  Jordanian university students face heavy friction with digital micro-subscriptions: low credit card penetration among freshmen, cultural reliance on CliQ / cash, and extreme price sensitivity. Forcing recurring SaaS credit card billing on students is swimming upstream.
+- **The Local B2B Advantage:**
+  Jadara University is a prominent private university on the Irbid-Amman highway. The student demographic has high discretionary spending power, active daily vehicle/bus commutes, and sustained off-campus commercial needs. Local businesses fight for student mindshare during high-stress exam periods.
+- **High-Affinity Campus Sponsorship Niches:**
+  1. **Student Housing & Dormitories (سكنات الطلاب والطالبات):** High margin, year-long leases; willing to sponsor during registration and exam periods.
+  2. **Study Cafés & Coffee Shops:** Direct beneficiaries of students needing Wi-Fi and quiet study environments near university gates.
+  3. **Laptop, Mobile & Electronics Repair Shops:** Critical emergency services during project submission and exam weeks.
+  4. **Student Transportation Lines & Private Commute Services:** Daily university transit routes between Irbid, Amman, and Jerash.
+  5. **IELTS, TOEFL & Professional Training Academies:** High-yield career upskilling for graduating seniors.
+- **Implementation UX (Zero Clutter, High Value):**
+  - **No Invasive Ad Networks:** Never run noisy, slow Google AdSense banners or intrusive popups that degrade mobile reading speed.
+  - **The "Curated Study Partner" Pill (`✦ شريك الدراسة`):** A sleek, high-contrast badge or pinned partner pill embedded seamlessly into course directory cards or footer:
+    `✦ شريك الدراسة: [اسم الكافيه / السكن] — كود خصم خاص 15% لطلاب جدارا`
+  - **Economics:** Just 1–2 local businesses sponsoring at **50–100 JOD / month ($70–$140)** completely pays for Supabase, Vercel, and Gemini API costs, generating recurring runway while delivering genuine local discounts to students.
+
+---
+
+### 11.3 Value-Add Freemium Horizons (Phase 4)
+
+If and when student-facing paid features are introduced, they must strictly follow the "Compute-Heavy Convenience" model without gating core course notes:
+1. **Mock Exam Simulator with Adaptive Weakness Training:** Unlimited on-demand full exam simulations (25–50 questions) with instant personalized mistake remediation and step-by-step breakdown.
+2. **AI Audio Flashcards & Slide Summarizer:** Ingesting 100-page raw lecture slide decks into bite-sized 5-minute audio capsules or interactive flashcard decks.
+3. **Exam Week Fast-Lane:** Dedicated high-priority LLM generation queues ensuring instant quiz synthesis even during nationwide midterm/final traffic spikes.
+
+---
+
+### 11.4 Contributor & Ambassador Retention Engine (The Modder Mindset)
+
+- **The Reality of Volunteer Student Admins:**
+  Student contributors (like Anas and future faculty representatives) quit when three friction points occur:
+  1. *Repetitive Grunt Work:* Complex multi-field forms, manual OCR, or clunky UIs cause burnout in days.
+  2. *Fear of Breaking Production:* Handing over raw database access or destructive super-admin credentials creates anxiety.
+  3. *Zero Social Attribution:* Performing hours of invisible work with no public recognition kills motivation.
+- **The Modder Playbook (Autonomy + Speed + Status):**
+  - **Public Attribution Badges (`uploader_name`):** Every summary or quiz curated by an ambassador visibly displays:
+    `مرفوع بواسطة: أنس (مشرف معتمد) ✦`
+    When classmates download summaries, the social credit flows directly to the contributor in lecture halls and study groups.
+  - **The 25-Second Curation Loop:** The decoupled `/upload` funnel (WebWorker text extraction + auto-watermarking + 6s quiz generation) allows an ambassador to curate an entire course's midterm content in ~15 minutes between lectures.
+  - **Ambassador Role (RBAC Lite):** Scoped curation credentials permitting upload, metadata tagging, and quiz expansion for assigned courses while strictly isolating destructive database operations.
+
+---
+
+_Maintained continuously during development. Last updated: October 22, 2026._
+
 
