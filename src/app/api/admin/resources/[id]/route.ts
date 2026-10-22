@@ -45,8 +45,17 @@ export async function DELETE(request: Request, props: RouteProps) {
       return NextResponse.json({ error: "Resource not found" }, { status: 404 });
     }
 
-    // 2. Derive storage file path (pattern: courses/:courseId/:resourceId.pdf)
-    const filePath = `courses/${resource.course_id}/${resource.id}.pdf`;
+    // 2. Derive storage file path from storage_url or fallback to courses/:courseId/:resourceId.pdf
+    let filePath = `courses/${resource.course_id}/${resource.id}.pdf`;
+    if (
+      resource.storage_url &&
+      resource.storage_url.includes("/storage/v1/object/public/resources/")
+    ) {
+      const marker = "/storage/v1/object/public/resources/";
+      filePath = decodeURIComponent(
+        resource.storage_url.slice(resource.storage_url.indexOf(marker) + marker.length)
+      );
+    }
 
     // Attempt storage deletion (non-fatal if file was already removed)
     const { error: storageError } = await supabase.storage

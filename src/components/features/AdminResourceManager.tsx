@@ -600,16 +600,27 @@ export default function AdminResourceManager({
                       {/* Title & Preview Link */}
                       <td className="px-5 py-4">
                         <div className="flex flex-col">
-                          <Link
-                            href={`/r/${res.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-semibold text-foreground hover:text-accent hover:underline flex items-center gap-1.5"
-                            title="فتح ومعاينة ملف الـ PDF عبر الرابط الدائم"
-                          >
-                            <span>{res.title}</span>
-                            <span className="text-xs text-muted-foreground">↗</span>
-                          </Link>
+                          {res.storage_url && res.storage_url !== "__processing__" ? (
+                            <a
+                              href={res.storage_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-semibold text-foreground hover:text-accent hover:underline flex items-center gap-1.5"
+                              title="فتح ومعاينة ملف الـ PDF الأصلي في نافذة جديدة"
+                            >
+                              <span>{res.title}</span>
+                              <span className="text-xs text-muted-foreground">↗</span>
+                            </a>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-muted-foreground">{res.title}</span>
+                              {res.storage_url === "__processing__" && (
+                                <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded px-1.5 py-0.5">
+                                  جارٍ المعالجة...
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <span className="font-mono text-[11px] text-muted-foreground mt-0.5">
                             ID: {res.id.slice(0, 8)}...
                           </span>
@@ -687,9 +698,17 @@ export default function AdminResourceManager({
                           ) : (
                             <button
                               onClick={() => handleGenerateQuiz(res)}
-                              disabled={generatingQuizId !== null}
+                              disabled={
+                                generatingQuizId !== null ||
+                                res.status === "processing" ||
+                                res.storage_url === "__processing__"
+                              }
                               className="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-xs font-medium text-purple-300 hover:bg-purple-500/20 transition-all disabled:opacity-50"
-                              title="توليد كويز تفاعلي لهذا المورد بالذكاء الاصطناعي"
+                              title={
+                                res.status === "processing" || res.storage_url === "__processing__"
+                                  ? "الملف قيد المعالجة والرفع السحابي حالياً"
+                                  : "توليد كويز تفاعلي لهذا المورد بالذكاء الاصطناعي"
+                              }
                             >
                               {generatingQuizId === res.id ? (
                                 <>
@@ -725,15 +744,25 @@ export default function AdminResourceManager({
                       {/* Actions */}
                       <td className="px-5 py-4 text-end">
                         <div className="inline-flex items-center gap-1.5">
-                          <Link
-                            href={`/r/${res.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="rounded-lg border border-border bg-background p-2 text-xs font-medium text-foreground hover:bg-muted"
-                            title="معاينة الملف"
-                          >
-                            👁️
-                          </Link>
+                          {res.storage_url && res.storage_url !== "__processing__" ? (
+                            <a
+                              href={res.storage_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg border border-border bg-background p-2 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                              title="معاينة وتدقيق الملف الأصلي"
+                            >
+                              👁️
+                            </a>
+                          ) : (
+                            <button
+                              disabled
+                              className="rounded-lg border border-border bg-background p-2 text-xs font-medium text-muted-foreground opacity-50 cursor-not-allowed"
+                              title="الملف غير متاح للمعاينة حالياً (قيد المعالجة السحابية)"
+                            >
+                              👁️
+                            </button>
+                          )}
 
                           <button
                             onClick={() => openEditModal(res)}
@@ -770,15 +799,27 @@ export default function AdminResourceManager({
                 <div key={res.id} className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <Link
-                        href={`/r/${res.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-bold text-foreground hover:text-accent flex items-center gap-1"
-                      >
-                        <span>{res.title}</span>
-                        <span className="text-xs">↗</span>
-                      </Link>
+                      {res.storage_url && res.storage_url !== "__processing__" ? (
+                        <a
+                          href={res.storage_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-bold text-foreground hover:text-accent flex items-center gap-1"
+                          title="فتح ومعاينة ملف الـ PDF الأصلي"
+                        >
+                          <span>{res.title}</span>
+                          <span className="text-xs">↗</span>
+                        </a>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-muted-foreground">{res.title}</span>
+                          {res.storage_url === "__processing__" && (
+                            <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded px-1.5 py-0.5">
+                              جارٍ المعالجة...
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <div className="mt-1 text-xs text-muted-foreground">
                         {res.course?.title} {res.course?.course_code ? `(${res.course.course_code})` : ""}
                       </div>
@@ -841,9 +882,20 @@ export default function AdminResourceManager({
 
                     <button
                       onClick={() => handleGenerateQuiz(res)}
-                      disabled={generatingQuizId !== null || expandingQuizId !== null}
+                      disabled={
+                        generatingQuizId !== null ||
+                        expandingQuizId !== null ||
+                        res.status === "processing" ||
+                        res.storage_url === "__processing__"
+                      }
                       className="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-300 hover:bg-purple-500/20 disabled:opacity-50"
-                      title={questionCount > 0 ? "إعادة توليد الكويز" : "توليد كويز بالذكاء الاصطناعي"}
+                      title={
+                        res.status === "processing" || res.storage_url === "__processing__"
+                          ? "الملف قيد المعالجة والرفع السحابي حالياً"
+                          : questionCount > 0
+                          ? "إعادة توليد الكويز"
+                          : "توليد كويز بالذكاء الاصطناعي"
+                      }
                     >
                       {generatingQuizId === res.id ? (
                         <>
@@ -858,15 +910,27 @@ export default function AdminResourceManager({
                       )}
                     </button>
 
-                    <Link
-                      href={`/r/${res.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
-                    >
-                      <span>👁️</span>
-                      <span>معاينة</span>
-                    </Link>
+                    {res.storage_url && res.storage_url !== "__processing__" ? (
+                      <a
+                        href={res.storage_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+                        title="معاينة الملف الأصلي"
+                      >
+                        <span>👁️</span>
+                        <span>معاينة</span>
+                      </a>
+                    ) : (
+                      <button
+                        disabled
+                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground opacity-50 cursor-not-allowed"
+                        title="الملف غير متاح للمعاينة حالياً"
+                      >
+                        <span>👁️</span>
+                        <span>معاينة</span>
+                      </button>
+                    )}
 
                     <button
                       onClick={() => openEditModal(res)}
@@ -922,6 +986,30 @@ export default function AdminResourceManager({
             )}
 
             <div className="mt-5 space-y-4">
+              {/* Direct PDF Preview & Inspection */}
+              {editingResource.storage_url && editingResource.storage_url !== "__processing__" ? (
+                <div className="flex items-center justify-between rounded-xl border border-primary/25 bg-primary/5 p-3 text-xs">
+                  <div className="flex items-center gap-2 text-foreground">
+                    <span>📄</span>
+                    <span className="font-medium">معاينة وتدقيق المستند المرفوع</span>
+                  </div>
+                  <a
+                    href={editingResource.storage_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 font-semibold text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    <span>فتح ملف الـ PDF الأصلي</span>
+                    <span>↗</span>
+                  </a>
+                </div>
+              ) : editingResource.storage_url === "__processing__" ? (
+                <div className="flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-300">
+                  <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+                  <span>الملف قيد المعالجة والرفع السحابي حالياً، يرجى تحديث الصفحة بعد لحظات.</span>
+                </div>
+              ) : null}
+
               {/* Title Input */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-foreground">

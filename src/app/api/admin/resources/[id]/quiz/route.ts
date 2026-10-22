@@ -37,7 +37,7 @@ export async function POST(
   // 1. Fetch resource record
   const { data: resource, error: fetchError } = await supabase
     .from("resources")
-    .select("id, title, storage_url, source_text, course_id, type, quiz_data")
+    .select("id, title, storage_url, source_text, course_id, type, quiz_data, status")
     .eq("id", id)
     .single();
 
@@ -48,12 +48,34 @@ export async function POST(
     );
   }
 
+  // Guard against in-flight processing
+  if (resource.storage_url === "__processing__" || resource.status === "processing") {
+    return NextResponse.json(
+      {
+        error:
+          "الملف لا يزال قيد المعالجة والرفع السحابي. يرجى الانتظار بضع ثوانٍ حتى يكتمل الرفع ثم المحاولة مجدداً.",
+      },
+      { status: 422 }
+    );
+  }
+
   let sourceText = resource.source_text?.trim() || "";
 
   // 2. If source_text is missing or too short, download PDF from storage and extract text
   if (sourceText.length < 50) {
     try {
-      const storagePath = `courses/${resource.course_id}/${resource.id}.pdf`;
+      // Derive actual storage key from storage_url, or fallback to course_id/id pattern
+      let storagePath = `courses/${resource.course_id}/${resource.id}.pdf`;
+      if (
+        resource.storage_url &&
+        resource.storage_url.includes("/storage/v1/object/public/resources/")
+      ) {
+        const marker = "/storage/v1/object/public/resources/";
+        storagePath = decodeURIComponent(
+          resource.storage_url.slice(resource.storage_url.indexOf(marker) + marker.length)
+        );
+      }
+
       const { data: fileBlob, error: downloadError } = await supabase.storage
         .from("resources")
         .download(storagePath);

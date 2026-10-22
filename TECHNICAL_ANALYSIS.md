@@ -18,6 +18,7 @@
    - [2.7 Serverless Execution Protection via Next.js `after()`](#27-serverless-execution-protection-via-nextjs-after)
    - [2.8 Auto-Watermarking Engine (The Micro-Pill Badge & Referral Loop)](#28-auto-watermarking-engine-the-micro-pill-badge--anti-occlusion-referral-loop)
    - [2.9 Pre-Storage SHA-256 Duplicate Defense & Page-Count Resolution](#29-pre-storage-sha-256-duplicate-defense--page-count-resolution)
+   - [2.10 Admin Preview Decoupling & Dynamic Storage Key Derivation](#210-admin-preview-decoupling--dynamic-storage-key-derivation)
 3. [Deep Dive: Frontend & Interactive Components](#3-deep-dive-frontend--interactive-components)
    - [3.1 The "Topic | Title" Dynamic Grouping Pattern](#31-the-topic--title-dynamic-grouping-pattern)
    - [3.2 Next.js 16 Turbopack Segment Revalidation AST Quirk](#32-nextjs-16-turbopack-segment-revalidation-ast-quirk)
@@ -366,6 +367,24 @@ POST /api/upload
 - **Dual-Layer Page-Count Resolution:**
   1. **Client WebWorker (Zero Latency):** `extractPdfMetadataAndText()` captures `pdf.numPages` during speculative extraction in the browser, instantly showing a `📑 X صفحة` badge in the dropzone and passing `pageCount` in `FormData`.
   2. **Server Fallback (`pdf-lib`):** If the client worker failed or was bypassed, the server queries `tempDoc.getPageCount()` from `pdf-lib` (already loaded for watermarking) without spawning child processes.
+
+---
+
+### 2.10 Admin Preview Decoupling & Dynamic Storage Key Derivation
+
+- **Files:** [`src/components/features/AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx), [`src/app/api/admin/resources/[id]/quiz/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/admin/resources/%5Bid%5D/quiz/route.ts), [`src/app/api/admin/resources/[id]/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/admin/resources/%5Bid%5D/route.ts)
+- **The `/r/:id` Admin Pitfall:**
+  Previously, preview buttons in the admin table and cards pointed to `/r/${res.id}`. The `/r/:id` route is strictly an anonymous, permanent shortlink for students with Supabase RLS `status = 'active'`. Clicking `/r/:id` for pending (`status: 'pending'`) or draft uploads returned `null`, falling back to `NextResponse.redirect('/', 307)`. Admins could not inspect newly uploaded files to approve or reject them.
+- **The Direct Preview Architecture:**
+  - Table rows, mobile cards, and the Edit Modal now link directly to `res.storage_url` in a new tab (`target="_blank" rel="noopener noreferrer"`).
+  - Inside `AdminResourceManager.tsx`, the Edit Modal features a dedicated preview inspection banner (`📄 معاينة وتدقيق المستند المرفوع`), allowing the administrator to inspect the original PDF binary, check formatting/watermarks, and update status from `pending` to `active` in one seamless workflow.
+- **In-Flight `__processing__` Guard & State Protection:**
+  - Upload routes return `202 Accepted` immediately while background pipelines (`after()`) compress and upload the PDF asynchronously (`storage_url = '__processing__'`).
+  - The UI cleanly disables preview and quiz generation buttons with an informative `جارٍ المعالجة...` badge until the upload completes.
+  - Backend endpoints (`/api/admin/resources/[id]/quiz`) guard against premature calls with HTTP 422: `"الملف لا يزال قيد المعالجة والرفع السحابي"`.
+- **Dynamic Storage Path Extraction:**
+  - Rather than hardcoding storage paths as `courses/${resource.course_id}/${resource.id}.pdf`, endpoints now derive the path dynamically from `resource.storage_url.slice(marker.length)`.
+  - **Why:** If an administrator reassigns a resource to a different course in the database via the Edit Modal, the underlying binary in Supabase Storage remains at its original path. Deriving the storage key from `storage_url` ensures that on-demand text extraction, AI quiz generation, and atomic deletions (`DELETE`) never fail with `Object not found`.
 
 ---
 
