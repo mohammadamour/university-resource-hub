@@ -96,19 +96,23 @@ const STATUS_LABELS: Record<ResourceStatus, { label: string; badgeClass: string 
 function formatBytes(bytes: number | null | undefined): string {
   if (!bytes || bytes <= 0) return "—";
   if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(0)} كيلوبايت`;
+    return `${(bytes / 1024).toFixed(0)} KB`;
   }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} ميغابايت`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatDate(dateStr: string): string {
   try {
     const d = new Date(dateStr);
-    return d.toLocaleDateString("ar-JO", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
+    if (isNaN(d.getTime())) return dateStr;
+    const month = d.toLocaleString("en-US", { month: "short" });
+    const day = d.getDate();
+    const time = d.toLocaleString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
     });
+    return `${month} ${day}, ${time}`;
   } catch {
     return dateStr;
   }
@@ -736,9 +740,13 @@ export default function AdminResourceManager({
                       </td>
 
                       {/* Size & Date */}
-                      <td className="px-4 py-4 text-xs text-muted-foreground">
-                        <div>{formatBytes(res.file_size_bytes)}</div>
-                        <div className="text-[11px] mt-0.5">{formatDate(res.created_at)}</div>
+                      <td className="px-4 py-4 text-xs whitespace-nowrap">
+                        <div className="font-semibold text-foreground" dir="ltr">
+                          {formatBytes(res.file_size_bytes)}
+                        </div>
+                        <div className="text-[11px] mt-0.5 text-muted-foreground font-medium" dir="ltr">
+                          {formatDate(res.created_at)}
+                        </div>
                       </td>
 
                       {/* Actions */}
@@ -852,9 +860,9 @@ export default function AdminResourceManager({
                       </Link>
                     ) : null}
 
-                    <span className="text-muted-foreground">{formatBytes(res.file_size_bytes)}</span>
+                    <span className="font-semibold text-foreground" dir="ltr">{formatBytes(res.file_size_bytes)}</span>
                     <span className="text-muted-foreground">·</span>
-                    <span className="text-muted-foreground">{formatDate(res.created_at)}</span>
+                    <span className="text-muted-foreground" dir="ltr">{formatDate(res.created_at)}</span>
                   </div>
 
                   {/* Actions Bar */}
