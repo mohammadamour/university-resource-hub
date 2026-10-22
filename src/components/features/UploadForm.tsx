@@ -13,6 +13,7 @@ export interface CourseResourceSummary {
 export interface UploadCourse {
   id: string;
   title: string;
+  slug?: string;
   course_code: string | null;
   department?: { name: string } | null;
   resources?: CourseResourceSummary[];

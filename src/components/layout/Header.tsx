@@ -19,12 +19,20 @@ export default function Header() {
         </Link>
 
         {/* Navigation */}
-        <nav className="flex items-center gap-4">
+        <nav className="flex items-center gap-3 sm:gap-4">
           <Link
             href="/guides"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            className="text-xs sm:text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             أدلة ونصائح
+          </Link>
+
+          <Link
+            href="/upload"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-xs sm:text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:opacity-90 active:scale-95"
+          >
+            <span>📤</span>
+            <span>شارك ملخصك</span>
           </Link>
         </nav>
       </div>

@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { Resource, ResourceType } from "@/types/database";
 import NativeQuiz from "@/components/features/NativeQuiz";
 
 interface ResourceListProps {
   resources: Resource[];
+  courseId?: string;
+  courseTitle?: string;
 }
 
 /**
@@ -13,7 +16,11 @@ interface ResourceListProps {
  * Separates core study materials (summaries, quizzes) into tabs,
  * and external deep-dive resources (links, videos) into a separate section.
  */
-export default function ResourceList({ resources }: ResourceListProps) {
+export default function ResourceList({
+  resources,
+  courseId,
+  courseTitle,
+}: ResourceListProps) {
   const [activeEmbedId, setActiveEmbedId] = useState<string | null>(null);
 
   // Separate resources into primary study materials vs deep dive external links
@@ -56,13 +63,25 @@ export default function ResourceList({ resources }: ResourceListProps) {
 
   if (resources.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-border p-8 text-center">
-        <p className="text-muted-foreground">
-          لا توجد موارد متاحة لهذه المادة حالياً 📭
+      <div className="rounded-2xl border border-dashed border-border bg-card/60 p-8 sm:p-12 text-center backdrop-blur-sm">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-2xl mb-4">
+          📚
+        </div>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">
+          لا توجد موارد أو ملخصات لهذه المادة حتى الآن
+        </h3>
+        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground sm:text-base leading-relaxed">
+          كن أول من يشارك ملخصاته أو أسئلته السابقة لمساعدة زملائك الطلبة في مادة {courseTitle ? `"${courseTitle}"` : "هذا المساق"}!
         </p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          سيتم إضافة المحتوى قريباً. تابعونا!
-        </p>
+        <div className="mt-6">
+          <Link
+            href={`/upload?courseId=${encodeURIComponent(courseId || "")}`}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:opacity-90 active:scale-95"
+          >
+            <span>📤</span>
+            <span>كن أول من يشارك ملخصاً</span>
+          </Link>
+        </div>
       </div>
     );
   }

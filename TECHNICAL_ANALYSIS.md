@@ -24,6 +24,7 @@
    - [3.2 Next.js 16 Turbopack Segment Revalidation AST Quirk](#32-nextjs-16-turbopack-segment-revalidation-ast-quirk)
    - [3.3 The `<NativeQuiz />` 4-State Client Machine](#33-the-nativequiz--4-state-client-machine)
    - [3.4 SVG Circular Progress Ring Mathematics](#34-svg-circular-progress-ring-mathematics)
+   - [3.5 Crowdsourced Empty-Course Funnel & Universal Navbar CTA](#35-crowdsourced-empty-course-funnel--universal-navbar-cta)
 4. [Database, RLS Security & Caching Strategy](#4-database-rls-security--caching-strategy)
    - [4.1 Relational Hierarchy & "Fake Departments"](#41-relational-hierarchy--fake-departments)
    - [4.2 Row Level Security (RLS) Permission Matrix](#42-row-level-security-rls-permission-matrix)
@@ -515,6 +516,17 @@ POST /api/upload
   ```
 
 - Rotating `-90deg` ensures the progress ring starts filling from the **12 o'clock** position instead of 3 o'clock.
+
+---
+
+### 3.5 Crowdsourced Empty-Course Funnel & Universal Navbar CTA
+
+- **Files:** [`src/components/layout/Header.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/layout/Header.tsx), [`src/components/features/ResourceList.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/ResourceList.tsx), [`src/app/courses/[slug]/page.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/courses/%5Bslug%5D/page.tsx), [`src/app/upload/page.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/upload/page.tsx)
+- **Zero-Barrier Funnel Strategy:**
+  To bootstrap content coverage across hundreds of university courses without manual founder overload:
+  1. **Universal Navbar CTA (`Header.tsx`):** A prominent `[📤 شارك ملخصك]` action is visible on every single page across mobile and desktop, converting passive readers into contributors without auth friction.
+  2. **Empty Course State Transformation (`ResourceList.tsx`):** Courses with zero approved resources render a high-converting contribution card: *"لا توجد موارد أو ملخصات لهذه المادة حتى الآن — كن أول من يشارك ملخصاته لمساعدة زملائك!"*.
+  3. **Context-Preserving Funnel (`UploadPage.tsx` & `UploadForm.tsx`):** Clicking the empty state CTA passes `?courseId=UUID` (or `?course=slug`). `UploadPage` resolves the target course and automatically pre-selects it in the dropdown, eliminating search friction and driving conversion.
 
 ---
 

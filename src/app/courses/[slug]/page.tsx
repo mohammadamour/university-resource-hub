@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ResourceList from "@/components/features/ResourceList";
@@ -138,27 +139,41 @@ export default async function CoursePage({ params }: CoursePageProps) {
       <Header />
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-10">
         {/* Course Header */}
-        <div className="mb-8">
-          {course.course_code && (
-            <span className="text-sm font-mono text-muted-foreground">
-              {course.course_code}
-            </span>
-          )}
-          <h1 className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">
-            {course.title}
-          </h1>
-          {course.description && (
-            <p className="mt-2 text-muted-foreground">{course.description}</p>
-          )}
-          {course.instructor && (
-            <p className="mt-1 text-sm text-muted-foreground">
-              👨‍🏫 {course.instructor}
-            </p>
-          )}
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            {course.course_code && (
+              <span className="text-sm font-mono text-muted-foreground">
+                {course.course_code}
+              </span>
+            )}
+            <h1 className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">
+              {course.title}
+            </h1>
+            {course.description && (
+              <p className="mt-2 text-muted-foreground">{course.description}</p>
+            )}
+            {course.instructor && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                👨‍🏫 {course.instructor}
+              </p>
+            )}
+          </div>
+
+          <Link
+            href={`/upload?courseId=${encodeURIComponent(course.id)}`}
+            className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-xl border border-primary/20 bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95 shadow-2xs"
+          >
+            <span>➕</span>
+            <span>شارك ملخصاً</span>
+          </Link>
         </div>
 
         {/* Resource List */}
-        <ResourceList resources={course.resources || []} />
+        <ResourceList
+          resources={course.resources || []}
+          courseId={course.id}
+          courseTitle={course.title}
+        />
       </main>
       <Footer />
     </>

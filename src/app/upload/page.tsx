@@ -11,11 +11,11 @@ export const metadata: Metadata = {
 };
 
 interface UploadPageProps {
-  searchParams: Promise<{ key?: string; courseId?: string; title?: string }>;
+  searchParams: Promise<{ key?: string; courseId?: string; course?: string; title?: string }>;
 }
 
 export default async function UploadPage({ searchParams }: UploadPageProps) {
-  const { key, courseId, title } = await searchParams;
+  const { key, courseId, course, title } = await searchParams;
 
   const isAdmin = Boolean(
     process.env.ADMIN_SECRET && key && key === process.env.ADMIN_SECRET
@@ -27,12 +27,19 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
     .from("courses")
     .select(`
       id,
+      slug,
       title,
       course_code,
       department:departments (name),
       resources (id, title, type, file_size_bytes)
     `)
     .order("title");
+
+  // Support resolving course by ID or slug for flexible inbound funnel links
+  const rawCourseParam = courseId || course;
+  const resolvedCourseId = rawCourseParam
+    ? courses?.find((c) => c.id === rawCourseParam || c.slug === rawCourseParam)?.id || rawCourseParam
+    : undefined;
 
   return (
     <>
@@ -58,7 +65,7 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
           <UploadForm
             initialCourses={(courses as unknown as UploadCourse[]) || []}
             adminSecret={isAdmin ? key : undefined}
-            initialCourseId={courseId}
+            initialCourseId={resolvedCourseId}
             initialTitle={title}
           />
         </div>
