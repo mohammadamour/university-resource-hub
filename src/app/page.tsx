@@ -40,7 +40,8 @@ async function getDepartments(): Promise<DepartmentWithCourses[]> {
           id,
           status,
           type,
-          quiz_data
+          quiz_data,
+          is_featured
         )
       )
     `

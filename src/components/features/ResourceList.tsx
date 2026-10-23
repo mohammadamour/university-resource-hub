@@ -453,7 +453,7 @@ export default function ResourceList({
           💡 هل لديك تلخيص أفضل أو أسئلة إضافية؟
         </h4>
         <p className="mt-1 text-xs text-muted-foreground sm:text-sm max-w-lg mx-auto leading-relaxed">
-          ساهم في إثراء أرشيف المادة وساعد زملاءك في الدفعة على التفوق! تتم مراجعة الملف ونشره فوراً.
+          ساهم في إثراء أرشيف المادة وساعد زملاءك في الدفعة على التفوق! يتم مراجعة الملف من قبل فريق المنصة قبل نشره.
         </p>
         <div className="mt-4">
           <Link

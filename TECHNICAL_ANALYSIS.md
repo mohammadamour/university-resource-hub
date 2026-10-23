@@ -42,6 +42,7 @@
    - [8.2 What to Edit vs. What NOT to Edit (Binary Immutability)](#82-what-to-edit-vs-what-not-to-edit-binary-immutability)
    - [8.3 Atomic Storage & DB Purging (`/api/admin/resources/[id]`)](#83-atomic-storage--db-purging-apiadminresourcesid)
    - [8.4 Bidirectional RTL Formatting & Real-Time Metrics](#84-bidirectional-rtl-formatting--real-time-metrics)
+   - [8.5 The 3-Tier Content Engine & Split-Tab Moderation Queue](#85-the-3-tier-content-engine--split-tab-moderation-queue)
 9. [Strategic Roadmap & Living Engineering Backlog](#9-strategic-roadmap--living-engineering-backlog)
    - [9.1 Phase 1: Completed Architecture (The Decoupled Foundation)](#91-phase-1-completed-architecture-the-decoupled-foundation)
    - [9.2 Phase 2: Immediate Sprint Priorities (Launch Readiness)](#92-phase-2-immediate-sprint-priorities-launch-readiness)
@@ -804,7 +805,17 @@ export interface PipelineProgressEvent {
 - Enforcing `dir="ltr"` on numerical fractions ensures counters like `2 / 12` render in their natural mathematical order.
 - Each resource entry provides one-click testing via the evergreen shortlink `/r/:id`, ensuring watermarked link fidelity before public student access.
 
----
+### 8.5 The 3-Tier Content Engine & Split-Tab Moderation Queue
+
+- **The Choice Overload Problem:** Dumping 15+ flat PDFs right before an exam causes analysis paralysis and wastes precious LLM quota synthesizing quizzes for secondary notes.
+- **The 3-Tier Hierarchy:**
+  - **Tier 1 (Core Curated Shelf):** Strictly capped at 2–4 high-yield assets (`is_featured: true`). Full-width cards with verified badges (`✦ إدارة المنصة`), inline `<NativeQuiz />`, and direct downloads.
+  - **Tier 2 (Extended Community Archive):** Collapsible drawer for student peer submissions and past semester notes (`is_featured: false`). Lean, zero quiz token overhead. Admin can promote to Tier 1 with 1 click.
+  - **Tier 3 (Deep-Dive External Toolkit):** Multi-column grid for external study links (`type === 'link'`) with auto-detected platform badges (YouTube red badge, GitHub repo, Docs, Online compilers).
+- **Split-Tab Moderation Workflow (`/admin/resources`):**
+  - **Active Tab:** Real-time search, inline 1-click tier flipping (`[⭐ رئيسي]` ↔ `[📁 أرشيف]`), and on-demand quiz generation (`/api/admin/resources/[id]/quiz`).
+  - **Pending Tab (`بانتظار المراجعة`):** Amber badge with live pending count. Allows 1-click approval directly into either Tier 1 (`اعتماد كملخص رئيسي`) or Tier 2 (`اعتماد في الأرشيف الإضافي`), or rejection with atomic physical storage and database purging.
+  - **Guest Ingestion Boundary:** Public uploads via `/upload` default to `status: 'pending'` and `is_featured: false`, while admin uploads default to `status: 'active'` and `is_featured: true`.
 
 ---
 
