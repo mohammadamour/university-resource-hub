@@ -28,13 +28,21 @@ async function getDepartments(): Promise<DepartmentWithCourses[]> {
 
   if (!university) return [];
 
-  // Get departments with their courses, ordered
+  // Get departments with their courses and active resources
   const { data: departments } = await supabase
     .from("departments")
     .select(
       `
       *,
-      courses (*)
+      courses (
+        *,
+        resources (
+          id,
+          status,
+          type,
+          quiz_data
+        )
+      )
     `
     )
     .eq("university_id", university.id)

@@ -142,6 +142,36 @@ export async function PATCH(request: Request, props: RouteProps) {
       updateData.status = body.status as ResourceStatus;
     }
 
+    if (typeof body.isFeatured === "boolean") {
+      updateData.is_featured = body.isFeatured;
+    } else if (typeof body.is_featured === "boolean") {
+      updateData.is_featured = body.is_featured;
+    }
+
+    if (body.targetExam === "midterm" || body.targetExam === "final" || body.targetExam === "other") {
+      updateData.target_exam = body.targetExam;
+    }
+
+    if (typeof body.academicYear === "string" && body.academicYear.trim()) {
+      updateData.academic_year = body.academicYear.trim();
+    }
+
+    if (body.professorName !== undefined) {
+      updateData.professor_name = body.professorName ? String(body.professorName).trim() : null;
+    }
+
+    if (body.authorName !== undefined) {
+      updateData.author_name = body.authorName ? String(body.authorName).trim() : null;
+    }
+
+    if (body.description !== undefined) {
+      updateData.description = body.description ? String(body.description).trim() : null;
+    }
+
+    if (body.externalPlatform !== undefined) {
+      updateData.external_platform = body.externalPlatform || null;
+    }
+
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
         { error: "No valid fields provided for update" },

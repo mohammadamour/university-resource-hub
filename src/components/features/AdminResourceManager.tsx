@@ -25,6 +25,15 @@ export interface AdminResourceItem {
     questions?: { question: string }[];
   } | null;
   course?: AdminResourceCourse | null;
+  is_featured?: boolean;
+  is_admin_uploaded?: boolean;
+  page_count?: number | null;
+  target_exam?: string | null;
+  academic_year?: string | null;
+  professor_name?: string | null;
+  author_name?: string | null;
+  description?: string | null;
+  external_platform?: string | null;
 }
 
 export interface AdminCourseOption {
@@ -124,6 +133,7 @@ export default function AdminResourceManager({
   adminSecret,
 }: AdminResourceManagerProps) {
   const [resources, setResources] = useState<AdminResourceItem[]>(initialResources);
+  const [viewTab, setViewTab] = useState<"active" | "pending" | "all">("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCourseFilter, setSelectedCourseFilter] = useState("all");
   const [selectedTypeFilter, setSelectedTypeFilter] = useState("all");
@@ -135,12 +145,89 @@ export default function AdminResourceManager({
   const [editCourseId, setEditCourseId] = useState("");
   const [editType, setEditType] = useState<ResourceType>("summary");
   const [editStatus, setEditStatus] = useState<ResourceStatus>("active");
+  const [editIsFeatured, setEditIsFeatured] = useState<boolean>(true);
+  const [editTargetExam, setEditTargetExam] = useState<string>("other");
+  const [editAcademicYear, setEditAcademicYear] = useState<string>("2025/2026");
+  const [editProfessorName, setEditProfessorName] = useState<string>("");
+  const [editAuthorName, setEditAuthorName] = useState<string>("");
+  const [editDescription, setEditDescription] = useState<string>("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
   const [deletingResource, setDeletingResource] = useState<AdminResourceItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // 1-Click Tier Toggle (Featured vs Archive)
+  const handleToggleFeatured = async (res: AdminResourceItem) => {
+    const newFeatured = !Boolean(res.is_featured);
+    // Optimistic update
+    setResources((prev) =>
+      prev.map((r) => (r.id === res.id ? { ...r, is_featured: newFeatured } : r))
+    );
+
+    try {
+      const response = await fetch(`/api/admin/resources/${res.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-secret": adminSecret,
+        },
+        body: JSON.stringify({ isFeatured: newFeatured }),
+      });
+
+      if (!response.ok) throw new Error("فشل تحديث مستوى المورد.");
+
+      showNotification(
+        "success",
+        newFeatured
+          ? `تمت ترقية "${res.title}" إلى الرف الرئيسي المميز ⭐`
+          : `تم نقل "${res.title}" إلى الأرشيف الإضافي 📁`
+      );
+    } catch {
+      // Revert optimistic update
+      setResources((prev) =>
+        prev.map((r) => (r.id === res.id ? { ...r, is_featured: !newFeatured } : r))
+      );
+      showNotification("error", "حدث خطأ أثناء تعديل تصنيف الرف.");
+    }
+  };
+
+  // 1-Click Quick Moderation Approval (Approve as Core vs Approve as Archive)
+  const handleQuickApprove = async (res: AdminResourceItem, isFeatured: boolean) => {
+    // Optimistic update
+    setResources((prev) =>
+      prev.map((r) =>
+        r.id === res.id ? { ...r, status: "active", is_featured: isFeatured } : r
+      )
+    );
+
+    try {
+      const response = await fetch(`/api/admin/resources/${res.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-secret": adminSecret,
+        },
+        body: JSON.stringify({ status: "active", isFeatured }),
+      });
+
+      if (!response.ok) throw new Error("فشل اعتماد المورد.");
+
+      showNotification(
+        "success",
+        isFeatured
+          ? `تم اعتماد "${res.title}" ونشره فوراً في الرف الرئيسي ⭐`
+          : `تم اعتماد "${res.title}" ونشره في الأرشيف الإضافي 📁`
+      );
+    } catch {
+      // Revert optimistic update
+      setResources((prev) =>
+        prev.map((r) => (r.id === res.id ? { ...r, status: "pending" } : r))
+      );
+      showNotification("error", "حدث خطأ أثناء اعتماد ونشر المورد.");
+    }
+  };
 
   // On-demand AI Quiz Generation state
   const [generatingQuizId, setGeneratingQuizId] = useState<string | null>(null);
@@ -265,12 +352,16 @@ export default function AdminResourceManager({
       0
     );
     const coursesWithContent = new Set(resources.map((r) => r.course_id)).size;
+    const activeCount = resources.filter((r) => (r.status || "active") === "active").length;
+    const pendingCount = resources.filter((r) => r.status === "pending").length;
 
     return {
       totalCount,
       totalBytesFormatted: formatBytes(totalBytes),
       totalQuizQuestions,
       coursesWithContent,
+      activeCount,
+      pendingCount,
     };
   }, [resources]);
 
@@ -279,6 +370,14 @@ export default function AdminResourceManager({
     const q = searchQuery.trim().toLowerCase();
 
     return resources.filter((res) => {
+      // View Tab filter (Active vs Pending vs All)
+      if (viewTab === "active" && (res.status || "active") !== "active") {
+        return false;
+      }
+      if (viewTab === "pending" && res.status !== "pending") {
+        return false;
+      }
+
       // Search query filter (title, course name, course code)
       if (q) {
         const titleMatch = res.title.toLowerCase().includes(q);
@@ -304,7 +403,7 @@ export default function AdminResourceManager({
 
       return true;
     });
-  }, [resources, searchQuery, selectedCourseFilter, selectedTypeFilter, selectedStatusFilter]);
+  }, [resources, viewTab, searchQuery, selectedCourseFilter, selectedTypeFilter, selectedStatusFilter]);
 
   const hasActiveFilters =
     Boolean(searchQuery.trim()) ||
@@ -326,6 +425,12 @@ export default function AdminResourceManager({
     setEditCourseId(resource.course_id);
     setEditType(resource.type);
     setEditStatus(resource.status || "active");
+    setEditIsFeatured(resource.is_featured !== undefined ? Boolean(resource.is_featured) : true);
+    setEditTargetExam(resource.target_exam || "other");
+    setEditAcademicYear(resource.academic_year || "2025/2026");
+    setEditProfessorName(resource.professor_name || "");
+    setEditAuthorName(resource.author_name || "");
+    setEditDescription(resource.description || "");
     setEditError(null);
   };
 
@@ -351,6 +456,12 @@ export default function AdminResourceManager({
           courseId: editCourseId,
           type: editType,
           status: editStatus,
+          isFeatured: editIsFeatured,
+          targetExam: editTargetExam,
+          academicYear: editAcademicYear,
+          professorName: editProfessorName,
+          authorName: editAuthorName,
+          description: editDescription,
         }),
       });
 
@@ -366,6 +477,12 @@ export default function AdminResourceManager({
         course_id: editCourseId,
         type: editType,
         status: editStatus,
+        is_featured: editIsFeatured,
+        target_exam: editTargetExam,
+        academic_year: editAcademicYear,
+        professor_name: editProfessorName.trim() || null,
+        author_name: editAuthorName.trim() || null,
+        description: editDescription.trim() || null,
         course: courses.find((c) => c.id === editCourseId) || editingResource.course,
       };
 
@@ -437,6 +554,79 @@ export default function AdminResourceManager({
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {/* ─── Moderation Queue Tabs ────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
+        <button
+          onClick={() => {
+            setViewTab("active");
+            setSelectedStatusFilter("all");
+          }}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
+            viewTab === "active"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
+          }`}
+        >
+          <span>📁 المعتمدة والنشطة</span>
+          <span className="rounded-full bg-background/25 px-2 py-0.5 text-xs font-semibold" dir="ltr">
+            {metrics.activeCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => {
+            setViewTab("pending");
+            setSelectedStatusFilter("all");
+          }}
+          className={`relative flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
+            viewTab === "pending"
+              ? "bg-amber-500 text-white shadow-sm"
+              : "border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
+          }`}
+        >
+          <span>⏳ بانتظار المراجعة والاعتماد</span>
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+              metrics.pendingCount > 0
+                ? "bg-amber-400 text-amber-950 animate-pulse"
+                : "bg-background/25"
+            }`}
+            dir="ltr"
+          >
+            {metrics.pendingCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => {
+            setViewTab("all");
+            setSelectedStatusFilter("all");
+          }}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
+            viewTab === "all"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
+          }`}
+        >
+          <span>🗄️ جميع الموارد</span>
+          <span className="rounded-full bg-background/25 px-2 py-0.5 text-xs font-semibold" dir="ltr">
+            {metrics.totalCount}
+          </span>
+        </button>
+      </div>
+
+      {/* Pending Moderation Queue Alert Banner */}
+      {viewTab === "pending" && (
+        <div className="flex items-center justify-between rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">⚠️</span>
+            <span>
+              <strong>طابور مراجعة مساهمات الطلاب:</strong> لديك {metrics.pendingCount} ملف بانتظار التدقيق. يمكنك فحص الملف واعتماده كملخص رئيسي أو في الأرشيف الإضافي بنقرة واحدة.
+            </span>
+          </div>
         </div>
       )}
 
@@ -586,7 +776,7 @@ export default function AdminResourceManager({
                 <tr>
                   <th className="px-5 py-3.5 text-start">المورد / العنوان</th>
                   <th className="px-5 py-3.5 text-start">المادة الدراسية</th>
-                  <th className="px-4 py-3.5 text-start">النوع</th>
+                  <th className="px-4 py-3.5 text-start">النوع / الرف</th>
                   <th className="px-4 py-3.5 text-start">الكويز</th>
                   <th className="px-4 py-3.5 text-start">الحالة</th>
                   <th className="px-4 py-3.5 text-start">الحجم / التاريخ</th>
@@ -625,9 +815,28 @@ export default function AdminResourceManager({
                               )}
                             </div>
                           )}
-                          <span className="font-mono text-[11px] text-muted-foreground mt-0.5">
-                            ID: {res.id.slice(0, 8)}...
-                          </span>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] text-muted-foreground">
+                            {res.target_exam && (
+                              <span className="rounded bg-secondary px-1.5 py-0.5 text-foreground font-medium">
+                                {res.target_exam === "midterm" ? "مادة الميد" : res.target_exam === "final" ? "مادة الفاينل" : "شامل"}
+                              </span>
+                            )}
+                            {res.page_count ? (
+                              <span className="rounded bg-secondary/60 px-1.5 py-0.5 font-mono">
+                                📄 {res.page_count} ص
+                              </span>
+                            ) : null}
+                            {res.author_name ? (
+                              <span className="text-foreground font-medium">👤 {res.author_name}</span>
+                            ) : res.is_admin_uploaded ? (
+                              <span className="text-emerald-400 font-semibold">✦ إدارة المنصة</span>
+                            ) : null}
+                            {res.description && (
+                              <span className="truncate max-w-[180px] text-muted-foreground italic" title={res.description}>
+                                💬 {res.description}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
 
@@ -643,14 +852,33 @@ export default function AdminResourceManager({
                         </div>
                       </td>
 
-                      {/* Type Badge */}
+                      {/* Type Badge & Tier Toggle */}
                       <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${typeMeta.badgeClass}`}
-                        >
-                          <span>{typeMeta.emoji}</span>
-                          <span>{typeMeta.label}</span>
-                        </span>
+                        <div className="flex flex-col gap-1.5 items-start">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${typeMeta.badgeClass}`}
+                          >
+                            <span>{typeMeta.emoji}</span>
+                            <span>{typeMeta.label}</span>
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleFeatured(res)}
+                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold transition-all ${
+                              res.is_featured
+                                ? "border-amber-500/35 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                                : "border-slate-500/35 bg-slate-500/10 text-slate-400 hover:bg-slate-500/20"
+                            }`}
+                            title={
+                              res.is_featured
+                                ? "مادة مميزة بالرف الرئيسي (انقر للنقل إلى الأرشيف الإضافي)"
+                                : "مادة بالأرشيف الإضافي (انقر للترقية إلى الرئيسي)"
+                            }
+                          >
+                            <span>{res.is_featured ? "⭐ رئيسي" : "📁 أرشيف"}</span>
+                          </button>
+                        </div>
                       </td>
 
                       {/* Quiz Badge & On-Demand Generator */}
@@ -752,6 +980,28 @@ export default function AdminResourceManager({
                       {/* Actions */}
                       <td className="px-5 py-4 text-end">
                         <div className="inline-flex items-center gap-1.5">
+                          {/* Quick Moderation Approvals for Pending Items */}
+                          {res.status === "pending" && (
+                            <div className="inline-flex items-center gap-1 me-1">
+                              <button
+                                onClick={() => handleQuickApprove(res, true)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/15 px-2.5 py-1.5 text-xs font-bold text-amber-300 hover:bg-amber-500/25 transition-all shadow-sm"
+                                title="اعتماد كملخص رئيسي في الرف الأول"
+                              >
+                                <span>⭐</span>
+                                <span>نشر كرئيسي</span>
+                              </button>
+                              <button
+                                onClick={() => handleQuickApprove(res, false)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-500/30 bg-slate-500/15 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-500/25 transition-all"
+                                title="اعتماد في الأرشيف الإضافي"
+                              >
+                                <span>📁</span>
+                                <span>نشر كأرشيف</span>
+                              </button>
+                            </div>
+                          )}
+
                           {res.storage_url && res.storage_url !== "__processing__" ? (
                             <a
                               href={res.storage_url}
@@ -831,14 +1081,49 @@ export default function AdminResourceManager({
                       <div className="mt-1 text-xs text-muted-foreground">
                         {res.course?.title} {res.course?.course_code ? `(${res.course.course_code})` : ""}
                       </div>
+
+                      {/* Mobile Metadata Chips */}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[11px] text-muted-foreground">
+                        {res.target_exam && (
+                          <span className="rounded bg-secondary px-1.5 py-0.5 text-foreground font-medium">
+                            {res.target_exam === "midterm" ? "مادة الميد" : res.target_exam === "final" ? "مادة الفاينل" : "شامل"}
+                          </span>
+                        )}
+                        {res.page_count ? (
+                          <span className="rounded bg-secondary/60 px-1.5 py-0.5 font-mono">
+                            📄 {res.page_count} ص
+                          </span>
+                        ) : null}
+                        {res.author_name ? (
+                          <span className="text-foreground font-medium">👤 {res.author_name}</span>
+                        ) : res.is_admin_uploaded ? (
+                          <span className="text-emerald-400 font-semibold">✦ إدارة المنصة</span>
+                        ) : null}
+                      </div>
                     </div>
 
-                    <span
-                      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${typeMeta.badgeClass}`}
-                    >
-                      <span>{typeMeta.emoji}</span>
-                      <span>{typeMeta.label}</span>
-                    </span>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${typeMeta.badgeClass}`}
+                      >
+                        <span>{typeMeta.emoji}</span>
+                        <span>{typeMeta.label}</span>
+                      </span>
+
+                      {/* Mobile Tier Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFeatured(res)}
+                        className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold transition-all ${
+                          res.is_featured
+                            ? "border-amber-500/35 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                            : "border-slate-500/35 bg-slate-500/10 text-slate-400 hover:bg-slate-500/20"
+                        }`}
+                        title={res.is_featured ? "مادة بالرف الرئيسي" : "مادة بالأرشيف الإضافي"}
+                      >
+                        <span>{res.is_featured ? "⭐ رئيسي" : "📁 أرشيف"}</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -867,6 +1152,25 @@ export default function AdminResourceManager({
 
                   {/* Actions Bar */}
                   <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border">
+                    {/* Quick Moderation Approvals for Pending Items */}
+                    {res.status === "pending" && (
+                      <div className="flex items-center gap-1 w-full sm:w-auto justify-end pb-1 border-b sm:border-b-0 border-border/50">
+                        <button
+                          onClick={() => handleQuickApprove(res, true)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/15 px-2.5 py-1 text-xs font-bold text-amber-300 hover:bg-amber-500/25"
+                        >
+                          <span>⭐</span>
+                          <span>نشر كرئيسي</span>
+                        </button>
+                        <button
+                          onClick={() => handleQuickApprove(res, false)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-500/30 bg-slate-500/15 px-2.5 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-500/25"
+                        >
+                          <span>📁</span>
+                          <span>نشر كأرشيف</span>
+                        </button>
+                      </div>
+                    )}
                     {questionCount > 0 && (
                       <button
                         onClick={() => handleExpandQuiz(res)}
@@ -1088,6 +1392,92 @@ export default function AdminResourceManager({
                     <option value="rejected">🔴 مسودة / مخفي</option>
                   </select>
                 </div>
+              </div>
+              {/* Tier Toggle (Featured vs Archive) */}
+              <div className="flex items-center justify-between rounded-xl border border-border bg-muted/30 p-3">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <span>⭐</span>
+                    <span>عرض كملخص رئيسي معتمد (Tier 1 Core Shelf)</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    الملفات الرئيسية تظهر في الواجهة الأولى مع الكويز، بينما تذهب الملفات غير المحددة إلى الأرشيف الإضافي.
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={editIsFeatured}
+                  onChange={(e) => setEditIsFeatured(e.target.checked)}
+                  className="h-4 w-4 rounded border-border text-primary focus:ring-accent cursor-pointer"
+                />
+              </div>
+
+              {/* Target Exam & Academic Year */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">نطاق المادة / الامتحان</label>
+                  <select
+                    value={editTargetExam}
+                    onChange={(e) => setEditTargetExam(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  >
+                    <option value="midterm">مادة الميد (Midterm)</option>
+                    <option value="final">مادة الفاينل (Final)</option>
+                    <option value="other">شامل / أخرى</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">السنة الأكاديمية</label>
+                  <select
+                    value={editAcademicYear}
+                    onChange={(e) => setEditAcademicYear(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  >
+                    <option value="2025/2026">2025/2026</option>
+                    <option value="2024/2025">2024/2025</option>
+                    <option value="2023/2024">2023/2024</option>
+                    <option value="2022/2023">2022/2023</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Professor Name & Author / Uploader Name */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">مدرس المادة (اختياري)</label>
+                  <input
+                    type="text"
+                    value={editProfessorName}
+                    onChange={(e) => setEditProfessorName(e.target.value)}
+                    placeholder="مثال: د. أحمد"
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">اسم صاحب الملخص / المعد</label>
+                  <input
+                    type="text"
+                    value={editAuthorName}
+                    onChange={(e) => setEditAuthorName(e.target.value)}
+                    placeholder="مثال: أنس أو إدارة المنصة"
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Notes / Description */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">ملاحظات / وصف سريع (اختياري)</label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  maxLength={150}
+                  rows={2}
+                  placeholder="مثال: يشمل حلول أسئلة سنوات والتلخيص المعتمد للشباتر 1 حتى 4"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent resize-none"
+                />
               </div>
             </div>
 

@@ -20,6 +20,14 @@ export type ResourceType =
 
 export type TargetExam = "midterm" | "final" | "other";
 
+export type ExternalPlatform =
+  | "youtube"
+  | "github"
+  | "drive"
+  | "docs"
+  | "tool"
+  | "general";
+
 // ─── Table Row Types ────────────────────────────────────────────────────────
 
 
@@ -95,6 +103,8 @@ export interface Resource {
   professor_name?: string | null;
   author_name?: string | null;
   description?: string | null;
+  is_featured?: boolean;
+  external_platform?: ExternalPlatform | null;
 }
 
 export interface Profile {
@@ -116,13 +126,13 @@ export interface Bookmark {
 // ─── Joined / Extended Types ────────────────────────────────────────────────
 // Used when fetching data with Supabase joins (e.g., course with its resources)
 
-export interface DepartmentWithCourses extends Department {
-  courses: Course[];
-}
-
 export interface CourseWithResources extends Course {
   resources: Resource[];
   department?: Department;
+}
+
+export interface DepartmentWithCourses extends Department {
+  courses: CourseWithResources[];
 }
 
 // ─── Quiz Attempt & Diagnostics Tracking Types ──────────────────────────────

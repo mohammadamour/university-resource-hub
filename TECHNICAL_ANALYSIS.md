@@ -831,17 +831,15 @@ This living backlog serves as the authoritative North Star for future developmen
 - [x] **Metadata Expansion & Exam Scope Architecture (Migration `20261020`):** Extended `resources` schema with `page_count`, `file_hash`, `target_exam` (midterm/final/other), `academic_year`, `professor_name`, `author_name`, and `description`.
 - [x] **Pre-Storage SHA-256 Duplicate Defense:** Cryptographic duplicate rejection (`HTTP 409 Conflict`) preventing duplicate storage bloat and redundant serverless compute.
 - [x] **Decoupled Crowdsourcing Funnel (`/upload`):** Opened public student upload gateway with pending moderation queue, frozen appreciation card, deep-linking pre-selection, and 150-char description guardrail.
-- [ ] **Admin Moderation Queue (`/admin/resources`):** Add pending review filter tab with one-click approve/publish and PDF preview actions.
+- [x] **Admin Moderation Queue (`/admin/resources`):** Added pending review filter tab with one-click approve (Core vs Archive), PDF preview, and instant rejection.
+- [x] **Dynamic Homepage Metrics (`/`):** Real-time Supabase relational aggregation calculating `{study_count} مورد`, `{quiz_count} كويز • {totalQuestions} سؤال`, or `قيد الإعداد ⏳` dynamically on course cards.
+- [x] **The 3-Tier Content Engine:** Restructured course detail pages into Tier 1 (Core Curated Shelf), Tier 2 (Collapsible Community Archive Drawer), and Tier 3 (External Deep-Dive Toolkit Grid with YouTube/Docs/GitHub badges).
+- [x] **Admin Question Bank Expansion Action:** Built admin-triggered "Expand Bank" (`[➕ توسيع]`) appending non-duplicate Gemini questions to `quiz_data`.
+- [x] **Verified Contributor Badges & Metadata Chips:** Rendered `✦ المعتمد`, `✦ إدارة المنصة`, professor tags, page counts (`📄 18 ص`), and exam scope (`مادة الميد`/`مادة الفاينل`).
 - [ ] **Content Seeding Engine (7 Core Courses):**
   - Populate initial high-yield summaries for Calculus 1, C++, Data Structures, Discrete Math, Linear Algebra, and University Electives (National Education, Military Sciences) strictly following [`Content_Upload_SOP.md`](file:///c:/Users/somet/Downloads/Coding/Personal/Content_Upload_SOP.md).
-- [ ] **Dynamic Homepage Metrics (`/`):**
-  - Replace static/mock counters on course cards with live Supabase relational aggregations (`{resource_count} مورد • {quiz_count} كويز`).
 - [ ] **IT Student Community Portal:**
   - Embed direct Telegram/WhatsApp feedback group invite link in the application footer for freshman peer support and bug reporting.
-- [ ] **Admin Question Bank Expansion Action:**
-  - Build an admin-triggered "Expand Bank" feature that prompts Gemini for an additional 15–25 questions on an existing quiz, appending them into `quiz_data` to grow banks to 50+ questions over time.
-- [ ] **Verified Contributor Badges:**
-  - Display "Uploaded by Admin" or "Curated by Ethan" badge on verified summary detail cards to establish trust.
 
 ---
 

@@ -50,15 +50,53 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                   description="نماذج ومواد تحضيرية لجميع امتحانات الكفاءة (عربي، إنجليزي، حاسوب)"
                 />
               ) : (
-                dept.courses.map((course) => (
-                  <Card
-                    key={course.id}
-                    href={`/courses/${course.slug}`}
-                    title={course.title}
-                    courseCode={course.course_code}
-                    description={course.description}
-                  />
-                ))
+                dept.courses.map((course) => {
+                  const activeResources = (course.resources || []).filter(
+                    (r) => (r.status || "active") === "active"
+                  );
+                  const studyCount = activeResources.filter((r) => r.type !== "quiz").length;
+                  const quizResources = activeResources.filter(
+                    (r) => r.quiz_data && r.quiz_data.questions && r.quiz_data.questions.length > 0
+                  );
+                  const quizCount = quizResources.length;
+                  const totalQuestions = quizResources.reduce(
+                    (sum, r) => sum + (r.quiz_data?.questions?.length || 0),
+                    0
+                  );
+
+                  const badges = [];
+                  if (studyCount > 0) {
+                    badges.push({
+                      text: `${studyCount} ${studyCount === 1 ? "مورد" : "موارد"}`,
+                      variant: "accent" as const,
+                      icon: "📄",
+                    });
+                  }
+                  if (quizCount > 0) {
+                    badges.push({
+                      text: `${quizCount} كويز • ${totalQuestions} سؤال`,
+                      variant: "emerald" as const,
+                      icon: "✨",
+                    });
+                  }
+                  if (studyCount === 0 && quizCount === 0) {
+                    badges.push({
+                      text: "قيد الإعداد ⏳",
+                      variant: "muted" as const,
+                    });
+                  }
+
+                  return (
+                    <Card
+                      key={course.id}
+                      href={`/courses/${course.slug}`}
+                      title={course.title}
+                      courseCode={course.course_code}
+                      description={course.description}
+                      badges={badges}
+                    />
+                  );
+                })
               )}
             </div>
           ) : (

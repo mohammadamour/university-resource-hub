@@ -394,6 +394,7 @@ export async function POST(req: Request) {
       professor_name: professorName,
       author_name: authorName,
       description,
+      is_featured: isAdmin,
     })
     .select("id")
     .single();
