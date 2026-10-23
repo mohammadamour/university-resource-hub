@@ -24,7 +24,7 @@ export const R2_PUBLIC_URL = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || "";
 // ─── Community Channels ─────────────────────────────────────────────────────
 export const WHATSAPP_COMMUNITY_URL =
   process.env.NEXT_PUBLIC_WHATSAPP_COMMUNITY_URL ||
-  "https://chat.whatsapp.com/G3H7gqQ8G00D0XhVwDkEwF";
+  "https://chat.whatsapp.com/ENoxCoa04pO1XrpoXXwUjv?s=cl&p=a&mlu=4&ilr=4";
 
 // ─── ISR Revalidation Intervals (seconds) ───────────────────────────────────
 export const REVALIDATE_LANDING = 3600; // Landing page: every 1 hour
