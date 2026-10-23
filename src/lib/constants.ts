@@ -21,6 +21,11 @@ export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://molakhasat.
 // ─── Storage ────────────────────────────────────────────────────────────────
 export const R2_PUBLIC_URL = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || "";
 
+// ─── Community Channels ─────────────────────────────────────────────────────
+export const WHATSAPP_COMMUNITY_URL =
+  process.env.NEXT_PUBLIC_WHATSAPP_COMMUNITY_URL ||
+  "https://chat.whatsapp.com/G3H7gqQ8G00D0XhVwDkEwF";
+
 // ─── ISR Revalidation Intervals (seconds) ───────────────────────────────────
 export const REVALIDATE_LANDING = 3600; // Landing page: every 1 hour
 export const REVALIDATE_COURSE = 60;    // Course pages: every 1 minute

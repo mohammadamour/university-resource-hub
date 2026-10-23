@@ -847,10 +847,13 @@ This living backlog serves as the authoritative North Star for future developmen
 - [x] **The 3-Tier Content Engine:** Restructured course detail pages into Tier 1 (Core Curated Shelf), Tier 2 (Collapsible Community Archive Drawer), and Tier 3 (External Deep-Dive Toolkit Grid with YouTube/Docs/GitHub badges).
 - [x] **Admin Question Bank Expansion Action:** Built admin-triggered "Expand Bank" (`[➕ توسيع]`) appending non-duplicate Gemini questions to `quiz_data`.
 - [x] **Verified Contributor Badges & Metadata Chips:** Rendered `✦ المعتمد`, `✦ إدارة المنصة`, professor tags, page counts (`📄 18 ص`), and exam scope (`مادة الميد`/`مادة الفاينل`).
+- [x] **IT Student Community Portal & Observability Stack:**
+  - Embedded prominent WhatsApp community gateway card in [`Footer.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/layout/Footer.tsx) (`WHATSAPP_COMMUNITY_URL` via `NEXT_PUBLIC_WHATSAPP_COMMUNITY_URL`) for freshman peer support and resource requests.
+  - Integrated `@vercel/analytics` into root layout for real-time traffic observability, referrer detection (WhatsApp vs Telegram vs Direct), and tracking organic link forwarding from watermarked PDFs (`/r/:id?ref=pdf_watermark`).
+- [x] **Curator 1-Click AI Audit Modal & Prompt Exporter:**
+  - Embedded inside the Edit Resource modal in [`AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx) to prevent dashboard clutter. Features in-modal question inspection with answer keys, raw JSON export, and a 1-click "Copy Verification Prompt for AI" formatted for instant Claude/ChatGPT auditing.
 - [ ] **Content Seeding Engine (7 Core Courses):**
-  - Populate initial high-yield summaries for Calculus 1, C++, Data Structures, Discrete Math, Linear Algebra, and University Electives (National Education, Military Sciences) strictly following [`Content_Upload_SOP.md`](file:///c:/Users/somet/Downloads/Coding/Personal/Content_Upload_SOP.md).
-- [ ] **IT Student Community Portal:**
-  - Embed direct Telegram/WhatsApp feedback group invite link in the application footer for freshman peer support and bug reporting.
+  - Populate initial high-yield summaries for Calculus 1, C++, Data Structures, Discrete Math, Linear Algebra, and University Electives (National Education, Military Sciences) strictly following [`Content_Upload_SOP.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/Content_Upload_SOP.md).
 
 ---
 

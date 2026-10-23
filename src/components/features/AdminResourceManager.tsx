@@ -22,7 +22,15 @@ export interface AdminResourceItem {
   status?: ResourceStatus;
   created_at: string;
   quiz_data?: {
-    questions?: { question: string }[];
+    questions?: Array<{
+      id?: string;
+      question?: string;
+      options?: string[];
+      correctIndex?: number;
+      explanation?: string;
+      topic?: string;
+    }>;
+    totalQuestions?: number;
   } | null;
   course?: AdminResourceCourse | null;
   is_featured?: boolean;
@@ -154,6 +162,79 @@ export default function AdminResourceManager({
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  // Quiz Audit & Verification in Edit Modal
+  const [copiedAuditPrompt, setCopiedAuditPrompt] = useState(false);
+  const [copiedJson, setCopiedJson] = useState(false);
+  const [showQuestionList, setShowQuestionList] = useState(false);
+
+  const handleCopyRawJson = () => {
+    if (!editingResource?.quiz_data) return;
+    try {
+      const jsonStr = JSON.stringify(editingResource.quiz_data, null, 2);
+      navigator.clipboard.writeText(jsonStr);
+      setCopiedJson(true);
+      setTimeout(() => setCopiedJson(false), 2500);
+    } catch {
+      showNotification("error", "فشل نسخ الـ JSON إلى الحافظة.");
+    }
+  };
+
+  const handleCopyAuditPrompt = () => {
+    const questions = editingResource?.quiz_data?.questions;
+    if (!questions || questions.length === 0) return;
+
+    const courseTitle = editingResource.course?.title || "المادة الجامعية";
+    const courseCode = editingResource.course?.course_code || "";
+
+    const formattedQuestions = questions
+      .map((q, idx) => {
+        const arabicLetters = ["أ", "ب", "ج", "د"];
+        const optionsList = (q.options || [])
+          .map((opt, oIdx) => {
+            const letter = arabicLetters[oIdx] || String(oIdx + 1);
+            const isCorrect = oIdx === q.correctIndex;
+            return `   [${letter}] ${opt}${isCorrect ? "  <-- [✓ الإجابة الصحيحة المحددة]" : ""}`;
+          })
+          .join("\n");
+
+        return `--------------------------------------------------
+سؤال (${idx + 1}):
+${q.question}
+
+الخيارات:
+${optionsList}
+${q.explanation ? `\nالشرح والتبرير المرفق:\n${q.explanation}` : ""}`;
+      })
+      .join("\n\n");
+
+    const promptText = `أنت مدقق ومراجع أكاديمي جامعي رفيع المستوى. يرجى تدقيق ومراجعة بنك الأسئلة التالي المخصص لطلاب جامعة جدارا:
+
+المادة: ${courseTitle} ${courseCode ? `(${courseCode})` : ""}
+عنوان الملخص/المورد: ${editingResource.title}
+إجمالي عدد الأسئلة: ${questions.length}
+
+المطلوب بدقة وأمانة علمية:
+1. التحقق من الصحة العلمية والأكاديمية (الرياضية، الهندسية، أو البرمجية) لكل سؤال — التأكد من خلوه من أخطاء الإشارات، المفاهيم، القوانين، أو شفرات الكود.
+2. التأكد التام من أن الخيار المشار إليه بـ [✓ الإجابة الصحيحة المحددة] هو الإجابة الدقيقة والصحيحة علمياً دون أي لبس أو تناقض.
+3. مراجعة السلامة اللغوية والمصطلحات المترجمة للعربية لضمان مطابقتها لأسلوب الامتحانات الجامعية.
+4. في حال وجود أي خطأ، حدد رقم السؤال بدقة، وبيّن موضع الخطأ، وقدّم البديل أو التصحيح المقترح.
+
+==================================================
+قائمة الأسئلة والخيارات:
+==================================================
+
+${formattedQuestions}
+`;
+
+    try {
+      navigator.clipboard.writeText(promptText);
+      setCopiedAuditPrompt(true);
+      setTimeout(() => setCopiedAuditPrompt(false), 2500);
+    } catch {
+      showNotification("error", "فشل نسخ البرومبت إلى الحافظة.");
+    }
+  };
+
   const [deletingResource, setDeletingResource] = useState<AdminResourceItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -266,6 +347,9 @@ export default function AdminResourceManager({
           r.id === res.id ? { ...r, quiz_data: data.quizData } : r
         )
       );
+      setEditingResource((current) =>
+        current && current.id === res.id ? { ...current, quiz_data: data.quizData } : current
+      );
 
       showNotification(
         "success",
@@ -317,6 +401,9 @@ export default function AdminResourceManager({
         prev.map((r) =>
           r.id === res.id ? { ...r, quiz_data: data.quizData } : r
         )
+      );
+      setEditingResource((current) =>
+        current && current.id === res.id ? { ...current, quiz_data: data.quizData } : current
       );
 
       showNotification(
@@ -432,6 +519,9 @@ export default function AdminResourceManager({
     setEditAuthorName(resource.author_name || "");
     setEditDescription(resource.description || "");
     setEditError(null);
+    setCopiedAuditPrompt(false);
+    setCopiedJson(false);
+    setShowQuestionList(false);
   };
 
   const handleSaveEdit = async () => {
@@ -1481,6 +1571,133 @@ export default function AdminResourceManager({
                   placeholder="مثال: يشمل حلول أسئلة سنوات والتلخيص المعتمد للشباتر 1 حتى 4"
                   className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent resize-none"
                 />
+              </div>
+
+              {/* ─── Quiz Bank & Audit Section ────────────────────── */}
+              <div className="rounded-2xl border border-purple-500/25 bg-purple-500/5 p-4 sm:p-5 space-y-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-500/20 text-purple-300 text-lg">
+                      ✨
+                    </span>
+                    <div>
+                      <h4 className="text-xs font-bold text-foreground">
+                        بنك الأسئلة والتدقيق الذكي (AI Question Bank)
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {editingResource.quiz_data?.questions?.length
+                          ? `${editingResource.quiz_data.questions.length} سؤال متوفر للمراجعة والتدقيق الأكاديمي`
+                          : "لا يوجد بنك أسئلة مولّد لهذا المورد حالياً"}
+                      </p>
+                    </div>
+                  </div>
+                  {editingResource.quiz_data?.questions?.length ? (
+                    <span className="self-start sm:self-auto rounded-full bg-purple-500/15 text-purple-300 px-3 py-1 text-xs font-bold border border-purple-500/30">
+                      {editingResource.quiz_data.questions.length} أسئلة
+                    </span>
+                  ) : null}
+                </div>
+
+                {editingResource.quiz_data?.questions?.length ? (
+                  <div className="space-y-3 pt-1 border-t border-purple-500/20">
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopyAuditPrompt}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-purple-500/30 bg-purple-500/20 px-3.5 py-2 text-xs font-bold text-purple-300 hover:bg-purple-500/30 transition-all shadow-sm active:scale-95"
+                        title="نسخ برومبت فحص شامل لكافة الأسئلة والخيارات والإجابات الصحيحة للتحقق عبر Claude أو ChatGPT"
+                      >
+                        <span>🧠</span>
+                        <span>{copiedAuditPrompt ? "تم نسخ البرومبت بنجاح! ✓" : "نسخ برومبت تدقيق لـ Claude / GPT"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleCopyRawJson}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-secondary px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted transition-all active:scale-95"
+                        title="نسخ بيانات الأسئلة بصيغة JSON"
+                      >
+                        <span>📋</span>
+                        <span>{copiedJson ? "تم نسخ الـ JSON! ✓" : "نسخ JSON"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowQuestionList(!showQuestionList)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-secondary/70 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-all"
+                      >
+                        <span>{showQuestionList ? "▲ إخفاء الأسئلة" : "▼ استعراض الأسئلة داخل النافذة"}</span>
+                      </button>
+                    </div>
+
+                    {/* Expandable In-Modal Question Viewer */}
+                    {showQuestionList && (
+                      <div className="max-h-64 overflow-y-auto rounded-xl border border-border/80 bg-background/90 p-3.5 text-xs space-y-3 font-sans shadow-inner">
+                        {editingResource.quiz_data.questions.map((q, idx) => (
+                          <div key={idx} className="border-b border-border/50 pb-3 last:border-0 last:pb-0 space-y-1.5">
+                            <div className="font-semibold text-foreground flex items-start gap-1.5">
+                              <span className="text-purple-400 font-mono text-[11px] shrink-0">سؤال {idx + 1}:</span>
+                              <span className="leading-relaxed">{q.question}</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 text-[11px]">
+                              {q.options?.map((opt, optIdx) => {
+                                const isCorrect = optIdx === q.correctIndex;
+                                return (
+                                  <div
+                                    key={optIdx}
+                                    className={`rounded-lg px-2.5 py-1.5 flex items-center justify-between ${
+                                      isCorrect
+                                        ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/35 font-bold"
+                                        : "bg-muted/50 text-muted-foreground"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5 truncate">
+                                      <span className="font-mono text-[10px] opacity-75">
+                                        {["أ", "ب", "ج", "د"][optIdx] || optIdx + 1})
+                                      </span>
+                                      <span className="truncate">{opt}</span>
+                                    </div>
+                                    {isCorrect && <span className="text-emerald-400 font-mono text-xs shrink-0">✓ صحيح</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {q.explanation && (
+                              <p className="text-[10px] text-muted-foreground bg-secondary/50 rounded-lg p-2 leading-relaxed">
+                                💡 <span className="font-semibold">التفسير:</span> {q.explanation}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1 border-t border-purple-500/20">
+                    <span className="text-xs text-muted-foreground text-center sm:text-start">
+                      يمكنك توليد بنك أسئلة ذكي للمورد مباشرة من هنا اعتماداً على محتوى الـ PDF.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateQuiz(editingResource)}
+                      disabled={generatingQuizId !== null || editingResource.storage_url === "__processing__"}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-purple-500/30 bg-purple-500/20 px-3.5 py-2 text-xs font-bold text-purple-300 hover:bg-purple-500/30 disabled:opacity-50 transition-all shadow-sm"
+                    >
+                      {generatingQuizId === editingResource.id ? (
+                        <>
+                          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+                          <span>جارٍ التوليد...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>⚡</span>
+                          <span>توليد بنك الأسئلة الآن</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
