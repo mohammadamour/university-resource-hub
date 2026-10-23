@@ -1272,10 +1272,10 @@ export default function AdminResourceManager({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto"
         >
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl sm:p-7">
-            <div className="flex items-center justify-between border-b border-border pb-4">
+          <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border p-5 sm:p-6 shrink-0">
               <div>
                 <h3 className="text-lg font-bold text-foreground">تعديل بيانات المورد</h3>
                 <p className="text-xs text-muted-foreground">
@@ -1285,19 +1285,21 @@ export default function AdminResourceManager({
               <button
                 onClick={() => setEditingResource(null)}
                 disabled={isSavingEdit}
-                className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1"
+                className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1.5 rounded-lg hover:bg-muted transition-colors"
+                title="إغلاق"
               >
                 ✕
               </button>
             </div>
 
-            {editError && (
-              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs font-medium text-red-400">
-                {editError}
-              </div>
-            )}
+            {/* Scrollable Form Body */}
+            <div className="overflow-y-auto p-5 sm:p-6 space-y-4">
+              {editError && (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs font-medium text-red-400">
+                  {editError}
+                </div>
+              )}
 
-            <div className="mt-5 space-y-4">
               {/* Direct PDF Preview & Inspection */}
               {editingResource.storage_url && editingResource.storage_url !== "__processing__" ? (
                 <div className="flex items-center justify-between rounded-xl border border-primary/25 bg-primary/5 p-3 text-xs">
@@ -1393,6 +1395,7 @@ export default function AdminResourceManager({
                   </select>
                 </div>
               </div>
+
               {/* Tier Toggle (Featured vs Archive) */}
               <div className="flex items-center justify-between rounded-xl border border-border bg-muted/30 p-3">
                 <div className="space-y-0.5">
@@ -1481,8 +1484,8 @@ export default function AdminResourceManager({
               </div>
             </div>
 
-            {/* Modal Actions */}
-            <div className="mt-6 flex items-center justify-end gap-3 border-t border-border pt-4">
+            {/* Modal Actions (Fixed Sticky Footer) */}
+            <div className="flex items-center justify-end gap-3 border-t border-border p-4 sm:px-6 bg-card shrink-0">
               <button
                 type="button"
                 onClick={() => setEditingResource(null)}
@@ -1516,9 +1519,9 @@ export default function AdminResourceManager({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto"
         >
-          <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-card p-6 shadow-2xl">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-red-500/30 bg-card p-6 shadow-2xl">
             <div className="flex items-center gap-3 text-red-400 mb-3">
               <span className="text-2xl">⚠️</span>
               <h3 className="text-lg font-bold text-foreground">تأكيد حذف المورد نهائياً</h3>
