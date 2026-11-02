@@ -180,6 +180,30 @@ export async function PATCH(request: Request, props: RouteProps) {
     }
 
     const supabase = createAdminClient();
+
+    // Self-healing: if storage_url is placeholder or missing, resolve it deterministically
+    const { data: currentRes } = await supabase
+      .from("resources")
+      .select("id, course_id, storage_url")
+      .eq("id", id)
+      .single();
+
+    if (
+      currentRes &&
+      (!currentRes.storage_url ||
+        currentRes.storage_url === "__processing__" ||
+        !currentRes.storage_url.startsWith("http"))
+    ) {
+      const targetCourseId =
+        (typeof updateData.course_id === "string" ? updateData.course_id : null) ||
+        currentRes.course_id;
+      const filePath = `courses/${targetCourseId}/${id}.pdf`;
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("resources").getPublicUrl(filePath);
+      updateData.storage_url = publicUrl;
+    }
+
     const { data: updatedResource, error: updateError } = await supabase
       .from("resources")
       .update(updateData)

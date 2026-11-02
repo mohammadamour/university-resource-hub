@@ -763,6 +763,15 @@ export interface PipelineProgressEvent {
 
 - `TECHNICAL_ANALYSIS.md` is intentionally tracked in Git as a first-class living document. Rather than keeping design rationale, state machines, and environment lessons siloed in developer memory or scattered across chat transcripts, this master blueprint is committed alongside the codebase. It ensures zero context loss across developer cycles, transparent technical accountability, and seamless agent continuation.
 
+### 5. Supabase Storage `__processing__` Leak & Relative 404 Defense
+
+- **Symptom**: Clicking an uploaded resource navigates to `https://.../__processing__` and triggers a Next.js `404 | This page could not be found`.
+- **Root Cause**: On initial sync DB insertion, `storage_url` was populated with `"__processing__"`. If the background pipeline encountered an error (or a 409 conflict from `upsert: false`), the catch block marked `status = 'rejected'` while leaving `storage_url = "__processing__"`. When an admin later manually activated the resource via the dashboard, the edit handler updated status but left `storage_url` unchanged. On the client, `<a href={resource.storage_url}>` treated the non-prefixed string as a relative path, resulting in a local 404 route failure.
+- **Fix (Tri-Layer Defense)**:
+  1. **Deterministic Upfront Allocation (`route.ts`):** Client generates `resourceId = crypto.randomUUID()` and computes `publicUrl` deterministically before inserting the row. `storage_url` is NEVER `"__processing__"` in the database.
+  2. **Storage Upsert Immunity:** Enabled `upsert: true` on Supabase Storage upload calls to prevent 409 conflict rejections on concurrent or retried uploads.
+  3. **Self-Healing Admin PATCH & Safe Client Guard:** The admin PATCH endpoint (`/api/admin/resources/[id]`) automatically resolves missing or placeholder URLs from `courses/${courseId}/${id}.pdf`. The frontend `<ResourceList />` checks `isValidResourceUrl()` to prevent navigating to broken relative routes.
+
 ---
 
 ## 8. Super-Admin Resource Manager & Content Seeding Architecture

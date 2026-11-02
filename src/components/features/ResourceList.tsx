@@ -19,6 +19,11 @@ function formatBytes(bytes: number | null | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function isValidResourceUrl(url: string | null | undefined): boolean {
+  if (!url || url === "__processing__") return false;
+  return url.startsWith("http://") || url.startsWith("https://");
+}
+
 function getPlatformMeta(res: Resource) {
   const url = (res.storage_url || "").toLowerCase();
   if (url.includes("youtube.com") || url.includes("youtu.be") || res.external_platform === "youtube") {
@@ -210,7 +215,7 @@ export default function ResourceList({
           >
             {content}
           </button>
-        ) : (
+        ) : isValidResourceUrl(resource.storage_url) ? (
           <a
             href={resource.storage_url}
             target="_blank"
@@ -219,6 +224,13 @@ export default function ResourceList({
           >
             {content}
           </a>
+        ) : (
+          <div
+            className="flex items-center gap-3 p-4 opacity-60 cursor-not-allowed sm:gap-4 sm:p-5"
+            title="الملف قيد المعالجة أو التجهيز حالياً"
+          >
+            {content}
+          </div>
         )}
 
         {/* Native Quiz Player */}
@@ -371,15 +383,25 @@ export default function ResourceList({
                       </div>
                     </div>
 
-                    <a
-                      href={res.storage_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shrink-0"
-                    >
-                      <span>تحميل</span>
-                      <span>⬇</span>
-                    </a>
+                    {isValidResourceUrl(res.storage_url) ? (
+                      <a
+                        href={res.storage_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shrink-0"
+                      >
+                        <span>تحميل</span>
+                        <span>⬇</span>
+                      </a>
+                    ) : (
+                      <span
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground opacity-60 cursor-not-allowed shrink-0"
+                        title="الملف قيد المعالجة حالياً"
+                      >
+                        <span>قيد التجهيز</span>
+                        <span>⏳</span>
+                      </span>
+                    )}
                   </div>
                 );
               })}
@@ -404,6 +426,27 @@ export default function ResourceList({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {externalToolkitResources.map((res) => {
               const meta = getPlatformMeta(res);
+              const valid = isValidResourceUrl(res.storage_url);
+              if (!valid) {
+                return (
+                  <div
+                    key={res.id}
+                    className="opacity-60 cursor-not-allowed flex flex-col justify-between rounded-2xl border border-border bg-card p-4"
+                    title="الرابط قيد التحديث"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${meta.badgeClass}`}>
+                          <span>{meta.icon}</span>
+                          <span>{meta.name}</span>
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-bold text-foreground line-clamp-2">{res.title}</h4>
+                      {res.description && <p className="text-xs text-muted-foreground line-clamp-2">{res.description}</p>}
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <a
                   key={res.id}

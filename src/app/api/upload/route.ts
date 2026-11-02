@@ -65,6 +65,10 @@ async function processFileInBackground(
   targetStatus: "active" | "pending" = "active"
 ) {
   const supabase = createAdminClient();
+  const filePath = `courses/${courseId}/${resourceId}.pdf`;
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("resources").getPublicUrl(filePath);
 
   try {
     progressBus.publish(resourceId, {
@@ -136,7 +140,8 @@ async function processFileInBackground(
       message: "جارٍ رفع المستند إلى خوادم التخزين السحابي الموثوقة...",
     });
 
-    const filePath = `courses/${courseId}/${resourceId}.pdf`;
+
+  const filePath = `courses/${courseId}/${resourceId}.pdf`;
 
     // Convert ArrayBuffer → Node.js Buffer so Supabase sends raw binary correctly.
     // Passing an ArrayBuffer directly can silently corrupt the file in some runtimes.
@@ -147,7 +152,7 @@ async function processFileInBackground(
       .upload(filePath, fileBuffer, {
         contentType: "application/pdf",
         cacheControl: "public, max-age=31536000, immutable", // 1 yr — UUIDs never collide
-        upsert: false,
+        upsert: true,
       });
 
     if (storageError) {
@@ -228,7 +233,7 @@ async function processFileInBackground(
 
     const { error: rollbackError } = await supabase
       .from("resources")
-      .update({ status: "rejected" })
+      .update({ status: "rejected", storage_url: publicUrl })
       .eq("id", resourceId);
 
     if (rollbackError) {
@@ -374,17 +379,24 @@ export async function POST(req: Request) {
     }
   }
 
-  // ── Stage 2: Insert initial DB row (SYNC) ────────────────────────────────────
-  // Insert with status='processing' and placeholder storage_url.
-  // The background pipeline updates both once upload and watermarking finish.
+    // ── Stage 2: Insert initial DB row (SYNC) ────────────────────────────────────
+  // Generate deterministic resourceId and publicUrl immediately.
+  // This completely eliminates transient '__processing__' placeholder leaks in the UI or database.
+  const resourceId = crypto.randomUUID();
+  const filePath = `courses/${courseId}/${resourceId}.pdf`;
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("resources").getPublicUrl(filePath);
+
   const { data: newResource, error: insertError } = await supabase
     .from("resources")
     .insert({
+      id: resourceId,
       course_id: courseId,
       title: title.trim(),
       type,
-      storage_url: "__processing__", // Replaced by background pipeline
-      file_size_bytes: file.size,    // Updated with compressed size later
+      storage_url: publicUrl,
+      file_size_bytes: file.size,
       is_admin_uploaded: isAdmin,
       status: "processing",
       file_hash: fileHash,
@@ -407,7 +419,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const resourceId = newResource.id;
+  // resourceId already initialized deterministically above
 
   // Publish initial progress event
   progressBus.publish(resourceId, {
