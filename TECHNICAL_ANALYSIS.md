@@ -297,7 +297,10 @@ POST /api/upload
     ...(isLite ? {} : { thinkingConfig: { thinkingBudget: 0 } }),
   }
   ````
-- **Validation Before Persistence (Structural Integrity):** `validateQuizData()` strictly verifies schema structure (4 choices, 0-indexed correct answer, non-empty Arabic explanation, and valid difficulty levels). Minimum threshold is aligned to 4 valid questions. Mandatory curator spot-checking and test-playing remains essential before publishing to avoid student exam misinformation.
+- **Validation Before Persistence (Structural Integrity & Blind Consensus):**
+  - *Grounded CoT Generation Layer:* Prompts require an exact verbatim `source_quote` from the uploaded text (preventing off-syllabus hallucinations) and a `step_by_step_derivation` solving the problem before emitting the `correct_answer`.
+  - *In-Memory Fisher-Yates Shuffle:* Generates `correct_answer` and 3 `distractors` separately, then deterministically shuffles the 4 options in TypeScript memory. This eradicates option position bias (no more artificial skew toward option A or B).
+  - *Automated Dual-Pass Blind Solver Audit:* Prior to database insertion, an independent audit pass evaluates the generated question stems and options blindly without access to answer keys or explanations. Using dual verification (Letter Option Label [A-D] + Option Text Matching), questions that yield key disagreements, calculation mismatches, or ambiguity are automatically dropped from the batch. Only consensus-verified questions enter the course bank.
 
 ---
 

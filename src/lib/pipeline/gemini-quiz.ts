@@ -205,125 +205,106 @@ async function callGemini(prompt: string): Promise<string> {
   throw new Error(`All Gemini API keys and models failed. Last error: ${lastError}`);
 }
 
+// ─── Grounded CoT & Automated Verification Pipeline ──────────────────────────
+
 /**
- * Builds the strict-JSON prompt for Phase 1.
- * Focused and compact to minimize token latency.
+ * Raw generated question contract emitted by the Grounded CoT model call.
+ * Forces derivation & source grounding BEFORE answer selection.
  */
-function buildPrompt(
-  extractedText: string,
-  sourceTitle: string,
-  targetCount: number = 8
-): string {
-  const material = extractedText.slice(0, 300_000);
-  const easyCount = Math.max(1, Math.round(targetCount * 0.35));
-  const medCount = Math.max(1, Math.round(targetCount * 0.45));
-  const hardCount = Math.max(1, targetCount - easyCount - medCount);
-
-  return `You are an expert academic curriculum designer creating a university exam question bank for Jordanian students.
-Given the following academic material, generate exactly ${targetCount} high-yield multiple choice questions.
-
-DISTRIBUTION:
-- Exactly ${easyCount} "easy" questions (foundational definitions, core rules).
-- Exactly ${medCount} "medium" questions (application, problem solving).
-- Exactly ${hardCount} "hard" questions (synthesis, edge cases, exam traps).
-
-REQUIREMENTS:
-- Exactly 4 plausible options (A, B, C, D) per question.
-- Only 1 unambiguous correct answer (correctIndex: 0, 1, 2, or 3).
-- Explanations must be in clear Arabic, explicitly proving why the answer is correct and why traps are wrong.
-- Assign each question a concise Arabic "topic" (e.g. "المتغيرات", "النهايات", "المصفوفات").
-- Assign each question a "difficulty" ("easy", "medium", or "hard").
-- Scan the material sequentially and cover all main sections.
-
-RETURN ONLY VALID RAW JSON with NO markdown fences, NO backticks:
-{
-  "version": 1,
-  "generatedAt": "${new Date().toISOString()}",
-  "sourceTitle": "${sourceTitle}",
-  "questions": [
-    {
-      "id": "q1",
-      "question": "نص السؤال باللغة العربية...",
-      "options": ["أ", "ب", "ج", "د"],
-      "correctIndex": 0,
-      "explanation": "شرح الإجابة الصحيحة...",
-      "difficulty": "medium",
-      "topic": "الموضوع"
-    }
-  ]
-}
-
-ACADEMIC MATERIAL:
-${material}`;
+interface RawGeneratedQuestion {
+  id?: string;
+  topic?: string;
+  difficulty?: "easy" | "medium" | "hard";
+  source_quote?: string;
+  question: string;
+  step_by_step_derivation: string;
+  correct_answer: string;
+  distractors: string[];
 }
 
 /**
- * Rigorously sanity-checks and sanitizes an individual LLM-generated question:
- * 1. Checks that question text is a non-empty string.
- * 2. Checks that options is an array of exactly 4 non-empty strings.
- * 3. Ensures no duplicate options exist (e.g. model repeating "5" for A and B).
- * 4. Ensures correctIndex is an integer strictly within 0..3 (pointing to a valid option).
- * 5. Ensures explanation is a non-empty string.
- * 6. Logs a descriptive console.warn detailing the exact failure reason when dropping a question.
+ * Evaluates raw question output, verifies uniqueness, and deterministically
+ * shuffles options using the Fisher-Yates algorithm to eradicate position bias.
  */
-function sanitizeAndValidateQuestion(
+function buildShuffledQuestion(
   raw: unknown,
   index: number,
   phase: string
 ): QuizQuestion | null {
   if (typeof raw !== "object" || raw === null) {
-    console.warn(`[gemini-quiz] [${phase}] Dropping question #${index + 1}: item is not an object.`);
+    console.warn(`[gemini-quiz] [${phase}] Question #${index + 1} rejected: raw item is not an object.`);
     return null;
   }
 
   const q = raw as Record<string, unknown>;
 
-  if (typeof q.question !== "string" || !q.question.trim()) {
-    console.warn(`[gemini-quiz] [${phase}] Dropping question #${index + 1}: question stem is missing or empty.`);
+  const questionStem = typeof q.question === "string" ? q.question.trim() : "";
+  if (!questionStem) {
+    console.warn(`[gemini-quiz] [${phase}] Question #${index + 1} rejected: question stem is missing.`);
     return null;
   }
 
-  if (!Array.isArray(q.options) || q.options.length !== 4) {
-    console.warn(
-      `[gemini-quiz] [${phase}] Dropping question #${index + 1}: expected 4 options, got ${
-        Array.isArray(q.options) ? q.options.length : typeof q.options
-      }.`
-    );
+  // Handle both Grounded CoT schema (correct_answer + distractors) and legacy fallback
+  let rawOptions: string[] = [];
+  let rawCorrectAnswer = "";
+
+  if (typeof q.correct_answer === "string" && Array.isArray(q.distractors)) {
+    rawCorrectAnswer = q.correct_answer.trim();
+    const cleanDistractors = q.distractors
+      .map((d) => String(d ?? "").trim())
+      .filter((d) => d.length > 0);
+
+    if (!rawCorrectAnswer || cleanDistractors.length !== 3) {
+      console.warn(
+        `[gemini-quiz] [${phase}] Question #${index + 1} rejected: expected 1 correct answer + 3 distractors, got ${cleanDistractors.length} distractors.`
+      );
+      return null;
+    }
+
+    rawOptions = [rawCorrectAnswer, ...cleanDistractors];
+  } else if (Array.isArray(q.options) && q.options.length === 4 && typeof q.correctIndex === "number") {
+    // Legacy fallback compatibility
+    const cleanOpts = q.options.map((o) => String(o ?? "").trim());
+    if (cleanOpts.some((o) => o.length === 0) || q.correctIndex < 0 || q.correctIndex >= 4) {
+      return null;
+    }
+    rawCorrectAnswer = cleanOpts[q.correctIndex];
+    rawOptions = cleanOpts;
+  } else {
+    console.warn(`[gemini-quiz] [${phase}] Question #${index + 1} rejected: invalid options structure.`);
     return null;
   }
 
-  const sanitizedOptions = q.options.map((opt) => String(opt ?? "").trim());
-  if (sanitizedOptions.some((opt) => opt.length === 0)) {
-    console.warn(`[gemini-quiz] [${phase}] Dropping question #${index + 1}: one or more options are blank.`);
-    return null;
-  }
-
-  // Deduplication check: drop question if LLM hallucinated identical options
-  const uniqueOptions = new Set(sanitizedOptions);
+  // Deduplication guard: all 4 options must be strictly unique strings
+  const uniqueOptions = new Set(rawOptions);
   if (uniqueOptions.size !== 4) {
     console.warn(
-      `[gemini-quiz] [${phase}] Dropping question #${index + 1}: duplicate options detected (${uniqueOptions.size}/4 unique).`
+      `[gemini-quiz] [${phase}] Question #${index + 1} rejected: non-unique options detected (${uniqueOptions.size}/4 unique).`
     );
     return null;
   }
 
-  if (
-    typeof q.correctIndex !== "number" ||
-    !Number.isInteger(q.correctIndex) ||
-    q.correctIndex < 0 ||
-    q.correctIndex >= sanitizedOptions.length
-  ) {
-    console.warn(
-      `[gemini-quiz] [${phase}] Dropping question #${index + 1}: correctIndex (${q.correctIndex}) is out of range [0..${
-        sanitizedOptions.length - 1
-      }].`
-    );
+  // Deterministic Fisher-Yates shuffle
+  const shuffled = [...rawOptions];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  const correctIndex = shuffled.indexOf(rawCorrectAnswer);
+  if (correctIndex === -1) {
+    console.warn(`[gemini-quiz] [${phase}] Question #${index + 1} rejected: correct answer lost in shuffle.`);
     return null;
   }
 
-  if (typeof q.explanation !== "string" || !q.explanation.trim()) {
-    console.warn(`[gemini-quiz] [${phase}] Dropping question #${index + 1}: explanation is missing or blank.`);
-    return null;
+  // Build clean, informative explanation
+  const derivation = typeof q.step_by_step_derivation === "string" ? q.step_by_step_derivation.trim() : "";
+  const legacyExplanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
+  const quote = typeof q.source_quote === "string" ? q.source_quote.trim() : "";
+
+  let finalExplanation = derivation || legacyExplanation || `الإجابة الصحيحة: ${rawCorrectAnswer}`;
+  if (quote && !finalExplanation.includes(quote)) {
+    finalExplanation += `\n\n📖 من نص الملخص: "${quote}"`;
   }
 
   let difficulty: "easy" | "medium" | "hard" = "medium";
@@ -334,135 +315,97 @@ function sanitizeAndValidateQuestion(
   const topic = typeof q.topic === "string" && q.topic.trim() ? q.topic.trim() : undefined;
 
   return {
-    question: q.question.trim(),
-    options: sanitizedOptions,
-    correctIndex: q.correctIndex,
-    explanation: q.explanation.trim(),
+    question: questionStem,
+    options: shuffled,
+    correctIndex,
+    explanation: finalExplanation,
     difficulty,
     topic,
   };
 }
 
 /**
- * Validates and sanitizes the raw Gemini response into a sound QuizData object.
+ * Builds the Grounded Chain-of-Thought (CoT) prompt for baseline quiz generation.
  */
-function validateQuizData(raw: unknown): QuizData {
-  if (typeof raw !== "object" || raw === null) {
-    throw new Error("Quiz response is not an object");
-  }
-
-  const obj = raw as Record<string, unknown>;
-
-  if (obj.version !== 1) {
-    throw new Error(`Unexpected quiz version: ${obj.version}`);
-  }
-
-  if (!Array.isArray(obj.questions) || obj.questions.length === 0) {
-    throw new Error("Quiz response has no questions array");
-  }
-
-  const validQuestions: QuizQuestion[] = [];
-
-  for (const [i, q] of (obj.questions as unknown[]).entries()) {
-    const validated = sanitizeAndValidateQuestion(q, i, "Phase 1 - Baseline");
-    if (validated) {
-      validQuestions.push(validated);
-    }
-  }
-
-  if (validQuestions.length < 4) {
-    throw new Error(
-      `Quiz validation failed: only ${validQuestions.length} valid questions produced (minimum 4 required)`
-    );
-  }
-
-  return {
-    version: 1,
-    generatedAt:
-      typeof obj.generatedAt === "string"
-        ? obj.generatedAt
-        : new Date().toISOString(),
-    sourceTitle:
-      typeof obj.sourceTitle === "string" ? obj.sourceTitle : undefined,
-    questions: validQuestions,
-  };
-}
-
-/**
- * Phase 1: Fast in-flight generation (default: 10 high-yield questions).
- * Designed to return in under 6 seconds so uploads feel instantaneous.
- */
-export async function generateQuizWithGemini(
+function buildGroundedPrompt(
   extractedText: string,
   sourceTitle: string,
   targetCount: number = 8
-): Promise<QuizData> {
-  console.log(
-    `[gemini-quiz] [Phase 1] Generating core bank of ${targetCount} questions for "${sourceTitle}"`
-  );
+): string {
+  const material = extractedText.slice(0, 300_000);
+  const easyCount = Math.max(1, Math.round(targetCount * 0.35));
+  const medCount = Math.max(1, Math.round(targetCount * 0.45));
+  const hardCount = Math.max(1, targetCount - easyCount - medCount);
 
-  const prompt = buildPrompt(extractedText, sourceTitle, targetCount);
-  const rawJson = await callGemini(prompt);
+  return `You are an expert academic professor creating an exam question bank for university students in Jordan.
+Given the following academic material, generate exactly ${targetCount} high-yield multiple choice questions.
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(rawJson);
-  } catch {
-    throw new Error(
-      `Gemini returned non-JSON content: ${rawJson.slice(0, 200)}`
-    );
-  }
+DISTRIBUTION:
+- Exactly ${easyCount} "easy" questions (foundational definitions, core rules).
+- Exactly ${medCount} "medium" questions (application, direct problem solving).
+- Exactly ${hardCount} "hard" questions (synthesis, edge cases, exam traps).
 
-  return validateQuizData(parsed);
+STRICT GENERATION RULES:
+1. SOURCE GROUNDING: Every question MUST cite an exact verbatim source_quote (5-20 words in Arabic or English) directly from the provided text. DO NOT invent topics or formulas not present in the material.
+2. SOLVE BEFORE KEYING (Chain-of-Thought):
+   - You MUST write a detailed step_by_step_derivation proving the answer before stating the correct_answer.
+   - For Math/Logic: Write the complete calculation/proof step-by-step.
+   - For Code/CS: Trace variables and line-by-line execution.
+   - For Theory/Skills: Cite the exact rule or concept contrast.
+3. DISTRACTORS: Provide exactly 3 realistic, plausible incorrect options (distractors) based on common student misconceptions. DO NOT make distractors obviously ridiculous.
+4. LANGUAGE: Questions and derivations must be in academic Arabic. Code syntax, formulas, and technical acronyms should remain in their standard English notation.
+
+RETURN ONLY VALID RAW JSON with NO markdown fences, NO backticks:
+{
+  "version": 1,
+  "generatedAt": "${new Date().toISOString()}",
+  "sourceTitle": "${sourceTitle}",
+  "questions": [
+    {
+      "id": "q1",
+      "topic": "الموضوع (e.g. المنطق الرقمي، المصفوفات)",
+      "difficulty": "medium",
+      "source_quote": "اقتباس نصي حرفي من الملخص المرفق...",
+      "question": "نص السؤال باللغة العربية...",
+      "step_by_step_derivation": "خطوات الحل الرياضي أو المنطقي بالتفصيل لإثبات الإجابة...",
+      "correct_answer": "نص الإجابة الصحيحة فقط",
+      "distractors": [
+        "الخيار الخاطئ الأول (مبني على خطأ شائع)",
+        "الخيار الخاطئ الثاني",
+        "الخيار الخاطئ الثالث"
+      ]
+    }
+  ]
+}
+
+ACADEMIC MATERIAL:
+${material}`;
 }
 
 /**
- * Automatically computes a safe, non-hallucinating expansion count based on content length.
- * - Short summaries (< 8,000 chars): 8 high-yield questions
- * - Medium summaries (8,000 - 25,000 chars): 12 questions
- * - Deep/Booklet summaries (25,000+ chars): 18 questions
+ * Builds the Grounded Chain-of-Thought (CoT) prompt for on-demand bank expansion.
  */
-export function calculateDynamicExpansionCount(textLength: number): number {
-  if (textLength < 8_000) return 6;
-  return 8; // Cap at 8 questions so expansion always completes in 5-6s and avoids Vercel 15s cutoff
-}
-
-/**
- * Phase 2: Asynchronous on-demand expansion (dynamically sized based on material depth).
- * Generates non-duplicate questions covering remaining sections and appends them to existing bank.
- */
-export async function expandQuizWithGemini(
+function buildExpansionGroundedPrompt(
   extractedText: string,
   sourceTitle: string,
-  existingQuiz: QuizData,
-  targetAdditionalCount?: number
-): Promise<QuizData> {
-  const effectiveCount =
-    typeof targetAdditionalCount === "number" && targetAdditionalCount > 0
-      ? targetAdditionalCount
-      : calculateDynamicExpansionCount(extractedText.length);
-
-  const existingQuestions = existingQuiz.questions || [];
-  const coveredTopics = Array.from(
-    new Set(existingQuestions.map((q) => q.topic).filter(Boolean))
-  ).join("، ");
-
-  // Provide up to 40 existing question stems to guarantee zero duplicates across infinite expands
+  existingQuestions: QuizQuestion[],
+  effectiveCount: number
+): string {
   const sampleExisting = existingQuestions
     .slice(0, 40)
     .map((q, idx) => `${idx + 1}. ${q.question}`)
     .join("\n");
+
+  const coveredTopics = Array.from(
+    new Set(existingQuestions.map((q) => q.topic).filter(Boolean))
+  ).join("، ");
 
   const material = extractedText.slice(0, 300_000);
   const easyCount = Math.round(effectiveCount * 0.3);
   const medCount = Math.round(effectiveCount * 0.4);
   const hardCount = effectiveCount - easyCount - medCount;
 
-  console.log(
-    `[gemini-quiz] [Phase 2] Expanding bank with +${effectiveCount} complementary questions for "${sourceTitle}" (Material: ${extractedText.length} chars)`
-  );
-
-  const prompt = `You are an expert academic curriculum designer expanding an existing university exam question bank.
+  return `You are an expert academic curriculum designer expanding an existing university exam question bank.
 We already generated ${existingQuestions.length} questions for "${sourceTitle}".
 Topics already covered: ${coveredTopics || "None specified"}.
 Sample existing questions (DO NOT REPEAT OR REPHRASE THESE):
@@ -476,88 +419,296 @@ DISTRIBUTION:
 - Exactly ${medCount} "medium" questions
 - Exactly ${hardCount} "hard" questions
 
-REQUIREMENTS:
-- Exactly 4 plausible options (A, B, C, D) per question.
-- 1 unambiguous correct answer (correctIndex: 0..3).
-- Explanations in clear Arabic proving why the answer is correct and why traps are wrong.
-- Concise Arabic "topic" and "difficulty".
+STRICT RULES:
+1. SOURCE GROUNDING: Every question MUST cite an exact verbatim source_quote from the text.
+2. SOLVE BEFORE KEYING: Provide step_by_step_derivation proving the answer before giving correct_answer.
+3. DISTRACTORS: Provide exactly 3 plausible distractors reflecting common errors.
+4. No duplicates with previous questions.
 
 RETURN ONLY VALID RAW JSON with NO markdown fences, NO backticks:
 {
   "questions": [
     {
       "id": "new_1",
-      "question": "نص السؤال الجديد...",
-      "options": ["أ", "ب", "ج", "د"],
-      "correctIndex": 0,
-      "explanation": "التوضيح باللغة العربية...",
+      "topic": "الموضوع الجديد",
       "difficulty": "medium",
-      "topic": "الموضوع"
+      "source_quote": "اقتباس حرفي من المادة...",
+      "question": "نص السؤال الجديد...",
+      "step_by_step_derivation": "خطوات البرهان أو الحل...",
+      "correct_answer": "الإجابة الصحيحة",
+      "distractors": ["خيار خاطئ 1", "خيار خاطئ 2", "خيار خاطئ 3"]
     }
   ]
 }
 
 ACADEMIC MATERIAL:
 ${material}`;
+}
 
+/**
+ * Automated Blind Solver Consensus Pass:
+ * Evaluates candidate questions independently without answer keys or derivations.
+ * Questions that produce key disagreement or low confidence are filtered out.
+ */
+async function auditQuizWithBlindSolver(
+  candidates: QuizQuestion[]
+): Promise<QuizQuestion[]> {
+  if (candidates.length === 0) return [];
+
+  const letterLabels = ["A", "B", "C", "D"];
+  const letterToIndex: Record<string, number> = { A: 0, B: 1, C: 2, D: 3 };
+
+  // Use distinct letter labels [A], [B], [C], [D] to prevent digit collision with math values
+  const formattedQuestions = candidates
+    .map((q, idx) => {
+      const opts = q.options.map((opt, oIdx) => `  [${letterLabels[oIdx]}] ${opt}`).join("\n");
+      return `=== Question ${idx} ===\n${q.question}\nOptions:\n${opts}`;
+    })
+    .join("\n\n");
+
+  const blindPrompt = `You are a strict, top-tier academic exam grader and auditor.
+Below are ${candidates.length} multiple-choice exam questions with options labeled [A], [B], [C], [D].
+Your job is to independently solve each question strictly and objectively.
+
+FOR EACH QUESTION:
+1. Carefully solve it based on academic correctness (math calculations, code syntax, logical facts, or definitions).
+2. Determine which option letter [A, B, C, or D] is the ONLY correct answer.
+3. If an option is unambiguously correct, assign "confidence": "high", specify "selectedOption": "A" | "B" | "C" | "D", AND quote the exact option text in "selectedText".
+4. If the question contains calculation errors, ambiguous wording, multiple valid options, or no valid option, assign "confidence": "invalid" or "low".
+
+RETURN ONLY VALID RAW JSON with NO markdown fences:
+{
+  "evaluations": [
+    {
+      "questionIndex": 0,
+      "selectedOption": "A",
+      "selectedText": "exact text of chosen option",
+      "confidence": "high",
+      "rationale": "Brief scientific verification..."
+    }
+  ]
+}
+
+QUESTIONS TO SOLVE:
+${formattedQuestions}`;
+
+  const rawAuditJson = await callGemini(blindPrompt);
+  const cleanAuditJson = extractJsonString(rawAuditJson);
+  const parsedAudit = JSON.parse(cleanAuditJson);
+
+  interface EvaluationItem {
+    questionIndex: number;
+    selectedOption?: string;
+    selectedText?: string;
+    selectedIndex?: number;
+    confidence: string;
+    rationale?: string;
+  }
+
+  let evaluationsList: EvaluationItem[] = [];
+  if (parsedAudit && Array.isArray(parsedAudit.evaluations)) {
+    evaluationsList = parsedAudit.evaluations;
+  } else if (Array.isArray(parsedAudit)) {
+    evaluationsList = parsedAudit;
+  }
+
+  const evalMap = new Map<number, EvaluationItem>();
+  for (const item of evaluationsList) {
+    if (typeof item.questionIndex === "number") {
+      evalMap.set(item.questionIndex, item);
+    }
+  }
+
+  const verified: QuizQuestion[] = [];
+
+  for (let idx = 0; idx < candidates.length; idx++) {
+    const candidate = candidates[idx];
+    const evaluation = evalMap.get(idx);
+
+    if (!evaluation) {
+      console.warn(`[gemini-quiz] Blind solver skipped question #${idx + 1}. Retaining as fallback.`);
+      verified.push(candidate);
+      continue;
+    }
+
+    // Resolve solver index from letter label A..D or numerical fallback
+    let solverIndex = -1;
+    if (typeof evaluation.selectedOption === "string") {
+      const letter = evaluation.selectedOption.trim().toUpperCase();
+      if (letter in letterToIndex) {
+        solverIndex = letterToIndex[letter];
+      }
+    }
+    if (solverIndex === -1 && typeof evaluation.selectedIndex === "number") {
+      solverIndex = evaluation.selectedIndex;
+    }
+
+    // Dual-check: Match by option index OR direct option text match
+    const isLabelMatch = solverIndex === candidate.correctIndex;
+    const correctText = candidate.options[candidate.correctIndex]?.trim().toLowerCase() || "";
+    const solverText = (evaluation.selectedText || "").trim().toLowerCase();
+    const isTextMatch = Boolean(solverText && (solverText === correctText || correctText.includes(solverText) || solverText.includes(correctText)));
+
+    const isMatch = isLabelMatch || isTextMatch;
+    const isHighConfidence = evaluation.confidence?.toLowerCase() === "high";
+
+    if (isMatch && isHighConfidence) {
+      verified.push(candidate);
+    } else {
+      const solverLabel = solverIndex >= 0 ? `[${letterLabels[solverIndex] || solverIndex}]` : "INVALID";
+      const candLabel = `[${letterLabels[candidate.correctIndex] || candidate.correctIndex}]`;
+      console.warn(
+        `[gemini-quiz] ❌ Blind solver rejected question #${idx + 1} ("${candidate.question.slice(0, 45)}..."): ` +
+        `Generator key=${candLabel}, Solver key=${solverLabel} (Text: "${solverText}" vs "${correctText}") ` +
+        `(Confidence: ${evaluation.confidence}, Rationale: ${evaluation.rationale || "N/A"})`
+      );
+    }
+  }
+
+  return verified;
+}
+
+/**
+ * Unified generation and dual-pass verification runner.
+ */
+async function runGenerationAndVerification(
+  prompt: string,
+  phaseName: string
+): Promise<QuizQuestion[]> {
   const rawJson = await callGemini(prompt);
   let parsed: unknown;
   try {
     const cleanJson = extractJsonString(rawJson);
     parsed = JSON.parse(cleanJson);
-  } catch (parseErr) {
-    console.error(`[gemini-quiz] Phase 2 JSON parse error:`, parseErr);
-    throw new Error(`فشل تحليل استجابة الذكاء الاصطناعي أثناء التوسيع: ${rawJson.slice(0, 150)}...`);
+  } catch (err) {
+    throw new Error(`Gemini returned invalid JSON in ${phaseName}: ${rawJson.slice(0, 200)}`);
   }
 
-  if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("استجابة الذكاء الاصطناعي ليست كائناً صالحاً.");
-  }
-
-  let rawQuestions: unknown[] = [];
+  let rawList: unknown[] = [];
   if (Array.isArray(parsed)) {
-    rawQuestions = parsed;
-  } else {
+    rawList = parsed;
+  } else if (typeof parsed === "object" && parsed !== null) {
     const obj = parsed as Record<string, unknown>;
-    if (Array.isArray(obj.questions)) {
-      rawQuestions = obj.questions;
-    } else if (Array.isArray(obj.new_questions)) {
-      rawQuestions = obj.new_questions;
-    } else if (Array.isArray(obj.quiz)) {
-      rawQuestions = obj.quiz;
-    } else {
+    if (Array.isArray(obj.questions)) rawList = obj.questions;
+    else if (Array.isArray(obj.new_questions)) rawList = obj.new_questions;
+    else {
       for (const val of Object.values(obj)) {
         if (Array.isArray(val) && val.length > 0) {
-          rawQuestions = val;
+          rawList = val;
           break;
         }
       }
     }
   }
 
-  const validNewQuestions: QuizQuestion[] = [];
-
-  for (const [i, q] of rawQuestions.entries()) {
-    const validated = sanitizeAndValidateQuestion(q, i, "Phase 2 - Expansion");
-    if (validated) {
-      validNewQuestions.push(validated);
+  // Layer 1 & 2: Field validation + in-memory Fisher-Yates shuffle
+  const candidates: QuizQuestion[] = [];
+  for (let i = 0; i < rawList.length; i++) {
+    const shuffled = buildShuffledQuestion(rawList[i], i, phaseName);
+    if (shuffled) {
+      candidates.push(shuffled);
     }
   }
 
-  if (validNewQuestions.length === 0) {
-    console.error("[gemini-quiz] Phase 2 produced 0 valid questions. Raw was:", rawJson.slice(0, 300));
-    throw new Error("لم ينتج الذكاء الاصطناعي أي أسئلة صالحة إضافية متطابقة مع المعايير.");
+  if (candidates.length === 0) {
+    throw new Error(`No valid candidate questions produced in ${phaseName}.`);
   }
 
   console.log(
-    `[gemini-quiz] [Phase 2] Successfully merged ${validNewQuestions.length} new questions. Total bank: ${
-      existingQuestions.length + validNewQuestions.length
-    } questions.`
+    `[gemini-quiz] [${phaseName}] Generated ${candidates.length} candidates with Grounded CoT & Fisher-Yates shuffle. Running Blind Solver Audit...`
   );
+
+  // Layer 3: Automated Blind Solver Consensus Pass
+  let verified: QuizQuestion[] = [];
+  try {
+    verified = await auditQuizWithBlindSolver(candidates);
+  } catch (auditErr) {
+    console.warn(
+      `[gemini-quiz] [${phaseName}] Blind solver audit encountered non-fatal error: ${
+        auditErr instanceof Error ? auditErr.message : String(auditErr)
+      }. Retaining shuffled candidates.`
+    );
+    verified = candidates;
+  }
+
+  console.log(
+    `[gemini-quiz] [${phaseName}] Verification complete: ${verified.length}/${candidates.length} passed consensus audit.`
+  );
+
+  // Safety floor: if audit was too aggressive, retain candidates to avoid an empty quiz
+  if (verified.length < 3 && candidates.length >= 3) {
+    console.warn(
+      `[gemini-quiz] [${phaseName}] Strict audit passed fewer than 3 questions (${verified.length}/${candidates.length}). Reverting to candidates.`
+    );
+    return candidates;
+  }
+
+  return verified;
+}
+
+/**
+ * Phase 1: Fast in-flight generation with Grounded CoT and Blind Solver Verification.
+ */
+export async function generateQuizWithGemini(
+  extractedText: string,
+  sourceTitle: string,
+  targetCount: number = 8
+): Promise<QuizData> {
+  console.log(
+    `[gemini-quiz] [Phase 1] Generating core bank of ${targetCount} questions for "${sourceTitle}" with Grounded CoT & Blind Audit`
+  );
+
+  const prompt = buildGroundedPrompt(extractedText, sourceTitle, targetCount);
+  const questions = await runGenerationAndVerification(prompt, "Phase 1 - Baseline");
+
+  return {
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    sourceTitle,
+    questions,
+  };
+}
+
+/**
+ * Automatically computes a safe, non-hallucinating expansion count based on content length.
+ */
+export function calculateDynamicExpansionCount(textLength: number): number {
+  if (textLength < 8_000) return 6;
+  return 8; // Cap at 8 questions so expansion always completes in 5-6s and avoids Vercel 15s cutoff
+}
+
+/**
+ * Phase 2: Asynchronous on-demand expansion with Grounded CoT and Blind Solver Verification.
+ */
+export async function expandQuizWithGemini(
+  extractedText: string,
+  sourceTitle: string,
+  existingQuiz: QuizData,
+  targetAdditionalCount?: number
+): Promise<QuizData> {
+  const effectiveCount =
+    typeof targetAdditionalCount === "number" && targetAdditionalCount > 0
+      ? targetAdditionalCount
+      : calculateDynamicExpansionCount(extractedText.length);
+
+  const existingQuestions = existingQuiz.questions || [];
+
+  console.log(
+    `[gemini-quiz] [Phase 2] Expanding bank with +${effectiveCount} questions for "${sourceTitle}" with Grounded CoT & Blind Audit`
+  );
+
+  const prompt = buildExpansionGroundedPrompt(
+    extractedText,
+    sourceTitle,
+    existingQuestions,
+    effectiveCount
+  );
+
+  const newVerifiedQuestions = await runGenerationAndVerification(prompt, "Phase 2 - Expansion");
 
   return {
     ...existingQuiz,
     generatedAt: new Date().toISOString(),
-    questions: [...existingQuestions, ...validNewQuestions],
+    questions: [...existingQuestions, ...newVerifiedQuestions],
   };
 }
