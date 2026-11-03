@@ -20,7 +20,7 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
     process.env.NEXT_PUBLIC_SHOW_PLACEMENT_EXAMS === "true";
 
   const visibleDepartments = departments.filter(
-    (dept) => SHOW_PLACEMENT_EXAMS || dept.slug !== "placement-exams"
+    (dept) => (SHOW_PLACEMENT_EXAMS || dept.slug !== "placement-exams") && dept.slug !== "english" && dept.courses.length > 0
   );
 
   if (visibleDepartments.length === 0) {
@@ -92,7 +92,7 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                       href={`/courses/${course.slug}`}
                       title={course.title}
                       courseCode={course.course_code}
-                      description={course.description}
+                      
                       badges={badges}
                     />
                   );

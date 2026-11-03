@@ -20,12 +20,13 @@ export default function Header() {
 
         {/* Navigation */}
         <nav className="flex items-center gap-3 sm:gap-4">
-          <Link
+          {/* Guides link temporarily hidden until guides are populated */}
+          {/* <Link
             href="/guides"
             className="text-xs sm:text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             أدلة ونصائح
-          </Link>
+          </Link> */}
 
           <Link
             href="/upload"
