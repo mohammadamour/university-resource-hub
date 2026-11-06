@@ -20,7 +20,7 @@
    - [2.9 Pre-Storage SHA-256 Duplicate Defense & Page-Count Resolution](#29-pre-storage-sha-256-duplicate-defense--page-count-resolution)
    - [2.10 Admin Preview Decoupling & Dynamic Storage Key Derivation](#210-admin-preview-decoupling--dynamic-storage-key-derivation)
 3. [Deep Dive: Frontend & Interactive Components](#3-deep-dive-frontend--interactive-components)
-   - [3.1 The "Topic | Title" Dynamic Grouping Pattern](#31-the-topic--title-dynamic-grouping-pattern)
+   - [3.1 The 4-Tier Semantic Shelf Architecture](#31-the-4-tier-semantic-shelf-architecture)
    - [3.2 Next.js 16 Turbopack Segment Revalidation AST Quirk](#32-nextjs-16-turbopack-segment-revalidation-ast-quirk)
    - [3.3 The `<NativeQuiz />` 4-State Client Machine](#33-the-nativequiz--4-state-client-machine)
    - [3.4 SVG Circular Progress Ring Mathematics](#34-svg-circular-progress-ring-mathematics)
@@ -397,32 +397,28 @@ POST /api/upload
 
 ## 3. Deep Dive: Frontend & Interactive Components
 
-### 3.1 The "Topic | Title" Dynamic Grouping Pattern
+### 3.1 The 4-Tier Semantic Shelf Architecture
 
 - **File:** [`src/components/features/ResourceList.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/ResourceList.tsx)
-- **The Problem:** Creating sub-categories or chapters in SQL requires extra tables (`chapters`, `topics`) with foreign keys, joins, and admin selectors. This creates massive friction for a 20-day MVP.
-- **The Elegant Hack:** We use a simple pipe delimiter (`|`) in the resource title:
-  - `"تفاضل 1 | ملخص النهايات والاتصال"`
-  - `"تفاضل 1 | أسئلة سنوات على الاشتقاق"`
-- **The Code:**
-
-  ```typescript
-  const parsedStudyMaterials = studyMaterials.map((resource) => {
-    const parts = resource.title.split("|");
-    if (parts.length > 1) {
-      return {
-        ...resource,
-        topic: parts[0].trim(), // "تفاضل 1"
-        displayTitle: parts.slice(1).join("|").trim(), // "ملخص النهايات والاتصال"
-      };
-    }
-    return { ...resource, topic: "عام", displayTitle: resource.title };
-  });
-
-  const hasTopics = parsedStudyMaterials.some((r) => r.topic !== "عام");
-  ```
-
-- **Result:** If titles have `|`, the UI automatically renders grouped topic sections with distinct cards! If not, it defaults to standard resource-type grouping. Zero database schema migrations required.
+- **Evolution from Pipe Delimiters:** Earlier iterations used a title pipe hack (`"الموضوع | العنوان"`) to group materials. In Step 4, this hack and the ambiguous generic badges (`✦ المعتمد`) were completely retired in favor of a clean, deterministic 4-tier shelf layout:
+  1. **Shelf 1 — 📚 المادة الرسمية / Official Syllabus:**
+     - *Filter:* `is_featured === true`
+     - *Badge:* Exclusive `⭐ رسمي` badge.
+     - *Purpose:* Official textbook chapters, curriculum syllabi, and faculty slides anchoring the top of the course page.
+  2. **Shelf 2 — 🌟 ملخصات ومراجعات:**
+     - *Filter:* `type === "summary" && !is_featured`
+     - *Deterministic Sort:* `target_exam === "midterm"` first ➔ `"final"` second ➔ `"other"` third, then `display_order ASC`, then `created_at ASC`.
+     - *Interactive Integration:* Renders inline `<NativeQuiz />` directly attached to summaries containing `quiz_data`.
+  3. **Shelf 3 — 📝 أسئلة ونماذج امتحانات:**
+     - *Filter:* `type === "past_exam" && !is_featured`
+     - *Sort:* `display_order ASC, created_at ASC`.
+     - *Zero-Ghost Rule:* Hides the entire section and header when no past exams exist (no empty placeholders).
+  4. **Shelf 4 — 🗂️ أرشيف إضافي ومصادر خارجية (Collapsible Drawer):**
+     - *Filter:* All remaining active items (`type === "link"`, `type === "other"`, `type === "guide"`).
+     - *Drawer Experience:* Collapsed by default via subtle toggle. Features categorized sub-headers only when items exist:
+       - 🔗 `روابط ومصادر خارجية` (YouTube, GitHub, Drive platform cards)
+       - 📎 `سلايدات وفصول إضافية` (Chapter notes and reference guides)
+       - 👥 `مساهمات الطلاب` (Student community submissions)
 
 ---
 

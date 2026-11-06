@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { Resource, ResourceType } from "@/types/database";
+import type { Resource } from "@/types/database";
 import NativeQuiz from "@/components/features/NativeQuiz";
 
 interface ResourceListProps {
@@ -39,10 +39,11 @@ function getPlatformMeta(res: Resource) {
 }
 
 /**
- * Renders course resources across a 3-tier architecture:
- * 1. Tier 1: 🌟 Core Verified Shelf (Prominent cards, embedded quizzes, high-yield summaries)
- * 2. Tier 2: 📁 Extended Community Archive (Collapsible drawer for student uploads & alternative notes)
- * 3. Tier 3: 🛠️ Deep-Dive External Toolkit (Curated external links, videos, and toolcards)
+ * 4-Tier Semantic Shelf Architecture:
+ * 1. Shelf 1: 📚 المادة الرسمية / Official Syllabus (is_featured === true)
+ * 2. Shelf 2: 🌟 ملخصات ومراجعات (type === 'summary', Midterm -> Final -> Other)
+ * 3. Shelf 3: 📝 أسئلة ونماذج امتحانات (type === 'past_exam', hidden if empty)
+ * 4. Shelf 4: 🗂️ أرشيف إضافي ومصادر خارجية (Collapsible Drawer with sub-categories)
  */
 export default function ResourceList({
   resources,
@@ -52,7 +53,7 @@ export default function ResourceList({
   const [activeEmbedId, setActiveEmbedId] = useState<string | null>(null);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
 
-  // Deterministic shelf sorting: display_order ASC, then created_at ASC
+  // Deterministic sorting comparator: display_order ASC, then created_at ASC
   const sortByDisplayOrder = (a: Resource, b: Resource) => {
     const orderA = a.display_order ?? 0;
     const orderB = b.display_order ?? 0;
@@ -62,57 +63,65 @@ export default function ResourceList({
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   };
 
+  // Summaries sorting comparator: midterm first -> final second -> other third -> display_order ASC
+  const sortSummaries = (a: Resource, b: Resource) => {
+    const examRank = (exam: string | null | undefined) => {
+      if (exam === "midterm") return 1;
+      if (exam === "final") return 2;
+      return 3;
+    };
+    const rankA = examRank(a.target_exam);
+    const rankB = examRank(b.target_exam);
+    if (rankA !== rankB) return rankA - rankB;
+
+    const orderA = a.display_order ?? 0;
+    const orderB = b.display_order ?? 0;
+    if (orderA !== orderB) return orderA - orderB;
+
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  };
+
   // Filter active resources only
   const activeResources = resources.filter((r) => (r.status || "active") === "active");
 
-  // Tier 1: Core Curated Shelf (is_featured !== false, not external links)
-  const coreFeaturedResources = activeResources
-    .filter((r) => r.is_featured !== false && r.type !== "link" && r.type !== "other")
+  // ─── Shelf 1: 📚 المادة الرسمية / Official Syllabus (is_featured === true) ───
+  const officialSyllabusResources = activeResources
+    .filter((r) => r.is_featured === true)
     .sort(sortByDisplayOrder);
 
-  // Tier 2: Extended Community Archive (is_featured === false, not external links)
-  const communityArchiveResources = activeResources
-    .filter((r) => r.is_featured === false && r.type !== "link" && r.type !== "other")
+  // ─── Shelf 2: 🌟 ملخصات ومراجعات (type === 'summary', not featured) ───────────
+  const summaryResources = activeResources
+    .filter((r) => !r.is_featured && r.type === "summary")
+    .sort(sortSummaries);
+
+  // ─── Shelf 3: 📝 أسئلة ونماذج امتحانات (type === 'past_exam', not featured) ────
+  const pastExamResources = activeResources
+    .filter((r) => !r.is_featured && r.type === "past_exam")
     .sort(sortByDisplayOrder);
 
-  // Tier 3: Curated Deep-Dive External Toolkit
-  const externalToolkitResources = activeResources
-    .filter((r) => r.type === "link" || r.type === "other")
+  // ─── Shelf 4: 🗂️ أرشيف إضافي ومصادر خارجية (All other active resources) ───────
+  const archiveResources = activeResources
+    .filter(
+      (r) =>
+        !r.is_featured &&
+        r.type !== "summary" &&
+        r.type !== "past_exam"
+    )
     .sort(sortByDisplayOrder);
 
-  const availableStudyTypes = Array.from(
-    new Set(coreFeaturedResources.map((r) => r.type))
-  ) as ResourceType[];
-
-  const sectionNames: Partial<Record<ResourceType, string>> = {
-    summary: "ملخصات معتمدة",
-    quiz: "كويزات وبنوك أسئلة",
-    past_exam: "أسئلة سنوات سابقة",
-    guide: "أدلة دراسية ومقررات",
-  };
-
-  // If titles use "Topic | Title", group by Topic
-  const parsedCoreMaterials = coreFeaturedResources.map((resource) => {
-    const parts = resource.title.split("|");
-    if (parts.length > 1) {
-      return {
-        ...resource,
-        topic: parts[0].trim(),
-        displayTitle: parts.slice(1).join("|").trim(),
-      };
-    }
-    return { ...resource, topic: "عام", displayTitle: resource.title };
-  });
-
-  const hasTopics = parsedCoreMaterials.some((r) => r.topic !== "عام");
-  const availableTopics = Array.from(
-    new Set(parsedCoreMaterials.map((r) => r.topic))
+  // Shelf 4 sub-categories
+  const externalLinkResources = archiveResources.filter((r) => r.type === "link");
+  const studentContributionResources = archiveResources.filter(
+    (r) => !r.is_admin_uploaded && r.type !== "link"
+  );
+  const chapterSlideResources = archiveResources.filter(
+    (r) => r.is_admin_uploaded !== false && r.type !== "link"
   );
 
-  // Empty Course State
+  // ─── Empty Course State Funnel ─────────────────────────────────────────────
   if (activeResources.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-border bg-card/60 p-8 sm:p-12 text-center backdrop-blur-sm">
+      <div className="rounded-2xl border border-dashed border-border bg-card/60 p-8 sm:p-12 text-center backdrop-blur-sm" dir="rtl">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-2xl mb-4">
           📚
         </div>
@@ -136,8 +145,11 @@ export default function ResourceList({
     );
   }
 
-  // Helper to render a single Tier 1 resource item
-  const renderCoreResource = (resource: Resource, displayTitle?: string) => {
+  // ─── Resource Card Renderer (Used in Shelves 1, 2, 3) ─────────────────────
+  const renderResourceCard = (
+    resource: Resource,
+    options?: { isOfficial?: boolean }
+  ) => {
     const isQuiz = resource.type === "quiz";
     const examScopeLabel =
       resource.target_exam === "midterm"
@@ -146,34 +158,50 @@ export default function ResourceList({
         ? "مادة الفاينل"
         : null;
 
+    const isOfficial = options?.isOfficial;
+
     const content = (
       <>
         {/* File icon */}
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-xl">
-          {resource.type === "summary" && "📄"}
-          {resource.type === "quiz" && "✨"}
-          {resource.type === "past_exam" && "📝"}
-          {resource.type === "guide" && "📖"}
-          {resource.type === "link" && "🔗"}
-          {resource.type === "other" && "📎"}
+        <div
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${
+            isOfficial
+              ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+              : "bg-secondary"
+          }`}
+        >
+          {isOfficial
+            ? "📚"
+            : resource.type === "summary"
+            ? "📄"
+            : resource.type === "quiz"
+            ? "✨"
+            : resource.type === "past_exam"
+            ? "📝"
+            : resource.type === "guide"
+            ? "📖"
+            : resource.type === "link"
+            ? "🔗"
+            : "📎"}
         </div>
 
         {/* Resource info */}
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate text-sm font-semibold text-card-foreground sm:text-base">
-              {displayTitle || resource.title}
+              {resource.title}
             </span>
+            {isOfficial && (
+              <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold text-amber-500 flex items-center gap-1">
+                <span>⭐</span>
+                <span>رسمي</span>
+              </span>
+            )}
             {examScopeLabel && (
               <span className="rounded-full bg-accent/10 border border-accent/20 px-2 py-0.5 text-[11px] font-semibold text-accent">
                 {examScopeLabel}
               </span>
             )}
-            {resource.is_admin_uploaded ? (
-              <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
-                ✦ المعتمد
-              </span>
-            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -209,9 +237,13 @@ export default function ResourceList({
 
         {/* Action Trigger Icon */}
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform group-hover:scale-105">
-          {isQuiz 
-            ? (activeEmbedId === resource.id ? "🔽" : "▶️") 
-            : (resource.type === "link" || resource.type === "other" ? "↗" : "⬇")}
+          {isQuiz
+            ? activeEmbedId === resource.id
+              ? "🔽"
+              : "▶️"
+            : resource.type === "link" || resource.type === "other"
+            ? "↗"
+            : "⬇"}
         </div>
       </>
     );
@@ -221,7 +253,7 @@ export default function ResourceList({
         {isQuiz && !resource.quiz_data ? (
           <button
             onClick={() => setActiveEmbedId(activeEmbedId === resource.id ? null : resource.id)}
-            className="flex w-full items-center gap-3 p-4 text-start transition-colors hover:bg-secondary active:bg-secondary/80 sm:gap-4 sm:p-5"
+            className="flex w-full items-center gap-3 p-4 text-start transition-colors hover:bg-secondary active:bg-secondary/80 sm:gap-4 sm:p-5 cursor-pointer"
           >
             {content}
           </button>
@@ -270,82 +302,169 @@ export default function ResourceList({
     );
   };
 
-  return (
-    <div className="space-y-10" dir="rtl">
-      {/* ─── 1. Tier 1: Core Curated Shelf ───────────────────────────────── */}
-      {coreFeaturedResources.length > 0 && (
-        <div className="space-y-8">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <div>
-              <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl flex items-center gap-2">
-                <span>🌟</span>
-                <span>المحتوى المعتمد والرئيسي</span>
-              </h2>
-              <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-                المذكرات والملخصات الأعلى تقييماً مع كويزات تفاعلية ذكية للتحضير السريع.
-              </p>
+  // ─── Subdued Row Renderer (Used inside Shelf 4 Drawer) ─────────────────────
+  const renderSubduedArchiveRow = (res: Resource) => {
+    const examScopeLabel =
+      res.target_exam === "midterm"
+        ? "مادة الميد"
+        : res.target_exam === "final"
+        ? "مادة الفاينل"
+        : null;
+
+    return (
+      <div
+        key={res.id}
+        className="flex items-center justify-between gap-3 p-3.5 sm:p-4 hover:bg-secondary/30 transition-colors"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-lg shrink-0 opacity-80">
+            {res.type === "past_exam" ? "📝" : res.type === "guide" ? "📖" : "📎"}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium text-foreground truncate">
+                {res.title}
+              </span>
+              {examScopeLabel && (
+                <span className="rounded bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                  {examScopeLabel}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+              {res.author_name ? (
+                <span>مساهمة: {res.author_name}</span>
+              ) : (
+                <span>مساهمة طالب</span>
+              )}
+              {res.page_count ? <span>• 📄 {res.page_count} صفحة</span> : null}
+              {res.file_size_bytes ? (
+                <span dir="ltr">• {formatBytes(res.file_size_bytes)}</span>
+              ) : null}
             </div>
           </div>
-
-          {hasTopics
-            ? availableTopics.map((topic) => {
-                const topicResources = parsedCoreMaterials.filter((r) => r.topic === topic);
-                return (
-                  <div key={topic} className="space-y-4">
-                    <h3 className="text-base font-bold text-foreground sm:text-lg flex items-center gap-2">
-                      <span className="text-primary">✦</span>
-                      <span>{topic}</span>
-                    </h3>
-                    <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-                      <ul className="divide-y divide-border">
-                        {topicResources.map((r) => renderCoreResource(r, r.displayTitle))}
-                      </ul>
-                    </div>
-                  </div>
-                );
-              })
-            : availableStudyTypes.map((type) => {
-                const typeResources = coreFeaturedResources.filter((r) => r.type === type);
-                return (
-                  <div key={type} className="space-y-4">
-                    <h3 className="text-base font-bold text-foreground sm:text-lg flex items-center gap-2">
-                      <span className="text-primary">✦</span>
-                      <span>{sectionNames[type] || "موارد دراسية"}</span>
-                    </h3>
-                    <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-                      <ul className="divide-y divide-border">
-                        {typeResources.map((r) => renderCoreResource(r))}
-                      </ul>
-                    </div>
-                  </div>
-                );
-              })}
         </div>
+
+        {isValidResourceUrl(res.storage_url) ? (
+          <a
+            href={res.storage_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shrink-0"
+          >
+            <span>تحميل</span>
+            <span>⬇</span>
+          </a>
+        ) : (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground opacity-60 cursor-not-allowed shrink-0"
+            title="الملف قيد المعالجة حالياً"
+          >
+            <span>قيد التجهيز</span>
+            <span>⏳</span>
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-10" dir="rtl">
+      {/* ─── Shelf 1: 📚 المادة الرسمية / Official Syllabus ────────── */}
+      {officialSyllabusResources.length > 0 && (
+        <section className="space-y-4" aria-label="المادة الرسمية المعتمدة">
+          <div className="border-b border-border pb-3">
+            <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl flex items-center gap-2">
+              <span>📚</span>
+              <span>المادة الرسمية المعتمدة</span>
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+              الخطة الدراسية، كتاب المادة، أو السلايدات الرسمية الصادرة عن الجامعة.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border-2 border-amber-500/30 bg-card overflow-hidden shadow-sm">
+            <ul className="divide-y divide-border">
+              {officialSyllabusResources.map((r) =>
+                renderResourceCard(r, { isOfficial: true })
+              )}
+            </ul>
+          </div>
+        </section>
       )}
 
-      {/* ─── 2. Tier 2: Extended Community Archive Drawer ────────────────── */}
-      {communityArchiveResources.length > 0 && (
-        <div className="rounded-2xl border border-border bg-card/70 overflow-hidden shadow-sm">
+      {/* ─── Shelf 2: 🌟 ملخصات ومراجعات ─────────────────────────── */}
+      {summaryResources.length > 0 && (
+        <section className="space-y-4" aria-label="ملخصات ومراجعات شاملة">
+          <div className="border-b border-border pb-3">
+            <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl flex items-center gap-2">
+              <span>🌟</span>
+              <span>ملخصات ومراجعات شاملة</span>
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+              شروحات ومذكرات مركزة تغطي مواضيع الامتحانات مع بنوك أسئلة تفاعلية ذكية.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+            <ul className="divide-y divide-border">
+              {summaryResources.map((r) => renderResourceCard(r))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      {/* ─── Shelf 3: 📝 أسئلة ونماذج امتحانات ─────────────────────── */}
+      {pastExamResources.length > 0 && (
+        <section className="space-y-4" aria-label="أسئلة ونماذج امتحانات سابقة">
+          <div className="border-b border-border pb-3">
+            <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl flex items-center gap-2">
+              <span>📝</span>
+              <span>أسئلة ونماذج امتحانات سابقة</span>
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+              تجميعات امتحانات السنوات السابقة وأسئلة التدريب للاختبارات النصفية والنهائية.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+            <ul className="divide-y divide-border">
+              {pastExamResources.map((r) => renderResourceCard(r))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      {/* ─── Shelf 4: 🗂️ أرشيف إضافي ومصادر خارجية (Collapsible) ──── */}
+      {archiveResources.length > 0 && (
+        <section
+          className="rounded-2xl border border-border bg-card/70 overflow-hidden shadow-sm transition-all"
+          aria-label="أرشيف إضافي ومصادر خارجية"
+        >
           <button
+            type="button"
             onClick={() => setIsArchiveOpen(!isArchiveOpen)}
-            className="flex w-full items-center justify-between p-4 sm:p-5 text-start hover:bg-secondary/40 transition-colors"
+            className="flex w-full items-center justify-between p-4 sm:p-5 text-start hover:bg-secondary/40 transition-colors cursor-pointer"
           >
             <div className="space-y-1">
               <div className="flex items-center gap-2 font-bold text-foreground text-base sm:text-lg">
-                <span>📁</span>
-                <span>أرشيف مساهمات الدفعة والملخصات الإضافية</span>
-                <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground" dir="ltr">
-                  {communityArchiveResources.length}
+                <span>🗂️</span>
+                <span>أرشيف إضافي ومصادر خارجية</span>
+                <span
+                  className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground"
+                  dir="ltr"
+                >
+                  {archiveResources.length}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground sm:text-sm">
-                ملفات إضافية، سلايدات، وتلخيصات ساهم بها زملاؤك لدعم دراستك وتغطية الشباتر المنفردة.
+                سلايدات الفصول المنفردة، شروحات يوتيوب، مراجع إضافية، ومساهمات الطلاب.
               </p>
             </div>
 
             <div className="flex items-center gap-3">
               <span className="text-sm font-semibold text-accent hidden sm:inline">
-                {isArchiveOpen ? "طي الأرشيف" : "عرض الملفات"}
+                {isArchiveOpen ? "طي الأرشيف" : "عرض المزيد"}
               </span>
               <span className="rounded-lg bg-secondary p-2 text-xs font-bold text-muted-foreground transition-transform duration-200">
                 {isArchiveOpen ? "▲" : "▼"}
@@ -354,150 +473,129 @@ export default function ResourceList({
           </button>
 
           {isArchiveOpen && (
-            <div className="border-t border-border bg-background/50 divide-y divide-border">
-              {communityArchiveResources.map((res) => {
-                const examScopeLabel =
-                  res.target_exam === "midterm"
-                    ? "مادة الميد"
-                    : res.target_exam === "final"
-                    ? "مادة الفاينل"
-                    : null;
+            <div className="border-t border-border bg-background/50 p-4 sm:p-6 space-y-6 animate-in fade-in-50 duration-200">
+              {/* Sub-header 1: External Links */}
+              {externalLinkResources.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <span>🔗</span>
+                    <span>روابط ومصادر خارجية</span>
+                    <span className="text-xs text-muted-foreground font-normal">
+                      ({externalLinkResources.length})
+                    </span>
+                  </h4>
 
-                return (
-                  <div
-                    key={res.id}
-                    className="flex items-center justify-between gap-3 p-3.5 sm:p-4 hover:bg-secondary/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-xl shrink-0">📄</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-semibold text-foreground truncate">
-                            {res.title}
-                          </span>
-                          {examScopeLabel && (
-                            <span className="rounded bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                              {examScopeLabel}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                          {res.author_name ? (
-                            <span>مساهمة: {res.author_name}</span>
-                          ) : (
-                            <span>مساهمة طالب</span>
-                          )}
-                          {res.page_count && <span>• 📄 {res.page_count} صفحة</span>}
-                          {res.file_size_bytes && <span dir="ltr">• {formatBytes(res.file_size_bytes)}</span>}
-                        </div>
-                      </div>
-                    </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {externalLinkResources.map((res) => {
+                      const meta = getPlatformMeta(res);
+                      const valid = isValidResourceUrl(res.storage_url);
 
-                    {isValidResourceUrl(res.storage_url) ? (
-                      <a
-                        href={res.storage_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shrink-0"
-                      >
-                        <span>تحميل</span>
-                        <span>⬇</span>
-                      </a>
-                    ) : (
-                      <span
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground opacity-60 cursor-not-allowed shrink-0"
-                        title="الملف قيد المعالجة حالياً"
-                      >
-                        <span>قيد التجهيز</span>
-                        <span>⏳</span>
-                      </span>
-                    )}
+                      if (!valid) {
+                        return (
+                          <div
+                            key={res.id}
+                            className="opacity-60 cursor-not-allowed flex flex-col justify-between rounded-2xl border border-border bg-card p-4"
+                            title="الرابط قيد التحديث"
+                          >
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${meta.badgeClass}`}
+                                >
+                                  <span>{meta.icon}</span>
+                                  <span>{meta.name}</span>
+                                </span>
+                              </div>
+                              <h5 className="text-sm font-bold text-foreground line-clamp-2">
+                                {res.title}
+                              </h5>
+                              {res.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                  {res.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <a
+                          key={res.id}
+                          href={res.storage_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group flex flex-col justify-between rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:border-accent hover:shadow-md active:scale-[0.99]"
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${meta.badgeClass}`}
+                              >
+                                <span>{meta.icon}</span>
+                                <span>{meta.name}</span>
+                              </span>
+                              <span className="text-xs text-muted-foreground group-hover:text-accent transition-colors">
+                                ↗
+                              </span>
+                            </div>
+
+                            <h5 className="text-sm font-bold text-foreground group-hover:text-accent transition-colors line-clamp-2">
+                              {res.title}
+                            </h5>
+
+                            {res.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {res.description}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
+                            <span>فتح المورد الخارجي</span>
+                            <span className="font-semibold text-accent">زيارة الموقع ←</span>
+                          </div>
+                        </a>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              )}
+
+              {/* Sub-header 2: Extra Chapter Slides & Guides */}
+              {chapterSlideResources.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <span>📎</span>
+                    <span>سلايدات وفصول إضافية</span>
+                    <span className="text-xs text-muted-foreground font-normal">
+                      ({chapterSlideResources.length})
+                    </span>
+                  </h4>
+                  <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+                    {chapterSlideResources.map(renderSubduedArchiveRow)}
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-header 3: Student Community Contributions */}
+              {studentContributionResources.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <span>👥</span>
+                    <span>مساهمات الطلاب</span>
+                    <span className="text-xs text-muted-foreground font-normal">
+                      ({studentContributionResources.length})
+                    </span>
+                  </h4>
+                  <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+                    {studentContributionResources.map(renderSubduedArchiveRow)}
+                  </div>
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ─── 3. Tier 3: Curated Deep-Dive External Toolkit ────────────────── */}
-      {externalToolkitResources.length > 0 && (
-        <div className="space-y-4">
-          <div className="border-b border-border pb-3">
-            <h3 className="text-lg font-bold text-foreground sm:text-xl flex items-center gap-2">
-              <span>🛠️</span>
-              <span>أدوات ومصادر للتعمق والإبحار بالمادة</span>
-            </h3>
-            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-              شروحات يوتيوب، مستودعات برمجية، وتوثيقات رسمية لفهم المادة وتطبيقها عملياً.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {externalToolkitResources.map((res) => {
-              const meta = getPlatformMeta(res);
-              const valid = isValidResourceUrl(res.storage_url);
-              if (!valid) {
-                return (
-                  <div
-                    key={res.id}
-                    className="opacity-60 cursor-not-allowed flex flex-col justify-between rounded-2xl border border-border bg-card p-4"
-                    title="الرابط قيد التحديث"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${meta.badgeClass}`}>
-                          <span>{meta.icon}</span>
-                          <span>{meta.name}</span>
-                        </span>
-                      </div>
-                      <h4 className="text-sm font-bold text-foreground line-clamp-2">{res.title}</h4>
-                      {res.description && <p className="text-xs text-muted-foreground line-clamp-2">{res.description}</p>}
-                    </div>
-                  </div>
-                );
-              }
-              return (
-                <a
-                  key={res.id}
-                  href={res.storage_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group flex flex-col justify-between rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:border-accent hover:shadow-md active:scale-[0.99]"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${meta.badgeClass}`}
-                      >
-                        <span>{meta.icon}</span>
-                        <span>{meta.name}</span>
-                      </span>
-                      <span className="text-xs text-muted-foreground group-hover:text-accent transition-colors">
-                        ↗
-                      </span>
-                    </div>
-
-                    <h4 className="text-sm font-bold text-foreground group-hover:text-accent transition-colors line-clamp-2">
-                      {res.title}
-                    </h4>
-
-                    {res.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {res.description}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>فتح المورد الخارجي</span>
-                    <span className="font-semibold text-accent">زيارة الموقع ←</span>
-                  </div>
-                </a>
-              );
-            })}
-          </div>
-        </div>
+        </section>
       )}
 
       {/* ─── Persistent Bottom Crowdsourcing Banner ─────────────────────── */}
