@@ -172,6 +172,13 @@ export async function PATCH(request: Request, props: RouteProps) {
       updateData.external_platform = body.externalPlatform || null;
     }
 
+    if (body.displayOrder !== undefined || body.display_order !== undefined) {
+      const parsedOrder = parseInt(String(body.displayOrder ?? body.display_order), 10);
+      if (!isNaN(parsedOrder)) {
+        updateData.display_order = parsedOrder;
+      }
+    }
+
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
         { error: "No valid fields provided for update" },

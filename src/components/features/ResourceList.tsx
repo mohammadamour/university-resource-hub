@@ -52,23 +52,33 @@ export default function ResourceList({
   const [activeEmbedId, setActiveEmbedId] = useState<string | null>(null);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
 
+  // Deterministic shelf sorting: display_order ASC, then created_at ASC
+  const sortByDisplayOrder = (a: Resource, b: Resource) => {
+    const orderA = a.display_order ?? 0;
+    const orderB = b.display_order ?? 0;
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  };
+
   // Filter active resources only
   const activeResources = resources.filter((r) => (r.status || "active") === "active");
 
   // Tier 1: Core Curated Shelf (is_featured !== false, not external links)
-  const coreFeaturedResources = activeResources.filter(
-    (r) => r.is_featured !== false && r.type !== "link" && r.type !== "other"
-  );
+  const coreFeaturedResources = activeResources
+    .filter((r) => r.is_featured !== false && r.type !== "link" && r.type !== "other")
+    .sort(sortByDisplayOrder);
 
   // Tier 2: Extended Community Archive (is_featured === false, not external links)
-  const communityArchiveResources = activeResources.filter(
-    (r) => r.is_featured === false && r.type !== "link" && r.type !== "other"
-  );
+  const communityArchiveResources = activeResources
+    .filter((r) => r.is_featured === false && r.type !== "link" && r.type !== "other")
+    .sort(sortByDisplayOrder);
 
   // Tier 3: Curated Deep-Dive External Toolkit
-  const externalToolkitResources = activeResources.filter(
-    (r) => r.type === "link" || r.type === "other"
-  );
+  const externalToolkitResources = activeResources
+    .filter((r) => r.type === "link" || r.type === "other")
+    .sort(sortByDisplayOrder);
 
   const availableStudyTypes = Array.from(
     new Set(coreFeaturedResources.map((r) => r.type))

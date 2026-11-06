@@ -113,6 +113,7 @@ Scanned notes create massive file sizes that exhaust storage.
 - **Exam Scope Alignment:** Every upload explicitly captures the target exam (`midterm`, `final`, or `other`) for automatic sorting.
 - **Official Syllabus Designation (`is_featured`):** Curators can mark official university textbooks/slides as **"مادة رسمية"** to anchor them at the top shelf of the course page.
 - **Dynamic External Link Ingestion:** Native support for YouTube playlists, GitHub repos, and Google Drive folders with automatic platform detection without requiring dummy PDF uploads.
+- **Deterministic Priority Sorting (`display_order`):** Curators can manually specify numeric order weights so primary midterms and official slides surface first.
 
 ### Content Strategy & Liability Mitigation
 

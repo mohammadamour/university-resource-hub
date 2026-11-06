@@ -34,6 +34,7 @@ export interface AdminResourceItem {
   } | null;
   course?: AdminResourceCourse | null;
   is_featured?: boolean;
+  display_order?: number;
   is_admin_uploaded?: boolean;
   page_count?: number | null;
   target_exam?: string | null;
@@ -154,6 +155,7 @@ export default function AdminResourceManager({
   const [editType, setEditType] = useState<ResourceType>("summary");
   const [editStatus, setEditStatus] = useState<ResourceStatus>("active");
   const [editIsFeatured, setEditIsFeatured] = useState<boolean>(true);
+  const [editDisplayOrder, setEditDisplayOrder] = useState<number>(0);
   const [editTargetExam, setEditTargetExam] = useState<string>("other");
   const [editAcademicYear, setEditAcademicYear] = useState<string>("2025/2026");
   const [editProfessorName, setEditProfessorName] = useState<string>("");
@@ -513,6 +515,7 @@ ${formattedQuestions}
     setEditType(resource.type);
     setEditStatus(resource.status || "active");
     setEditIsFeatured(resource.is_featured !== undefined ? Boolean(resource.is_featured) : true);
+    setEditDisplayOrder(resource.display_order ?? 0);
     setEditTargetExam(resource.target_exam || "other");
     setEditAcademicYear(resource.academic_year || "2025/2026");
     setEditProfessorName(resource.professor_name || "");
@@ -547,6 +550,7 @@ ${formattedQuestions}
           type: editType,
           status: editStatus,
           isFeatured: editIsFeatured,
+          displayOrder: editDisplayOrder,
           targetExam: editTargetExam,
           academicYear: editAcademicYear,
           professorName: editProfessorName,
@@ -568,6 +572,7 @@ ${formattedQuestions}
         type: editType,
         status: editStatus,
         is_featured: editIsFeatured,
+        display_order: editDisplayOrder,
         target_exam: editTargetExam,
         academic_year: editAcademicYear,
         professor_name: editProfessorName.trim() || null,
@@ -906,6 +911,11 @@ ${formattedQuestions}
                             </div>
                           )}
                           <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] text-muted-foreground">
+                            {res.display_order !== undefined && res.display_order > 0 && (
+                              <span className="rounded bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 text-sky-400 font-mono text-[10px]" title="ترتيب العرض في الرف">
+                                #{res.display_order}
+                              </span>
+                            )}
                             {res.target_exam && (
                               <span className="rounded bg-secondary px-1.5 py-0.5 text-foreground font-medium">
                                 {res.target_exam === "midterm" ? "مادة الميد" : res.target_exam === "final" ? "مادة الفاينل" : "شامل"}
@@ -1174,6 +1184,11 @@ ${formattedQuestions}
 
                       {/* Mobile Metadata Chips */}
                       <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[11px] text-muted-foreground">
+                        {res.display_order !== undefined && res.display_order > 0 && (
+                          <span className="rounded bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 text-sky-400 font-mono text-[10px]" title="ترتيب العرض في الرف">
+                            #{res.display_order}
+                          </span>
+                        )}
                         {res.target_exam && (
                           <span className="rounded bg-secondary px-1.5 py-0.5 text-foreground font-medium">
                             {res.target_exam === "midterm" ? "مادة الميد" : res.target_exam === "final" ? "مادة الفاينل" : "شامل"}
@@ -1505,8 +1520,8 @@ ${formattedQuestions}
                 />
               </div>
 
-              {/* Target Exam & Academic Year */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Target Exam, Academic Year & Display Order */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-foreground">نطاق المادة / الامتحان</label>
                   <select
@@ -1532,6 +1547,22 @@ ${formattedQuestions}
                     <option value="2023/2024">2023/2024</option>
                     <option value="2022/2023">2022/2023</option>
                   </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-foreground">ترتيب العرض (Order)</label>
+                    <span className="text-[10px] text-muted-foreground font-mono">الأصغر أولاً</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={editDisplayOrder}
+                    onChange={(e) => setEditDisplayOrder(parseInt(e.target.value, 10) || 0)}
+                    min={0}
+                    step={1}
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    placeholder="0"
+                  />
                 </div>
               </div>
 

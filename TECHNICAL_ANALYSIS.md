@@ -31,6 +31,7 @@
    - [4.2 Row Level Security (RLS) Permission Matrix](#42-row-level-security-rls-permission-matrix)
    - [4.3 Caching & The Supabase Free-Tier Pause Defense](#43-caching--the-supabase-free-tier-pause-defense)
    - [4.4 Metadata Expansion & Exam Scope Architecture (Migration 20261020)](#44-metadata-expansion--exam-scope-architecture-migration-20261020)
+   - [4.5 Granular Resource Ordering (display_order) & Shelf Sorting](#45-granular-resource-ordering-display_order--shelf-sorting)
 5. [AI Seeding Engine & Adaptive Learning Roadmap](#5-ai-seeding-engine--adaptive-learning-roadmap)
    - [5.1 Bulk Seeding Script (`scripts/seed-quizzes.ts`)](#51-bulk-seeding-script-scriptsseed-quizzests)
    - [5.2 The Master AI Prompt](#52-the-master-ai-prompt)
@@ -606,6 +607,23 @@ universities (Jadara)
 - **Hierarchical Exam Scope (`target_exam`):** Categorizes materials into `midterm` ("مادة الميد"), `final` ("مادة الفاينل"), or `other` ("شامل / أخرى"). Eliminates student confusion and analysis paralysis during exam week.
 - **Academic Currency (`academic_year`):** Required dropdown pre-selected to current academic year (`2025/2026`), allowing students to distinguish active curriculum from outdated archives.
 - **Deduplication & Filter Indexes:** Dedicated B-Tree indexes on `file_hash`, `target_exam`, `academic_year`, `status`, and `created_at DESC` guarantee sub-millisecond lookups and instant duplicate prevention.
+
+---
+
+### 4.5 Granular Resource Ordering (`display_order`) & Shelf Sorting
+
+- **Files:** [`src/types/database.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/types/database.ts), [`src/app/api/admin/resources/[id]/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/admin/resources/%5Bid%5D/route.ts), [`src/components/features/AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx), [`src/components/features/ResourceList.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/ResourceList.tsx)
+- **Schema Migration:**
+  ```sql
+  ALTER TABLE resources ADD COLUMN IF NOT EXISTS display_order integer DEFAULT 0;
+  ```
+- **Admin Manual Curation Controls:**
+  - Added `display_order` numeric field to the resource edit modal in `AdminResourceManager.tsx`. Curators can set explicit priorities (e.g., `1`, `2`, `3`), where smaller numbers surface first.
+  - Surface visual order chips (`#1`, `#2`) on both desktop table and mobile card views in the admin console.
+- **Client-Side Deterministic Shelf Sorting:**
+  - In `ResourceList.tsx`, materials within every shelf section are deterministically sorted via:
+    `display_order ASC (default 0), created_at ASC`
+    guaranteeing that top-priority summaries or official syllabus slides appear first regardless of upload time.
 
 ---
 

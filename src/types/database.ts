@@ -104,6 +104,7 @@ export interface Resource {
   author_name?: string | null;
   description?: string | null;
   is_featured?: boolean;
+  display_order?: number;
   external_platform?: ExternalPlatform | null;
 }
 

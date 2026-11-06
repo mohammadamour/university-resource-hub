@@ -48,6 +48,7 @@ export default async function AdminResourcesPage({
         created_at,
         quiz_data,
         is_featured,
+        display_order,
         is_admin_uploaded,
         page_count,
         target_exam,
