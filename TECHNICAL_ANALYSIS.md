@@ -535,13 +535,17 @@ POST /api/upload
 
 ### 3.6 Upload Form Taxonomy, Exam Scope & Curated Syllabus Toggle
 
-- **File:** [`src/components/features/UploadForm.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/UploadForm.tsx)
-- **Problem Solved:** Legacy upload selectors lacked alignment with the database taxonomy and buried exam scope categorization, causing inconsistent metadata.
+- **Files:** [`src/components/features/UploadForm.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/UploadForm.tsx), [`src/app/api/upload/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/upload/route.ts), [`src/components/features/AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx)
+- **Problem Solved:** Legacy upload selectors lacked alignment with the database taxonomy, required dummy PDFs for external links, and buried exam scope categorization.
 - **Architectural Enhancements:**
   1. **Full Taxonomy Dropdown:** Expanded `ResourceType` selector to cover `summary | past_exam | guide | link | other` using an accessible native dropdown.
   2. **Prominent Exam Scope (`target_exam`):** Elevated midterm/final/general scope into high-contrast interactive pill cards with Arabic helper descriptions explaining shelf placement.
-  3. **Official Syllabus Toggle (`is_featured`):** Added explicit **"مادة رسمية (Official Syllabus)"** checkbox card with helper text explaining that it pins the resource to Tier 1 / Shelf 1.
-  4. **Optimistic Previews:** Updated optimistic course resource badge renderers to support icons for all 6 resource types.
+  3. **Smart Preset Coupling:** Selecting `guide`, `link`, or `other` automatically couples `target_exam` to `"other"`, while choosing `summary` or `past_exam` restores `"midterm"` default.
+  4. **Dynamic External Link Ingestion (`type: "link"`):** When `type === "link"` is selected, the file dropzone dynamically swaps into an explicit URL input field (`https://...`). The backend registers the link immediately without requiring a dummy PDF or invoking the Ghostscript/watermarking pipeline, and automatically resolves `external_platform` (`youtube`, `github`, `drive`, `docs`).
+  5. **Admin-Gated Syllabus Pinning (`is_featured`):** The **"مادة رسمية (Official Syllabus)"** toggle is exclusively visible in admin sessions (`Boolean(adminSecret)`), preventing untrusted guest uploads from pinning files to Tier 1 / Shelf 1.
+  6. **Retirement of Title Pipe Hack:** Replaced legacy `"الموضوع | العنوان"` prompt with clear descriptive naming guidance in preparation for the semantic shelf architecture.
+  7. **Admin Dashboard Parity:** Synced the edit resource modal in `AdminResourceManager.tsx` with identical taxonomy labels, exam badges, and official syllabus pinning controls.
+  8. **Optimistic Previews:** Updated optimistic course resource badge renderers to support icons for all 6 resource types.
 
 ---
 

@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { after } from "next/server";
 import dns from "node:dns";
 import crypto from "node:crypto";
-import type { ResourceType, TargetExam } from "@/types/database";
+import type { ResourceType, TargetExam, ExternalPlatform } from "@/types/database";
 import { sanitizeTextForPostgres } from "@/lib/utils";
 
 // ─── Serverless & Network Runtime Config ──────────────────────────────────────
@@ -269,6 +269,7 @@ export async function POST(req: Request) {
   }
 
   const file = formData.get("file") as File | null;
+  const linkUrl = (formData.get("linkUrl") as string | null)?.trim() || null;
   const courseId = formData.get("courseId") as string | null;
   const title = sanitizeTextForPostgres(formData.get("title") as string | null);
   const type = formData.get("type") as ResourceType | null;
@@ -288,7 +289,72 @@ export async function POST(req: Request) {
   const authorName = isAdmin ? (authorNameInput || "Mohammad Al-Amour") : null;
   const targetStatus: "active" | "pending" = isAdmin ? "active" : "pending";
 
-  // ── Stage 1: Input Validation & Magic Byte Check (SYNC, <10ms) ───────────────
+  // ── Stage 1A: External Link Ingestion (No PDF / No Ghostscript pipeline needed) ──
+  if (type === "link") {
+    if (!courseId || !title || !linkUrl) {
+      return Response.json(
+        { error: "يرجى تعبئة جميع الحقول الإلزامية وإدخال الرابط الخارجي للمورد." },
+        { status: 400 }
+      );
+    }
+
+    try {
+      new URL(linkUrl);
+    } catch {
+      return Response.json(
+        { error: "INVALID_URL: الرابط المدخل غير صالح. يرجى التأكد من كتابة الرابط بشكل صحيح مع https://" },
+        { status: 422 }
+      );
+    }
+
+    let platform: ExternalPlatform = "general";
+    if (linkUrl.includes("youtube.com") || linkUrl.includes("youtu.be")) {
+      platform = "youtube";
+    } else if (linkUrl.includes("github.com")) {
+      platform = "github";
+    } else if (linkUrl.includes("drive.google.com")) {
+      platform = "drive";
+    } else if (linkUrl.includes("docs.google.com")) {
+      platform = "docs";
+    }
+
+    const supabase = createAdminClient();
+    const resourceId = crypto.randomUUID();
+
+    const { data: newResource, error: insertError } = await supabase
+      .from("resources")
+      .insert({
+        id: resourceId,
+        course_id: courseId,
+        title: title.trim(),
+        type: "link",
+        storage_url: linkUrl,
+        file_size_bytes: null,
+        is_admin_uploaded: isAdmin,
+        status: targetStatus,
+        target_exam: targetExam,
+        academic_year: academicYear,
+        professor_name: professorName,
+        author_name: authorName,
+        description,
+        is_featured: false,
+        external_platform: platform,
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      return Response.json({ error: insertError.message }, { status: 500 });
+    }
+
+    return Response.json({
+      success: true,
+      resourceId: newResource.id,
+      status: targetStatus,
+    });
+  }
+
+  // ── Stage 1B: Input Validation & Magic Byte Check (SYNC, <10ms) ───────────────
   if (!file || !courseId || !title || !type) {
     return Response.json(
       { error: "Missing required fields: file, courseId, title, type." },

@@ -80,6 +80,7 @@ export default function UploadForm({
   const [resourceType, setResourceType] = useState<ResourceType>("summary");
   const [targetExam, setTargetExam] = useState<TargetExam>("midterm");
   const [isFeatured, setIsFeatured] = useState<boolean>(false);
+  const [linkUrl, setLinkUrl] = useState<string>("");
   const [academicYear, setAcademicYear] = useState<string>("2025/2026");
   const [file, setFile] = useState<File | null>(null);
   const [pageCount, setPageCount] = useState<number | null>(null);
@@ -175,9 +176,25 @@ export default function UploadForm({
     [courses, selectedCourseId]
   );
 
+  // Smart preset coupling: auto-select target_exam based on resource type
+  const handleResourceTypeChange = useCallback(
+    (newType: ResourceType) => {
+      setResourceType(newType);
+      if (newType === "guide" || newType === "link" || newType === "other") {
+        setTargetExam("other");
+      } else if (newType === "summary" || newType === "past_exam") {
+        if (targetExam === "other") {
+          setTargetExam("midterm");
+        }
+      }
+    },
+    [targetExam]
+  );
+
   // Reusable helper to reset form fields after submission while preserving selectedCourseId
   const resetFormState = useCallback(() => {
     setFile(null);
+    setLinkUrl("");
     setPageCount(null);
     setTitle("");
     setResourceType("summary");
@@ -240,15 +257,28 @@ export default function UploadForm({
     e.preventDefault();
     setErrorMessage(null);
 
-    if (!file || !selectedCourseId || !title.trim()) {
-      setErrorMessage("يرجى ملء جميع الحقول الإلزامية واختيار ملف.");
-      return;
+    const isLinkResource = resourceType === "link";
+
+    if (isLinkResource) {
+      if (!linkUrl.trim() || !selectedCourseId || !title.trim()) {
+        setErrorMessage("يرجى ملء جميع الحقول الإلزامية وإدخال الرابط الخارجي.");
+        return;
+      }
+      if (!linkUrl.startsWith("http://") && !linkUrl.startsWith("https://")) {
+        setErrorMessage("يرجى إدخال رابط صحيح يبدأ بـ https:// أو http://");
+        return;
+      }
+    } else {
+      if (!file || !selectedCourseId || !title.trim()) {
+        setErrorMessage("يرجى ملء جميع الحقول الإلزامية واختيار ملف PDF.");
+        return;
+      }
     }
 
     const submittedCourseId = selectedCourseId;
     const submittedTitle = title.trim();
     const submittedType = resourceType;
-    const submittedFileSize = file.size;
+    const submittedFileSize = file ? file.size : null;
 
     const optimisticallyAddResource = (newId: string) => {
       setCourses((prevCourses) =>
@@ -275,11 +305,19 @@ export default function UploadForm({
     setIsSubmitting(true);
     setCurrentStepIndex(0);
     setProgressPercent(15);
-    setStatusLog("جارٍ تجهيز الملف وفحص البيانات...");
+    setStatusLog(
+      isLinkResource
+        ? "جارٍ التحقق من الرابط الخارجي..."
+        : "جارٍ تجهيز الملف وفحص البيانات..."
+    );
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      if (isLinkResource) {
+        formData.append("linkUrl", linkUrl.trim());
+      } else if (file) {
+        formData.append("file", file);
+      }
       formData.append("courseId", selectedCourseId);
       formData.append("title", title.trim());
       formData.append("type", resourceType);
@@ -287,11 +325,13 @@ export default function UploadForm({
       formData.append("academicYear", academicYear);
       formData.append("isFeatured", String(isFeatured));
 
-      if (pageCount) {
-        formData.append("pageCount", String(pageCount));
-      }
-      if (extractedSourceText) {
-        formData.append("sourceText", extractedSourceText);
+      if (!isLinkResource) {
+        if (pageCount) {
+          formData.append("pageCount", String(pageCount));
+        }
+        if (extractedSourceText) {
+          formData.append("sourceText", extractedSourceText);
+        }
       }
       if (professorName.trim()) {
         formData.append("professorName", professorName.trim());
@@ -303,11 +343,15 @@ export default function UploadForm({
         formData.append("description", description.trim());
       }
 
-      // Step 1: Uploading
+      // Step 1: Uploading / Submitting
       setCurrentStepIndex(0);
       setProgressPercent(30);
-      const extractHint = extractedSourceText ? " (النص مُستخرَج مسبقاً ✓)" : "";
-      setStatusLog(`جارٍ رفع الملف إلى خوادم التخزين...${extractHint}`);
+      const extractHint = extractedSourceText && !isLinkResource ? " (النص مُستخرَج مسبقاً ✓)" : "";
+      setStatusLog(
+        isLinkResource
+          ? "جارٍ تسجيل الرابط في قاعدة البيانات..."
+          : `جارٍ رفع الملف إلى خوادم التخزين...${extractHint}`
+      );
 
       const reqHeaders: Record<string, string> = {};
       if (adminSecret) {
@@ -327,6 +371,28 @@ export default function UploadForm({
       }
 
       const resourceId = data.resourceId;
+
+      if (isLinkResource) {
+        // Immediate completion for links (no background processing needed)
+        setCurrentStepIndex(2);
+        setProgressPercent(100);
+        setStatusLog(
+          adminSecret
+            ? "تم نشر الرابط الخارجي بنجاح في المنصة!"
+            : "تم استلام الرابط بنجاح وإرساله للمراجعة! شكراً لمساهمتك القيّمة."
+        );
+        setSuccessResourceId(resourceId);
+        optimisticallyAddResource(resourceId);
+
+        if (adminSecret) {
+          setTimeout(() => {
+            resetFormState();
+          }, 4000);
+        } else {
+          setIsSubmitting(false);
+        }
+        return;
+      }
 
       if (adminSecret) {
         // ── Admin Flow: Connect to SSE telemetry stream for live processing ──
@@ -529,7 +595,7 @@ export default function UploadForm({
           required
         />
         <p className="text-xs text-muted-foreground">
-          نصيحة: استخدم صيغة &quot;الموضوع | العنوان&quot; للتجميع التلقائي (مثل: &quot;تفاضل 1 | ملخص النهايات والاتصال&quot;).
+          عنوان واضح ومباشر يوضح محتوى المورد (مثال: ملخص شامل لمنهج الفاينل، سلايدات الشابتر الأول، أسئلة مقترحة).
         </p>
       </div>
 
@@ -544,7 +610,7 @@ export default function UploadForm({
         <select
           id="upload-type"
           value={resourceType}
-          onChange={(e) => setResourceType(e.target.value as ResourceType)}
+          onChange={(e) => handleResourceTypeChange(e.target.value as ResourceType)}
           disabled={isSubmitting}
           className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground transition-colors focus:border-ring focus:outline-none disabled:opacity-50"
           required
@@ -600,34 +666,36 @@ export default function UploadForm({
         </div>
       </div>
 
-      {/* ── 5. Official Syllabus Toggle (is_featured) ─────────────── */}
-      <div className="rounded-xl border border-border bg-secondary/40 p-4 transition-all">
-        <label className="flex items-start justify-between gap-4 cursor-pointer">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-base">⭐</span>
-              <span className="text-sm font-semibold text-foreground">
-                مادة رسمية (Official Syllabus)
-              </span>
-              <span className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-500 border border-amber-500/20">
-                الرف الأول المعتمد
-              </span>
+      {/* ── 5. Official Syllabus Toggle (is_featured) - Admin Only ── */}
+      {adminSecret && (
+        <div className="rounded-xl border border-border bg-secondary/40 p-4 transition-all">
+          <label className="flex items-start justify-between gap-4 cursor-pointer">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-base">⭐</span>
+                <span className="text-sm font-semibold text-foreground">
+                  مادة رسمية (Official Syllabus)
+                </span>
+                <span className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-500 border border-amber-500/20">
+                  الرف الأول المعتمد
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                تثبيت المورد كمنهاج أو سلايدات رسمية معتمدة من الجامعة في أعلى صفحة المادة.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              تثبيت المورد كمنهاج أو سلايدات رسمية معتمدة من الجامعة في أعلى صفحة المادة.
-            </p>
-          </div>
-          <input
-            type="checkbox"
-            checked={isFeatured}
-            onChange={(e) => setIsFeatured(e.target.checked)}
-            disabled={isSubmitting}
-            className="mt-1 h-5 w-5 rounded border-border text-accent focus:ring-accent cursor-pointer accent-accent"
-          />
-        </label>
-      </div>
+            <input
+              type="checkbox"
+              checked={isFeatured}
+              onChange={(e) => setIsFeatured(e.target.checked)}
+              disabled={isSubmitting}
+              className="mt-1 h-5 w-5 rounded border-border text-accent focus:ring-accent cursor-pointer accent-accent"
+            />
+          </label>
+        </div>
+      )}
 
-      {/* ── 4. Academic Year Dropdown ─────────────────────────────── */}
+      {/* ── 6. Academic Year Dropdown ─────────────────────────────── */}
       <div className="space-y-2">
         <label
           htmlFor="upload-academic-year"
@@ -651,86 +719,116 @@ export default function UploadForm({
         </select>
       </div>
 
-      {/* ── 5. File Dropzone ───────────────────────────────────────── */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-foreground">
-          ملف PDF <span className="text-destructive">*</span>
-        </label>
-        <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => !isSubmitting && fileInputRef.current?.click()}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) =>
-            e.key === "Enter" && !isSubmitting && fileInputRef.current?.click()
-          }
-          aria-label="منطقة رفع الملف"
-          className={`relative flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed transition-all ${
-            isSubmitting
-              ? "cursor-not-allowed opacity-50"
-              : isDragging
-              ? "border-accent bg-accent/5 scale-[1.01]"
-              : file
-              ? "border-emerald-500/50 bg-emerald-500/5"
-              : "border-border bg-secondary/50 hover:border-muted-foreground hover:bg-secondary"
-          }`}
-        >
-          {file ? (
-            <>
-              <span className="text-2xl">📄</span>
-              <span className="text-sm font-medium text-foreground max-w-[80%] truncate">
-                {file.name}
-              </span>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                {pageCount !== null && (
-                  <>
-                    <span>•</span>
-                    <span className="inline-flex items-center gap-1 rounded bg-accent/15 px-2 py-0.5 text-accent font-semibold">
-                      📑 {pageCount} {pageCount === 1 ? "صفحة" : pageCount === 2 ? "صفحتان" : pageCount <= 10 ? "صفحات" : "صفحة"}
-                    </span>
-                  </>
-                )}
-              </div>
-              {!isSubmitting && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setFile(null);
-                    setPageCount(null);
-                  }}
-                  className="absolute top-2 left-2 rounded-full p-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
-                  aria-label="إزالة الملف"
-                >
-                  ✕
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              <span className="text-3xl">{isDragging ? "⬇️" : "☁️"}</span>
-              <span className="text-sm font-medium text-foreground">
-                {isDragging ? "أفلت الملف هنا" : "اسحب وأفلت ملف PDF"}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                أو انقر للتصفح — الحد الأقصى {MAX_FILE_SIZE_MB} ميغابايت
-              </span>
-            </>
-          )}
+      {/* ── 7. File Dropzone OR External Link URL Input ───────────── */}
+      {resourceType === "link" ? (
+        <div className="space-y-2 animate-in fade-in-50">
+          <label
+            htmlFor="upload-link-url"
+            className="block text-sm font-medium text-foreground"
+          >
+            رابط المورد الخارجي <span className="text-destructive">*</span>
+          </label>
+          <div className="relative">
+            <span className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-base">
+              🔗
+            </span>
+            <input
+              id="upload-link-url"
+              type="url"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              disabled={isSubmitting}
+              placeholder="https://youtube.com/... أو https://drive.google.com/..."
+              className="w-full rounded-xl border border-border bg-secondary pr-10 pl-4 py-3 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-ring focus:outline-none disabled:opacity-50"
+              required
+              dir="ltr"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            يدعم روابط قوائم تشغيل YouTube، ملفات ومجلدات Google Drive، مستودعات GitHub، أو مواقع ومراجع تعليمية خارجية.
+          </p>
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/pdf"
-          className="sr-only"
-          onChange={(e) => validateAndSetFile(e.target.files?.[0] ?? null)}
-          disabled={isSubmitting}
-          aria-hidden="true"
-        />
-      </div>
+      ) : (
+        <div className="space-y-2 animate-in fade-in-50">
+          <label className="block text-sm font-medium text-foreground">
+            ملف PDF <span className="text-destructive">*</span>
+          </label>
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => !isSubmitting && fileInputRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) =>
+              e.key === "Enter" && !isSubmitting && fileInputRef.current?.click()
+            }
+            aria-label="منطقة رفع الملف"
+            className={`relative flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed transition-all ${
+              isSubmitting
+                ? "cursor-not-allowed opacity-50"
+                : isDragging
+                ? "border-accent bg-accent/5 scale-[1.01]"
+                : file
+                ? "border-emerald-500/50 bg-emerald-500/5"
+                : "border-border bg-secondary/50 hover:border-muted-foreground hover:bg-secondary"
+            }`}
+          >
+            {file ? (
+              <>
+                <span className="text-2xl">📄</span>
+                <span className="text-sm font-medium text-foreground max-w-[80%] truncate">
+                  {file.name}
+                </span>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                  {pageCount !== null && (
+                    <>
+                      <span>•</span>
+                      <span className="inline-flex items-center gap-1 rounded bg-accent/15 px-2 py-0.5 text-accent font-semibold">
+                        📑 {pageCount} {pageCount === 1 ? "صفحة" : pageCount === 2 ? "صفحتان" : pageCount <= 10 ? "صفحات" : "صفحة"}
+                      </span>
+                    </>
+                  )}
+                </div>
+                {!isSubmitting && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFile(null);
+                      setPageCount(null);
+                    }}
+                    className="absolute top-2 left-2 rounded-full p-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                    aria-label="إزالة الملف"
+                  >
+                    ✕
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <span className="text-3xl">{isDragging ? "⬇️" : "☁️"}</span>
+                <span className="text-sm font-medium text-foreground">
+                  {isDragging ? "أفلت الملف هنا" : "اسحب وأفلت ملف PDF"}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  أو انقر للتصفح — الحد الأقصى {MAX_FILE_SIZE_MB} ميغابايت
+                </span>
+              </>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            className="sr-only"
+            onChange={(e) => validateAndSetFile(e.target.files?.[0] ?? null)}
+            disabled={isSubmitting}
+            aria-hidden="true"
+          />
+        </div>
+      )}
 
       {/* ── 6. Collapsible Optional Details ───────────────────────── */}
       <div className="rounded-xl border border-border/80 bg-secondary/30 transition-all overflow-hidden">

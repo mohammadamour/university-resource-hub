@@ -112,6 +112,7 @@ Scanned notes create massive file sizes that exhaust storage.
 - **Unified Taxonomy:** Resources are strictly categorized into 5 standardized types: `summary` (ملخص), `past_exam` (أسئلة سنوات), `guide` (دليل دراسي), `link` (رابط خارجي), and `other` (أرشيف إضافي).
 - **Exam Scope Alignment:** Every upload explicitly captures the target exam (`midterm`, `final`, or `other`) for automatic sorting.
 - **Official Syllabus Designation (`is_featured`):** Curators can mark official university textbooks/slides as **"مادة رسمية"** to anchor them at the top shelf of the course page.
+- **Dynamic External Link Ingestion:** Native support for YouTube playlists, GitHub repos, and Google Drive folders with automatic platform detection without requiring dummy PDF uploads.
 
 ### Content Strategy & Liability Mitigation
 

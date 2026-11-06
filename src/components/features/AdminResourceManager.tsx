@@ -1462,12 +1462,12 @@ ${formattedQuestions}
                     onChange={(e) => setEditType(e.target.value as ResourceType)}
                     className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                   >
-                    <option value="summary">📄 ملخص</option>
-                    <option value="past_exam">📝 أسئلة سنوات</option>
-                    <option value="guide">📖 دليل دراسي</option>
+                    <option value="summary">📄 ملخص دراسي</option>
+                    <option value="past_exam">📝 أسئلة سنوات وتجميعات</option>
+                    <option value="guide">📖 دليل دراسي / خطة المادة</option>
                     <option value="quiz">✨ بنك كويز</option>
-                    <option value="link">🔗 رابط خارجي</option>
-                    <option value="other">📁 أخرى</option>
+                    <option value="link">🔗 رابط خارجي / مرجع</option>
+                    <option value="other">📁 أخرى / سلايدات إضافية</option>
                   </select>
                 </div>
 
@@ -1491,10 +1491,10 @@ ${formattedQuestions}
                 <div className="space-y-0.5">
                   <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                     <span>⭐</span>
-                    <span>عرض كملخص رئيسي معتمد (Tier 1 Core Shelf)</span>
+                    <span>مادة رسمية (Official Syllabus) — الرف الأول المعتمد</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    الملفات الرئيسية تظهر في الواجهة الأولى مع الكويز، بينما تذهب الملفات غير المحددة إلى الأرشيف الإضافي.
+                    تثبيت المورد كمنهاج أو سلايدات رسمية معتمدة من الجامعة في أعلى صفحة المادة.
                   </p>
                 </div>
                 <input
@@ -1514,9 +1514,9 @@ ${formattedQuestions}
                     onChange={(e) => setEditTargetExam(e.target.value)}
                     className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                   >
-                    <option value="midterm">مادة الميد (Midterm)</option>
-                    <option value="final">مادة الفاينل (Final)</option>
-                    <option value="other">شامل / أخرى</option>
+                    <option value="midterm">🎯 مادة الميد (Midterm)</option>
+                    <option value="final">🏁 مادة الفاينل (Final)</option>
+                    <option value="other">🌐 شامل / أخرى</option>
                   </select>
                 </div>
 
