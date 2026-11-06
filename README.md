@@ -8,14 +8,23 @@
 
 ## 🛠️ Quick Start: How to Run Locally
 
-1. Open a terminal in the project root directory (`university resource hub`).
-2. Run the development server:
+1. Open your terminal in the project root directory:
+   ```bash
+   cd "c:\Users\somet\Downloads\Coding\university resource hub"
+   ```
+2. Run the local development server:
    ```bash
    npm run dev
    ```
-   _(If you've cloned fresh or added new packages, run `npm install` first)._
-3. Open your browser and navigate to:
-   👉 **http://localhost:3000**
+   _(Starts Next.js on Turbopack at **http://localhost:3000** with instant hot-reload)._
+3. Type-check changes across the codebase:
+   ```bash
+   npx tsc --noEmit
+   ```
+4. Verify production build locally (uses Webpack to prevent Turbopack production source-map panic):
+   ```bash
+   npx next build --webpack
+   ```
 
 ---
 

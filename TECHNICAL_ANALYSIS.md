@@ -775,6 +775,12 @@ export interface PipelineProgressEvent {
   2. **Storage Upsert Immunity:** Enabled `upsert: true` on Supabase Storage upload calls to prevent 409 conflict rejections on concurrent or retried uploads.
   3. **Self-Healing Admin PATCH & Safe Client Guard:** The admin PATCH endpoint (`/api/admin/resources/[id]`) automatically resolves missing or placeholder URLs from `courses/${courseId}/${id}.pdf`. The frontend `<ResourceList />` checks `isValidResourceUrl()` to prevent navigating to broken relative routes.
 
+### 6. PostgreSQL UTF-8 Null-Byte (`\u0000`) Ingestion Crash
+
+- **Symptom**: File upload pipeline crashes with `DB status update failed: unsupported Unicode escape sequence` (PostgreSQL error 22021), marking the newly uploaded resource as `rejected`.
+- **Root Cause**: Client-side (`pdfjs-dist`) or server-side (`pdf-parse`) text extraction encountering malformed embedded fonts, missing glyph mappings, or binary PDF streams frequently emits `\u0000` (null bytes) into extracted strings. PostgreSQL stores `TEXT` as null-terminated strings and strictly prohibits `\u0000` escape sequences. When `route.ts` attempts to update `source_text`, Postgres aborts the transaction.
+- **Fix**: Implemented [`sanitizeTextForPostgres()`](file:///src/lib/utils.ts) in `src/lib/utils.ts`. Strips `\0` null characters, ASCII non-printable control codes (`[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]`), and unpaired UTF-16 surrogates before updating `source_text`, `title`, or `description` in `src/app/api/upload/route.ts` and `src/app/api/admin/resources/[id]/quiz/route.ts`.
+
 ---
 
 ## 8. Super-Admin Resource Manager & Content Seeding Architecture

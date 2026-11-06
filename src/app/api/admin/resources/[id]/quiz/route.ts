@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import dns from "node:dns";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sanitizeTextForPostgres } from "@/lib/utils";
 import {
   generateQuizWithGemini,
   expandQuizWithGemini,
@@ -92,10 +93,11 @@ export async function POST(
       const pdfParse = (pdfParseModule as any).default || pdfParseModule;
       const arrayBuffer = await fileBlob.arrayBuffer();
       const parsedData = await pdfParse(Buffer.from(arrayBuffer));
-      sourceText = parsedData.text?.trim() || "";
+      const rawParsedText = parsedData.text?.trim() || "";
+      sourceText = sanitizeTextForPostgres(rawParsedText) || "";
 
       if (sourceText.length >= 50) {
-        // Persist extracted text so future regenerations are instant
+        // Persist sanitized extracted text so future regenerations are instant
         await supabase
           .from("resources")
           .update({ source_text: sourceText.slice(0, 100_000) })

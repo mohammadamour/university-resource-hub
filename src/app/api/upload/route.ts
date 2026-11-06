@@ -3,6 +3,7 @@ import { after } from "next/server";
 import dns from "node:dns";
 import crypto from "node:crypto";
 import type { ResourceType, TargetExam } from "@/types/database";
+import { sanitizeTextForPostgres } from "@/lib/utils";
 
 // ─── Serverless & Network Runtime Config ──────────────────────────────────────
 // Next.js Route Segment Config: allow up to 60s execution for background AI synthesis
@@ -183,14 +184,15 @@ async function processFileInBackground(
     // ── Stage 4: Update DB row with storage URL & target status ──────────────
     // Decoupled architecture: resources become active (admin) or pending (crowdsourced guest)
     // immediately upon successful storage upload.
-    // Pre-extracted client text is preserved in source_text so admins can generate quizzes on-demand.
+    // Pre-extracted client text is sanitized (null-byte stripped) and preserved in source_text.
+    const sanitizedSourceText = sanitizeTextForPostgres(preExtractedText);
     const { error: updateError } = await supabase
       .from("resources")
       .update({
         storage_url: publicUrl,
         file_size_bytes: finalSize,
         status: targetStatus,
-        source_text: preExtractedText ? preExtractedText.slice(0, 100_000) : null,
+        source_text: sanitizedSourceText ? sanitizedSourceText.slice(0, 100_000) : null,
       })
       .eq("id", resourceId);
 
@@ -268,19 +270,19 @@ export async function POST(req: Request) {
 
   const file = formData.get("file") as File | null;
   const courseId = formData.get("courseId") as string | null;
-  const title = formData.get("title") as string | null;
+  const title = sanitizeTextForPostgres(formData.get("title") as string | null);
   const type = formData.get("type") as ResourceType | null;
   const generateQuiz = formData.get("generateQuiz") === "true";
   // Optional: pre-extracted text from client-side pdfjs (eager extraction optimization)
-  const sourceText = (formData.get("sourceText") as string | null) || null;
+  const sourceText = sanitizeTextForPostgres(formData.get("sourceText") as string | null);
 
   // Metadata extensions
   const pageCountStr = formData.get("pageCount") as string | null;
   const targetExam = ((formData.get("targetExam") as string | null) || "other").trim();
   const academicYear = ((formData.get("academicYear") as string | null) || "2025/2026").trim();
-  const professorName = (formData.get("professorName") as string | null)?.trim() || null;
-  const authorNameInput = (formData.get("authorName") as string | null)?.trim() || null;
-  const description = (formData.get("description") as string | null)?.trim() || null;
+  const professorName = sanitizeTextForPostgres(formData.get("professorName") as string | null);
+  const authorNameInput = sanitizeTextForPostgres(formData.get("authorName") as string | null);
+  const description = sanitizeTextForPostgres(formData.get("description") as string | null);
 
   // Author attribution: if admin, default to "Mohammad Al-Amour", else null for guests
   const authorName = isAdmin ? (authorNameInput || "Mohammad Al-Amour") : null;
