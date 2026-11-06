@@ -33,15 +33,17 @@ const PIPELINE_STEPS: PipelineStep[] = [
 ];
 
 const RESOURCE_TYPES: { value: ResourceType; label: string; emoji: string }[] = [
-  { value: "summary", label: "ملخص", emoji: "📄" },
-  { value: "past_exam", label: "أسئلة سنوات", emoji: "📝" },
-  { value: "guide", label: "دليل دراسي", emoji: "📖" },
+  { value: "summary", label: "ملخص دراسي", emoji: "📄" },
+  { value: "past_exam", label: "أسئلة سنوات وتجميعات", emoji: "📝" },
+  { value: "guide", label: "دليل دراسي / خطة المادة", emoji: "📖" },
+  { value: "link", label: "رابط خارجي / مرجع", emoji: "🔗" },
+  { value: "other", label: "أخرى / سلايدات إضافية", emoji: "📁" },
 ];
 
-const TARGET_EXAMS: { value: TargetExam; label: string; emoji: string }[] = [
-  { value: "midterm", label: "مادة الميد", emoji: "🎯" },
-  { value: "final", label: "مادة الفاينل", emoji: "🏁" },
-  { value: "other", label: "شامل / أخرى", emoji: "🌐" },
+const TARGET_EXAMS: { value: TargetExam; label: string; emoji: string; hint: string }[] = [
+  { value: "midterm", label: "مادة الميد (Midterm)", emoji: "🎯", hint: "امتحانات منتصف الفصل والوحدات الأولى" },
+  { value: "final", label: "مادة الفاينل (Final)", emoji: "🏁", hint: "شامل لمنهج نهاية الفصل الدراسي" },
+  { value: "other", label: "شامل / أخرى", emoji: "🌐", hint: "مادة تكميلية، مراجعة عامة أو أسئلة متفرقة" },
 ];
 
 const ACADEMIC_YEARS = [
@@ -77,6 +79,7 @@ export default function UploadForm({
   const [title, setTitle] = useState(initialTitle);
   const [resourceType, setResourceType] = useState<ResourceType>("summary");
   const [targetExam, setTargetExam] = useState<TargetExam>("midterm");
+  const [isFeatured, setIsFeatured] = useState<boolean>(false);
   const [academicYear, setAcademicYear] = useState<string>("2025/2026");
   const [file, setFile] = useState<File | null>(null);
   const [pageCount, setPageCount] = useState<number | null>(null);
@@ -179,6 +182,7 @@ export default function UploadForm({
     setTitle("");
     setResourceType("summary");
     setTargetExam("midterm");
+    setIsFeatured(false);
     setProfessorName("");
     setAuthorName("");
     setDescription("");
@@ -281,6 +285,7 @@ export default function UploadForm({
       formData.append("type", resourceType);
       formData.append("targetExam", targetExam);
       formData.append("academicYear", academicYear);
+      formData.append("isFeatured", String(isFeatured));
 
       if (pageCount) {
         formData.append("pageCount", String(pageCount));
@@ -483,6 +488,8 @@ export default function UploadForm({
                         {res.type === "quiz" && "❓"}
                         {res.type === "past_exam" && "📝"}
                         {res.type === "guide" && "📖"}
+                        {res.type === "link" && "🔗"}
+                        {res.type === "other" && "📁"}
                       </span>
                       <span className="max-w-[200px] truncate">{res.title}</span>
                       {isJustAdded && (
@@ -526,67 +533,98 @@ export default function UploadForm({
         </p>
       </div>
 
-      {/* ── 3. Resource Type & Target Exam Scope ──────────────────── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {/* Resource Type */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-foreground">
-            نوع المورد <span className="text-destructive">*</span>
-          </label>
-          <div
-            role="group"
-            aria-label="نوع المورد"
-            className="grid grid-cols-3 gap-2"
-          >
-            {RESOURCE_TYPES.map(({ value, label, emoji }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setResourceType(value)}
-                disabled={isSubmitting}
-                aria-pressed={resourceType === value}
-                className={`flex flex-col items-center gap-1.5 rounded-xl border py-3 px-2 text-xs font-medium transition-all disabled:opacity-50 ${
-                  resourceType === value
-                    ? "border-ring bg-accent/10 text-accent font-semibold shadow-2xs"
-                    : "border-border bg-secondary text-muted-foreground hover:border-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <span className="text-xl">{emoji}</span>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* ── 3. Resource Type Dropdown ────────────────────────────── */}
+      <div className="space-y-2">
+        <label
+          htmlFor="upload-type"
+          className="block text-sm font-medium text-foreground"
+        >
+          نوع المورد <span className="text-destructive">*</span>
+        </label>
+        <select
+          id="upload-type"
+          value={resourceType}
+          onChange={(e) => setResourceType(e.target.value as ResourceType)}
+          disabled={isSubmitting}
+          className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground transition-colors focus:border-ring focus:outline-none disabled:opacity-50"
+          required
+        >
+          {RESOURCE_TYPES.map(({ value, label, emoji }) => (
+            <option key={value} value={value}>
+              {emoji} {label}
+            </option>
+          ))}
+        </select>
+      </div>
 
-        {/* Target Exam Scope */}
-        <div className="space-y-2">
+      {/* ── 4. Target Exam Scope (Prominent) ─────────────────────── */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
           <label className="block text-sm font-medium text-foreground">
-            نطاق التغطية / الامتحان <span className="text-destructive">*</span>
+            نطاق التغطية / الامتحان المستهدف <span className="text-destructive">*</span>
           </label>
-          <div
-            role="group"
-            aria-label="نطاق التغطية"
-            className="grid grid-cols-3 gap-2"
-          >
-            {TARGET_EXAMS.map(({ value, label, emoji }) => (
+          <span className="text-xs text-muted-foreground">
+            يحدد موضع المورد في رفوف المادة
+          </span>
+        </div>
+        <div
+          role="group"
+          aria-label="نطاق التغطية / الامتحان"
+          className="grid grid-cols-1 sm:grid-cols-3 gap-2.5"
+        >
+          {TARGET_EXAMS.map(({ value, label, emoji, hint }) => {
+            const isSelected = targetExam === value;
+            return (
               <button
                 key={value}
                 type="button"
                 onClick={() => setTargetExam(value)}
                 disabled={isSubmitting}
-                aria-pressed={targetExam === value}
-                className={`flex flex-col items-center gap-1.5 rounded-xl border py-3 px-2 text-xs font-medium transition-all disabled:opacity-50 ${
-                  targetExam === value
-                    ? "border-accent bg-accent/15 text-accent font-semibold shadow-2xs"
-                    : "border-border bg-secondary text-muted-foreground hover:border-muted-foreground hover:text-foreground"
+                aria-pressed={isSelected}
+                className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-right transition-all disabled:opacity-50 cursor-pointer ${
+                  isSelected
+                    ? "border-accent bg-accent/15 text-accent font-semibold shadow-xs ring-1 ring-accent/30"
+                    : "border-border bg-secondary text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground"
                 }`}
               >
-                <span className="text-xl">{emoji}</span>
-                {label}
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{emoji}</span>
+                  <span className="text-xs font-semibold">{label}</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground/80 leading-tight">
+                  {hint}
+                </span>
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
+      </div>
+
+      {/* ── 5. Official Syllabus Toggle (is_featured) ─────────────── */}
+      <div className="rounded-xl border border-border bg-secondary/40 p-4 transition-all">
+        <label className="flex items-start justify-between gap-4 cursor-pointer">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⭐</span>
+              <span className="text-sm font-semibold text-foreground">
+                مادة رسمية (Official Syllabus)
+              </span>
+              <span className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-500 border border-amber-500/20">
+                الرف الأول المعتمد
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              تثبيت المورد كمنهاج أو سلايدات رسمية معتمدة من الجامعة في أعلى صفحة المادة.
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            checked={isFeatured}
+            onChange={(e) => setIsFeatured(e.target.checked)}
+            disabled={isSubmitting}
+            className="mt-1 h-5 w-5 rounded border-border text-accent focus:ring-accent cursor-pointer accent-accent"
+          />
+        </label>
       </div>
 
       {/* ── 4. Academic Year Dropdown ─────────────────────────────── */}

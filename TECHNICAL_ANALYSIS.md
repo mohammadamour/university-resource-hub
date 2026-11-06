@@ -25,6 +25,7 @@
    - [3.3 The `<NativeQuiz />` 4-State Client Machine](#33-the-nativequiz--4-state-client-machine)
    - [3.4 SVG Circular Progress Ring Mathematics](#34-svg-circular-progress-ring-mathematics)
    - [3.5 Crowdsourced Empty-Course Funnel & Universal Navbar CTA](#35-crowdsourced-empty-course-funnel--universal-navbar-cta)
+   - [3.6 Upload Form Taxonomy, Exam Scope & Curated Syllabus Toggle](#36-upload-form-taxonomy-exam-scope--curated-syllabus-toggle)
 4. [Database, RLS Security & Caching Strategy](#4-database-rls-security--caching-strategy)
    - [4.1 Relational Hierarchy & "Fake Departments"](#41-relational-hierarchy--fake-departments)
    - [4.2 Row Level Security (RLS) Permission Matrix](#42-row-level-security-rls-permission-matrix)
@@ -531,6 +532,16 @@ POST /api/upload
   1. **Universal Navbar CTA (`Header.tsx`):** A prominent `[📤 شارك ملخصك]` action is visible on every single page across mobile and desktop, converting passive readers into contributors without auth friction.
   2. **Empty Course State Transformation (`ResourceList.tsx`):** Courses with zero approved resources render a high-converting contribution card: *"لا توجد موارد أو ملخصات لهذه المادة حتى الآن — كن أول من يشارك ملخصاته لمساعدة زملائك!"*.
   3. **Context-Preserving Funnel (`UploadPage.tsx` & `UploadForm.tsx`):** Clicking the empty state CTA passes `?courseId=UUID` (or `?course=slug`). `UploadPage` resolves the target course and automatically pre-selects it in the dropdown, eliminating search friction and driving conversion.
+
+### 3.6 Upload Form Taxonomy, Exam Scope & Curated Syllabus Toggle
+
+- **File:** [`src/components/features/UploadForm.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/UploadForm.tsx)
+- **Problem Solved:** Legacy upload selectors lacked alignment with the database taxonomy and buried exam scope categorization, causing inconsistent metadata.
+- **Architectural Enhancements:**
+  1. **Full Taxonomy Dropdown:** Expanded `ResourceType` selector to cover `summary | past_exam | guide | link | other` using an accessible native dropdown.
+  2. **Prominent Exam Scope (`target_exam`):** Elevated midterm/final/general scope into high-contrast interactive pill cards with Arabic helper descriptions explaining shelf placement.
+  3. **Official Syllabus Toggle (`is_featured`):** Added explicit **"مادة رسمية (Official Syllabus)"** checkbox card with helper text explaining that it pins the resource to Tier 1 / Shelf 1.
+  4. **Optimistic Previews:** Updated optimistic course resource badge renderers to support icons for all 6 resource types.
 
 ---
 

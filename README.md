@@ -107,6 +107,12 @@ Scanned notes create massive file sizes that exhaust storage.
 | **"Fake Departments"**        | ✅ The UI will group courses by major (e.g., IT), but will include prominent "fake departments" for _University Electives_ and _Placement Exams/Prep_ to capture all students.                                                                                                    |
 | **Campus Survival Guides**    | ✅ High-value, static guides solving the "unwritten rules" of campus: Library usage, Wi-Fi connection, Cafe menus, and navigating portals. This bypasses the toxic/unreliable nature of massive WhatsApp groups. _Constraint: Absolutely NO financial advice to avoid liability._ |
 
+### Curated Content Ingestion & Shelf Taxonomy
+
+- **Unified Taxonomy:** Resources are strictly categorized into 5 standardized types: `summary` (ملخص), `past_exam` (أسئلة سنوات), `guide` (دليل دراسي), `link` (رابط خارجي), and `other` (أرشيف إضافي).
+- **Exam Scope Alignment:** Every upload explicitly captures the target exam (`midterm`, `final`, or `other`) for automatic sorting.
+- **Official Syllabus Designation (`is_featured`):** Curators can mark official university textbooks/slides as **"مادة رسمية"** to anchor them at the top shelf of the course page.
+
 ### Content Strategy & Liability Mitigation
 
 To provide maximum value while avoiding legal or academic liability, the platform strictly adheres to these content rules:
@@ -126,7 +132,7 @@ To provide maximum value while avoiding legal or academic liability, the platfor
   - `> 60,000 chars` (30+ pages, full course syllabus booklets): **50 questions**
 - **Adaptive Launcher Modal & Decoupled Controls:**
   - Students independently choose **Volume** (`5`, `10 [Default]`, `20`, `All`) and **Difficulty** (`متوازن [Default: 40% Easy, 40% Med, 20% Hard]`, `مفاهيم (سهل)`, `امتحاني (متوسط)`, `تحدي (متقدم)`).
-  - *Graceful Backfill:* If a student requests 20 "Hard" questions and the bank only has 10, the algorithm takes all 10 hard questions and backfills 10 from medium with a polite UI notification.
+  - _Graceful Backfill:_ If a student requests 20 "Hard" questions and the bank only has 10, the algorithm takes all 10 hard questions and backfills 10 from medium with a polite UI notification.
 - **Dynamic In-Session Option Shuffling:** On every question display, option positions are randomized via Fisher-Yates and `correctIndex` is dynamically remapped in memory, completely eliminating option letter/position memorization traps.
 - **Data Flow & Telemetry Lifecycle:**
   1. **Upload Pipeline / Seeding:** Asynchronous background worker calls Gemini 3.8 Flash (`gemini-quiz.ts`) with syllabus-wide scanning to output structured JSON with `topic` and `difficulty` metadata.
@@ -215,7 +221,7 @@ To prevent the platform from becoming an unorganized "dump", V2 will implement t
    - **Dynamic Sizing & Stratification:** Generates 15–50 questions proportionally stratified (40% Easy, 40% Medium, 20% Hard) and tagged with Arabic `topic` metadata.
    - **Client-Side Adaptive Launcher:** `<NativeQuiz />` provides decoupled **Volume** (`5`, `10`, `20`, `All`) and **Difficulty** (`متوازن`, `سهل`, `متوسط`, `متقدم`) selectors with automatic priority backfill.
    - **Dynamic Option Shuffling:** Randomizes choice positions on each start to eliminate muscle-memory answer memorization.
-   - **Diagnostic Telemetry Schema:** Logs session metrics to `quiz_attempts` and question-level responses to `quiz_attempt_answers` via fire-and-forget beacon (`/api/quiz/record-attempt`), powering the future *"Train My Weaknesses"* dashboard.
+   - **Diagnostic Telemetry Schema:** Logs session metrics to `quiz_attempts` and question-level responses to `quiz_attempt_answers` via fire-and-forget beacon (`/api/quiz/record-attempt`), powering the future _"Train My Weaknesses"_ dashboard.
 
 ### 7. The AI Campus Assistant (V2+ Feature)
 
