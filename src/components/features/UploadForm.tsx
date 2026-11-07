@@ -93,6 +93,7 @@ export default function UploadForm({
 
   // Eager text extraction state (speculative)
   const [extractedSourceText, setExtractedSourceText] = useState<string | null>(null);
+  const [thumbnailBlob, setThumbnailBlob] = useState<Blob | null>(null);
   const [, setExtractionStatus] = useState<"idle" | "extracting" | "done" | "failed">("idle");
 
   // Progressive UX state
@@ -124,6 +125,7 @@ export default function UploadForm({
   useEffect(() => {
     if (!file) {
       setExtractedSourceText(null);
+      setThumbnailBlob(null);
       setPageCount(null);
       setExtractionStatus("idle");
       return;
@@ -134,8 +136,11 @@ export default function UploadForm({
 
     import("@/lib/pipeline/client-pdf-extractor")
       .then(({ extractPdfMetadataAndText }) => extractPdfMetadataAndText(file))
-      .then(({ text, pageCount: numPages }) => {
+      .then(({ text, pageCount: numPages, thumbnailBlob: thumb }) => {
         if (cancelled) return;
+        if (thumb) {
+          setThumbnailBlob(thumb);
+        }
         if (numPages) {
           setPageCount(numPages);
         }
@@ -194,6 +199,7 @@ export default function UploadForm({
   // Reusable helper to reset form fields after submission while preserving selectedCourseId
   const resetFormState = useCallback(() => {
     setFile(null);
+    setThumbnailBlob(null);
     setLinkUrl("");
     setPageCount(null);
     setTitle("");
@@ -331,6 +337,9 @@ export default function UploadForm({
         }
         if (extractedSourceText) {
           formData.append("sourceText", extractedSourceText);
+        }
+        if (thumbnailBlob) {
+          formData.append("thumbnail", thumbnailBlob, "thumbnail.jpg");
         }
       }
       if (professorName.trim()) {

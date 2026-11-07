@@ -57,10 +57,10 @@ export async function DELETE(request: Request, props: RouteProps) {
       );
     }
 
-    // Attempt storage deletion (non-fatal if file was already removed)
+    // Attempt storage deletion (PDF and its thumbnail, non-fatal if already removed)
     const { error: storageError } = await supabase.storage
       .from("resources")
-      .remove([filePath]);
+      .remove([filePath, `thumbnails/${resource.id}.jpg`]);
 
     if (storageError) {
       console.warn(

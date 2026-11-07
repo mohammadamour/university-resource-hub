@@ -269,6 +269,7 @@ export async function POST(req: Request) {
   }
 
   const file = formData.get("file") as File | null;
+  const thumbnailFile = formData.get("thumbnail") as File | null;
   const linkUrl = (formData.get("linkUrl") as string | null)?.trim() || null;
   const courseId = formData.get("courseId") as string | null;
   const title = sanitizeTextForPostgres(formData.get("title") as string | null);
@@ -308,8 +309,15 @@ export async function POST(req: Request) {
     }
 
     let platform: ExternalPlatform = "general";
+    let linkThumbnailUrl: string | null = null;
     if (linkUrl.includes("youtube.com") || linkUrl.includes("youtu.be")) {
       platform = "youtube";
+      const ytMatch = linkUrl.match(
+        /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/
+      );
+      if (ytMatch && ytMatch[1]) {
+        linkThumbnailUrl = `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
+      }
     } else if (linkUrl.includes("github.com")) {
       platform = "github";
     } else if (linkUrl.includes("drive.google.com")) {
@@ -339,6 +347,7 @@ export async function POST(req: Request) {
         description,
         is_featured: false,
         external_platform: platform,
+        thumbnail_url: linkThumbnailUrl,
       })
       .select("id")
       .single();
@@ -456,6 +465,33 @@ export async function POST(req: Request) {
     data: { publicUrl },
   } = supabase.storage.from("resources").getPublicUrl(filePath);
 
+  // ── Stage 2.1: Upload Client-Rendered First-Page Thumbnail (if provided) ─────
+  let thumbnailUrl: string | null = null;
+  if (thumbnailFile && thumbnailFile.size > 0) {
+    try {
+      const thumbBuffer = Buffer.from(await thumbnailFile.arrayBuffer());
+      const thumbPath = `thumbnails/${resourceId}.jpg`;
+      const { error: thumbErr } = await supabase.storage
+        .from("resources")
+        .upload(thumbPath, thumbBuffer, {
+          contentType: "image/jpeg",
+          cacheControl: "public, max-age=31536000, immutable",
+          upsert: true,
+        });
+
+      if (!thumbErr) {
+        const {
+          data: { publicUrl: thumbPublicUrl },
+        } = supabase.storage.from("resources").getPublicUrl(thumbPath);
+        thumbnailUrl = thumbPublicUrl;
+      } else {
+        console.warn("[upload] Thumbnail storage upload error:", thumbErr.message);
+      }
+    } catch (tErr) {
+      console.warn("[upload] Failed to process thumbnail file:", tErr);
+    }
+  }
+
   const { data: newResource, error: insertError } = await supabase
     .from("resources")
     .insert({
@@ -475,6 +511,7 @@ export async function POST(req: Request) {
       author_name: authorName,
       description,
       is_featured: isAdmin,
+      thumbnail_url: thumbnailUrl,
     })
     .select("id")
     .single();

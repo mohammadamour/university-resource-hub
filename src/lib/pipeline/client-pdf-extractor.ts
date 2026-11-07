@@ -1,13 +1,13 @@
 /**
- * Client-side PDF text extractor using pdfjs-dist (runs in the browser).
+ * Client-side PDF text extractor and thumbnail renderer using pdfjs-dist (runs in the browser).
  *
  * This is used for EAGER / SPECULATIVE extraction:
- * When the user selects a file and enables "Generate Quiz", we start extracting
- * text immediately in the background. By the time the user fills in the title
- * and hits Upload, the text is ready and can be sent alongside the file — so
- * the server skips its own extraction step entirely.
+ * When the user selects a file, we extract text and render page 1 onto an off-screen canvas
+ * immediately in the background. By the time the user fills in the title and hits Upload,
+ * the text and thumbnail blob are ready and sent alongside the file — saving server resources
+ * and bypassing Vercel serverless graphics binary restrictions.
  *
- * We cap at 300,000 characters (~50,000 words) to capture complete course summaries
+ * We cap text at 300,000 characters (~50,000 words) to capture complete course summaries
  * across all chapters, fitting comfortably within Gemini 3.8 Flash's 1M token context.
  */
 
@@ -16,14 +16,15 @@ const MAX_CHARS = 300_000;
 export interface ClientPdfExtractionResult {
   text: string | null;
   pageCount: number;
+  thumbnailBlob?: Blob | null;
 }
 
 /**
- * Extracts raw text and page count from a PDF File using pdf.js running in the browser.
- * Dynamically imports pdfjs-dist to keep it out of the server bundle.
+ * Extracts raw text, page count, and renders a 320px Page 1 thumbnail JPEG blob
+ * from a PDF File using pdf.js running in the browser.
  *
  * @param file  The PDF File object selected by the user
- * @returns     Object containing extracted text (capped at MAX_CHARS) and pageCount
+ * @returns     Object containing text, pageCount, and thumbnailBlob
  */
 export async function extractPdfMetadataAndText(
   file: File
@@ -34,8 +35,6 @@ export async function extractPdfMetadataAndText(
     const pdfjsLib = await import("pdfjs-dist");
 
     // Point to the self-hosted pdf.js worker in /public/workers.
-    // Self-hosting eliminates CDN network latency, CDN blocking on university Wi-Fi,
-    // and satisfies strict Content Security Policies (worker-src 'self').
     pdfjsLib.GlobalWorkerOptions.workerSrc = "/workers/pdf.worker.min.mjs";
 
     const arrayBuffer = await file.arrayBuffer();
@@ -43,6 +42,45 @@ export async function extractPdfMetadataAndText(
     const pdf = await loadingTask.promise;
 
     const pageCount = pdf.numPages || 1;
+
+    // ── 1. Render Page 1 Thumbnail via Off-Screen HTML5 Canvas ────────────────
+    let thumbnailBlob: Blob | null = null;
+    try {
+      if (pdf.numPages >= 1) {
+        const firstPage = await pdf.getPage(1);
+        const originalViewport = firstPage.getViewport({ scale: 1.0 });
+        // Target 320px width for a high-density, sharp thumbnail preview
+        const targetWidth = 320;
+        const scale = targetWidth / originalViewport.width;
+        const viewport = firstPage.getViewport({ scale });
+
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        const context = canvas.getContext("2d");
+
+        if (context) {
+          // Render page 1 directly onto the off-screen canvas
+          await firstPage.render({
+            canvasContext: context,
+            viewport,
+            canvas,
+          }).promise;
+
+          thumbnailBlob = await new Promise<Blob | null>((resolve) => {
+            canvas.toBlob(
+              (blob) => resolve(blob),
+              "image/jpeg",
+              0.82
+            );
+          });
+        }
+      }
+    } catch (thumbErr) {
+      console.warn("[client-extractor] Could not generate page 1 thumbnail:", thumbErr);
+    }
+
+    // ── 2. Extract Text Content across Pages ──────────────────────────────────
     let fullText = "";
 
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -62,18 +100,18 @@ export async function extractPdfMetadataAndText(
     const trimmed = fullText.trim().slice(0, MAX_CHARS);
 
     if (!trimmed) {
-      // PDF is likely a scanned image with no selectable text
+      // PDF is likely a scanned image with no selectable text, but thumbnailBlob is still preserved
       console.warn(
         "[client-extractor] PDF appears to be an image scan — no selectable text found."
       );
-      return { text: null, pageCount };
+      return { text: null, pageCount, thumbnailBlob };
     }
 
-    return { text: trimmed, pageCount };
+    return { text: trimmed, pageCount, thumbnailBlob };
   } catch (err) {
-    // Non-fatal: extraction failure just means the server will do it instead
-    console.warn("[client-extractor] Failed to extract text from PDF:", err);
-    return { text: null, pageCount: 1 };
+    // Non-fatal: extraction failure just means the server will handle text parsing
+    console.warn("[client-extractor] Failed to extract text/thumbnail from PDF:", err);
+    return { text: null, pageCount: 1, thumbnailBlob: null };
   }
 }
 

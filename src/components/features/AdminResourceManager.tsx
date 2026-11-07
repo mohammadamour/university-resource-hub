@@ -43,6 +43,7 @@ export interface AdminResourceItem {
   author_name?: string | null;
   description?: string | null;
   external_platform?: string | null;
+  thumbnail_url?: string | null;
 }
 
 export interface AdminCourseOption {

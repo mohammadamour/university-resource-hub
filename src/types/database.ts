@@ -106,6 +106,7 @@ export interface Resource {
   is_featured?: boolean;
   display_order?: number;
   external_platform?: ExternalPlatform | null;
+  thumbnail_url?: string | null;
 }
 
 export interface Profile {

@@ -57,6 +57,7 @@ export default async function AdminResourcesPage({
         author_name,
         description,
         external_platform,
+        thumbnail_url,
         course:courses (
           id,
           title,

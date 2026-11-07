@@ -39,6 +39,104 @@ function getPlatformMeta(res: Resource) {
 }
 
 /**
+ * Visual thumbnail or graceful CSS gradient book cover for academic resources.
+ * Renders the real PDF page 1 image if available, or falls back to an elegant
+ * digital binder cover with dynamic taxonomy colors, title micro-typography, and spine highlight.
+ */
+function ResourceCover({
+  resource,
+  isOfficial,
+}: {
+  resource: Resource;
+  isOfficial?: boolean;
+}) {
+  const [imgError, setImgError] = useState(false);
+
+  // If thumbnail_url exists and hasn't errored out, render real image thumbnail
+  if (resource.thumbnail_url && !imgError) {
+    return (
+      <div className="relative h-18 w-14 shrink-0 overflow-hidden rounded-lg border border-border/80 bg-muted/40 shadow-xs sm:h-21 sm:w-16">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={resource.thumbnail_url}
+          alt={resource.title}
+          loading="lazy"
+          onError={() => setImgError(true)}
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+        />
+        {isOfficial && (
+          <div className="absolute top-1 right-1 rounded-sm bg-amber-500/90 px-1 py-0.2 text-[9px] font-bold text-white shadow-xs">
+            ⭐
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Graceful Fallback: CSS Digital Book / Binder Cover with color gradient & title
+  const gradientClass = isOfficial
+    ? "from-amber-500/25 via-amber-600/15 to-amber-950/40 border-amber-500/30 text-amber-300"
+    : resource.type === "summary"
+    ? "from-blue-600/25 via-primary/20 to-blue-950/40 border-blue-500/25 text-blue-300"
+    : resource.type === "past_exam"
+    ? "from-amber-600/25 via-orange-950/20 to-stone-900/40 border-amber-500/25 text-amber-300"
+    : resource.type === "guide"
+    ? "from-emerald-600/25 via-teal-950/20 to-slate-900/40 border-emerald-500/25 text-emerald-300"
+    : resource.type === "link"
+    ? "from-violet-600/25 via-purple-950/20 to-slate-900/40 border-violet-500/25 text-violet-300"
+    : "from-secondary via-secondary/80 to-muted border-border text-muted-foreground";
+
+  const icon = isOfficial
+    ? "📚"
+    : resource.type === "summary"
+    ? "📄"
+    : resource.type === "quiz"
+    ? "✨"
+    : resource.type === "past_exam"
+    ? "📝"
+    : resource.type === "guide"
+    ? "📖"
+    : resource.type === "link"
+    ? "🔗"
+    : "📎";
+
+  return (
+    <div
+      className={`relative flex h-18 w-14 shrink-0 flex-col justify-between overflow-hidden rounded-lg border bg-gradient-to-br p-1.5 shadow-xs transition-transform duration-200 group-hover:scale-[1.03] sm:h-21 sm:w-16 ${gradientClass}`}
+    >
+      {/* Decorative Book Spine Highlight on Right (in RTL right is spine) */}
+      <div className="absolute inset-y-0 right-0 w-1 bg-white/15" />
+
+      {/* Top: Icon + Optional Badge */}
+      <div className="flex items-center justify-between text-xs sm:text-sm pl-1">
+        <span>{icon}</span>
+        {isOfficial && <span className="text-[9px]">⭐</span>}
+      </div>
+
+      {/* Middle: Mini Document Title */}
+      <div className="my-auto px-0.5">
+        <p className="line-clamp-2 text-center text-[8px] font-bold leading-tight text-foreground/90 sm:text-[9px]">
+          {resource.title}
+        </p>
+      </div>
+
+      {/* Bottom: Accent Strip or Exam Scope Mini Tag */}
+      <div className="flex items-center justify-center border-t border-white/10 pt-0.5">
+        <span className="text-[8px] font-mono font-medium opacity-75">
+          {resource.target_exam === "midterm"
+            ? "ميد"
+            : resource.target_exam === "final"
+            ? "فاينل"
+            : resource.page_count
+            ? `${resource.page_count}ص`
+            : "ملف"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
  * 4-Tier Semantic Shelf Architecture:
  * 1. Shelf 1: 📚 المادة الرسمية / Official Syllabus (is_featured === true)
  * 2. Shelf 2: 🌟 ملخصات ومراجعات (type === 'summary', Midterm -> Final -> Other)
@@ -162,28 +260,8 @@ export default function ResourceList({
 
     const content = (
       <>
-        {/* File icon */}
-        <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${
-            isOfficial
-              ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
-              : "bg-secondary"
-          }`}
-        >
-          {isOfficial
-            ? "📚"
-            : resource.type === "summary"
-            ? "📄"
-            : resource.type === "quiz"
-            ? "✨"
-            : resource.type === "past_exam"
-            ? "📝"
-            : resource.type === "guide"
-            ? "📖"
-            : resource.type === "link"
-            ? "🔗"
-            : "📎"}
-        </div>
+        {/* Document Cover / Thumbnail */}
+        <ResourceCover resource={resource} isOfficial={isOfficial} />
 
         {/* Resource info */}
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">

@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed:quizzes": "npx tsx scripts/seed-quizzes.ts",
+    "backfill:thumbnails": "npx tsx scripts/backfill-thumbnails.ts",
     "test:keys": "node scripts/verify-gemini-pool.mjs"
   },
   "dependencies": {
@@ -24,6 +25,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.1.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

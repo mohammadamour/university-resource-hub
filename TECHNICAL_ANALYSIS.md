@@ -27,6 +27,7 @@
    - [3.5 Crowdsourced Empty-Course Funnel & Universal Navbar CTA](#35-crowdsourced-empty-course-funnel--universal-navbar-cta)
    - [3.6 Upload Form Taxonomy, Exam Scope & Curated Syllabus Toggle](#36-upload-form-taxonomy-exam-scope--curated-syllabus-toggle)
    - [3.7 Segment Switcher, Course Quick-Jump Selector & 2-Column Mobile Grid](#37-segment-switcher-course-quick-jump-selector--2-column-mobile-grid)
+   - [3.8 Client-Side First-Page Thumbnail Generation & Dynamic CSS Book Covers](#38-client-side-first-page-thumbnail-generation--dynamic-css-book-covers)
 4. [Database, RLS Security & Caching Strategy](#4-database-rls-security--caching-strategy)
    - [4.1 Relational Hierarchy & "Fake Departments"](#41-relational-hierarchy--fake-departments)
    - [4.2 Row Level Security (RLS) Permission Matrix](#42-row-level-security-rls-permission-matrix)
@@ -558,6 +559,19 @@ POST /api/upload
   4. **Compact Card Optimization (`Card.tsx`):** Adjusted internal padding (`p-3.5 sm:p-5`), title font clamp (`line-clamp-2` with `justify-between` flexbox), and compact micro-badges (`text-[10px] sm:text-[11px]`) to ensure cards maintain consistent heights without overflowing narrow 360px mobile viewports.
   5. **Smart Course Ordering:** Courses within each active department are intelligently prioritized so courses with active resources and quizzes appear first, while emerging courses retain the `قيد الإعداد ⏳` indicator to drive crowdsourced contributions.
   6. **Slug Substring Collision Defense:** Addressed an insidious substring gotcha where `"university-requirements".includes("it")` evaluated to `true` (due to the letters `it` inside `university`), causing both buttons to mislabel as IT courses. Fixed with exact slug matching (`slug === "it" || slug.startsWith("it-")`).
+
+---
+
+### 3.8 Client-Side First-Page Thumbnail Generation & Dynamic CSS Book Covers
+
+- **Files:** [`src/lib/pipeline/client-pdf-extractor.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/client-pdf-extractor.ts), [`src/components/features/UploadForm.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/UploadForm.tsx), [`src/app/api/upload/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/upload/route.ts), [`src/components/features/ResourceList.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/ResourceList.tsx), [`scripts/backfill-thumbnails.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/scripts/backfill-thumbnails.ts)
+- **Problem Solved:** Resource cards previously displayed generic square emoji blocks (`📄`, `📝`). However, generating PDF thumbnails server-side fails in Vercel serverless environments because Lambda containers lack native rasterization binaries (Ghostscript, Poppler, or Cairo/node-canvas).
+- **Architectural Enhancements:**
+  1. **Client-Side HTML5 Canvas Off-Screen Extraction:** When a PDF is dropped into `UploadForm.tsx`, the client-side `pdfjs-dist` worker renders Page 1 onto an off-screen `<canvas>` scaled to 320px width. The canvas converts the image into an optimized JPEG blob (`canvas.toBlob("image/jpeg", 0.82)`) and attaches it to `FormData`.
+  2. **Synchronous Thumbnail Ingestion:** The `/api/upload` endpoint uploads the ~25KB JPEG blob directly to Supabase Storage (`resources` bucket under `thumbnails/${resourceId}.jpg`) and persists `thumbnail_url` into the `resources` table during the initial sync insert.
+  3. **Zero-Cost YouTube Thumbnails:** For external link resources (`type === "link"`), the ingestion pipeline parses the YouTube video ID via regex and automatically sets `thumbnail_url = https://img.youtube.com/vi/${videoId}/hqdefault.jpg`, achieving instant visual fidelity with zero storage costs.
+  4. **Graceful Fallback CSS Digital Book Cover:** On resource cards (`ResourceCover` in `ResourceList.tsx`), if a thumbnail is missing or fails to load, it dynamically renders an elegant CSS binder cover with category-specific gradients (Blue for summaries, Amber for exams, Emerald for guides, Violet for links), micro-typography displaying the resource title, and an RTL-aligned decorative book spine.
+  5. **Automated Backfill Pipeline (`scripts/backfill-thumbnails.ts`):** Provided a migration utility that updates missing thumbnails across existing database records and links.
 
 ---
 

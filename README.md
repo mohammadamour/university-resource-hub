@@ -116,6 +116,7 @@ Scanned notes create massive file sizes that exhaust storage.
 - **Deterministic Priority Sorting (`display_order`):** Curators can manually specify numeric order weights so primary midterms and official slides surface first.
 - **4-Tier Semantic Shelf Layout:** Eliminates title-split hacks in favor of 4 dedicated shelves: Shelf 1 (Official Syllabus), Shelf 2 (Curated Summaries with Native Quizzes), Shelf 3 (Past Exams), and Shelf 4 (Collapsible Multi-Source Archive Drawer).
 - **2-Segment Switcher & 2-Column Mobile Grid:** Instant client-side switching between faculty segments (IT vs General Requirements), a direct `<select>` quick-jump course selector, and a 2-column mobile card grid for fast, single-screen course discovery.
+- **Client-Side First-Page Thumbnails & Dynamic Book Covers:** Renders real PDF page 1 previews via browser HTML5 canvas during upload (bypassing Vercel serverless graphics binary limits), auto-resolves YouTube thumbnails, and features a CSS digital book cover fallback with dynamic category gradients and Arabic micro-typography.
 
 ### Content Strategy & Liability Mitigation
 
