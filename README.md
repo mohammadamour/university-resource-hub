@@ -115,6 +115,7 @@ Scanned notes create massive file sizes that exhaust storage.
 - **Dynamic External Link Ingestion:** Native support for YouTube playlists, GitHub repos, and Google Drive folders with automatic platform detection without requiring dummy PDF uploads.
 - **Deterministic Priority Sorting (`display_order`):** Curators can manually specify numeric order weights so primary midterms and official slides surface first.
 - **4-Tier Semantic Shelf Layout:** Eliminates title-split hacks in favor of 4 dedicated shelves: Shelf 1 (Official Syllabus), Shelf 2 (Curated Summaries with Native Quizzes), Shelf 3 (Past Exams), and Shelf 4 (Collapsible Multi-Source Archive Drawer).
+- **2-Segment Switcher & 2-Column Mobile Grid:** Instant client-side switching between faculty segments (IT vs General Requirements), a direct `<select>` quick-jump course selector, and a 2-column mobile card grid for fast, single-screen course discovery.
 
 ### Content Strategy & Liability Mitigation
 

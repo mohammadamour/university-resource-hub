@@ -26,6 +26,7 @@
    - [3.4 SVG Circular Progress Ring Mathematics](#34-svg-circular-progress-ring-mathematics)
    - [3.5 Crowdsourced Empty-Course Funnel & Universal Navbar CTA](#35-crowdsourced-empty-course-funnel--universal-navbar-cta)
    - [3.6 Upload Form Taxonomy, Exam Scope & Curated Syllabus Toggle](#36-upload-form-taxonomy-exam-scope--curated-syllabus-toggle)
+   - [3.7 Segment Switcher, Course Quick-Jump Selector & 2-Column Mobile Grid](#37-segment-switcher-course-quick-jump-selector--2-column-mobile-grid)
 4. [Database, RLS Security & Caching Strategy](#4-database-rls-security--caching-strategy)
    - [4.1 Relational Hierarchy & "Fake Departments"](#41-relational-hierarchy--fake-departments)
    - [4.2 Row Level Security (RLS) Permission Matrix](#42-row-level-security-rls-permission-matrix)
@@ -543,6 +544,19 @@ POST /api/upload
   6. **Retirement of Title Pipe Hack:** Replaced legacy `"الموضوع | العنوان"` prompt with clear descriptive naming guidance in preparation for the semantic shelf architecture.
   7. **Admin Dashboard Parity:** Synced the edit resource modal in `AdminResourceManager.tsx` with identical taxonomy labels, exam badges, and official syllabus pinning controls.
   8. **Optimistic Previews:** Updated optimistic course resource badge renderers to support icons for all 6 resource types.
+
+---
+
+### 3.7 Segment Switcher, Course Quick-Jump Selector & 2-Column Mobile Grid
+
+- **Files:** [`src/components/features/DepartmentGrid.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/DepartmentGrid.tsx), [`src/components/ui/Card.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/ui/Card.tsx), [`src/app/page.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/page.tsx)
+- **Problem Solved:** Previously, the landing page linearly stacked all departments and courses with large section headers in a single-column layout on mobile devices. For students navigating between IT faculty courses and General University Requirements, this created excessive vertical scrolling and friction.
+- **Architectural Enhancements:**
+  1. **Fast Client-Side Segment Switcher:** Converted `DepartmentGrid` to a high-performance client component with instantaneous tab switching between departments (defaulting to IT faculty: `it`). Avoids page reload or server refetch cycles.
+  2. **Direct Course Quick-Jump Selector:** Instead of a redundant fuzzy text input on a small course catalog, an ergonomic native `<select>` dropdown sits directly beneath the segment tabs. Selecting a course triggers immediate programmatic navigation (`router.push('/courses/' + course.slug)`), providing a zero-keystroke pathway to study materials.
+  3. **High-Density 2-Column Mobile Grid:** Upgraded mobile layout from `grid-cols-1` to `grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3`.
+  4. **Compact Card Optimization (`Card.tsx`):** Adjusted internal padding (`p-3.5 sm:p-5`), title font clamp (`line-clamp-2` with `justify-between` flexbox), and compact micro-badges (`text-[10px] sm:text-[11px]`) to ensure cards maintain consistent heights without overflowing narrow 360px mobile viewports.
+  5. **Smart Course Ordering:** Courses within each active department are intelligently prioritized so courses with active resources and quizzes appear first, while emerging courses retain the `قيد الإعداد ⏳` indicator to drive crowdsourced contributions.
 
 ---
 
