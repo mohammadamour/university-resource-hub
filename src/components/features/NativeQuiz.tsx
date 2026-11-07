@@ -355,27 +355,18 @@ export default function NativeQuiz({
     return null;
   }
 
-  // ─── STATE 1: Closed Trigger Banner ─────────────────────────────────────────
+  // ─── STATE 1: Closed Trigger Banner (Docked Compact Bar) ────────────────────
   if (!isOpen) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/5 p-3.5 sm:p-4 transition-all hover:border-accent/40 hover:bg-accent/10">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground text-lg shadow-sm">
-            🎯
-          </div>
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-foreground">
-                كويز تفاعلي لاختبار الفهم
-              </span>
-              <span className="inline-flex items-center rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">
-                بنك يضم {bankSize} سؤالاً
-              </span>
-            </div>
-            <span className="text-xs text-muted-foreground">
-              {sourceTitle || quizData.sourceTitle || "اختبر معلوماتك فوراً مع تصحيح مباشر وتوضيح للإجابات"}
-            </span>
-          </div>
+      <div className="flex items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-base shrink-0">🎯</span>
+          <span className="text-xs sm:text-sm font-bold text-foreground truncate">
+            كويز تفاعلي لاختبار الفهم
+          </span>
+          <span className="inline-flex rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold text-accent shrink-0">
+            {bankSize} سؤالاً
+          </span>
         </div>
 
         <button
@@ -387,10 +378,10 @@ export default function NativeQuiz({
               handleStartSession();
             }
           }}
-          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs sm:text-sm font-medium text-accent-foreground shadow-sm transition-all hover:bg-accent/90 hover:shadow active:scale-95"
+          className="inline-flex items-center gap-1 rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-accent-foreground shadow-2xs transition-all hover:bg-accent/90 active:scale-95 cursor-pointer shrink-0"
         >
           <span>ابدأ الكويز</span>
-          <span className="text-xs">🎯</span>
+          <span className="text-[10px]">❯</span>
         </button>
       </div>
     );

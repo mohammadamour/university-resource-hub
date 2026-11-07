@@ -55,7 +55,7 @@ function ResourceCover({
   // If thumbnail_url exists and hasn't errored out, render real image thumbnail
   if (resource.thumbnail_url && !imgError) {
     return (
-      <div className="relative h-18 w-14 shrink-0 overflow-hidden rounded-lg border border-border/80 bg-muted/40 shadow-xs sm:h-21 sm:w-16">
+      <div className="relative h-17 w-12 shrink-0 overflow-hidden rounded-xl border border-border/80 bg-muted/40 shadow-xs sm:h-20 sm:w-15">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={resource.thumbnail_url}
@@ -65,7 +65,7 @@ function ResourceCover({
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
         {isOfficial && (
-          <div className="absolute top-1 right-1 rounded-sm bg-amber-500/90 px-1 py-0.2 text-[9px] font-bold text-white shadow-xs">
+          <div className="absolute top-1 right-1 rounded-sm bg-amber-500/90 px-1 py-0.2 text-[8px] font-bold text-white shadow-xs">
             ⭐
           </div>
         )}
@@ -73,63 +73,78 @@ function ResourceCover({
     );
   }
 
-  // Graceful Fallback: CSS Digital Book / Binder Cover with color gradient & title
+  // Graceful Fallback: Sleek Digital Book Binder Graphic (Zero redundant text!)
+  const isSummary = resource.type === "summary";
+  const isExam = resource.type === "past_exam";
+  const isLink = resource.type === "link";
+  const isGuide = resource.type === "guide";
+
   const gradientClass = isOfficial
     ? "from-amber-500/25 via-amber-600/15 to-amber-950/40 border-amber-500/30 text-amber-300"
-    : resource.type === "summary"
+    : isSummary
     ? "from-blue-600/25 via-primary/20 to-blue-950/40 border-blue-500/25 text-blue-300"
-    : resource.type === "past_exam"
+    : isExam
     ? "from-amber-600/25 via-orange-950/20 to-stone-900/40 border-amber-500/25 text-amber-300"
-    : resource.type === "guide"
+    : isGuide
     ? "from-emerald-600/25 via-teal-950/20 to-slate-900/40 border-emerald-500/25 text-emerald-300"
-    : resource.type === "link"
+    : isLink
     ? "from-violet-600/25 via-purple-950/20 to-slate-900/40 border-violet-500/25 text-violet-300"
     : "from-secondary via-secondary/80 to-muted border-border text-muted-foreground";
 
   const icon = isOfficial
     ? "📚"
-    : resource.type === "summary"
+    : isSummary
     ? "📄"
     : resource.type === "quiz"
     ? "✨"
-    : resource.type === "past_exam"
+    : isExam
     ? "📝"
-    : resource.type === "guide"
+    : isGuide
     ? "📖"
-    : resource.type === "link"
+    : isLink
     ? "🔗"
     : "📎";
 
+  const typeLabel = isOfficial
+    ? "رسمي"
+    : isSummary
+    ? "ملخص"
+    : isExam
+    ? "امتحان"
+    : isGuide
+    ? "دليل"
+    : isLink
+    ? "رابط"
+    : "ملف";
+
   return (
     <div
-      className={`relative flex h-18 w-14 shrink-0 flex-col justify-between overflow-hidden rounded-lg border bg-gradient-to-br p-1.5 shadow-xs transition-transform duration-200 group-hover:scale-[1.03] sm:h-21 sm:w-16 ${gradientClass}`}
+      className={`relative flex h-17 w-12 shrink-0 flex-col justify-between overflow-hidden rounded-xl border bg-gradient-to-br p-1.5 shadow-xs transition-transform duration-200 group-hover:scale-[1.03] sm:h-20 sm:w-15 sm:p-2 ${gradientClass}`}
     >
       {/* Decorative Book Spine Highlight on Right (in RTL right is spine) */}
       <div className="absolute inset-y-0 right-0 w-1 bg-white/15" />
 
       {/* Top: Icon + Optional Badge */}
-      <div className="flex items-center justify-between text-xs sm:text-sm pl-1">
+      <div className="flex items-center justify-between text-sm sm:text-base pl-0.5">
         <span>{icon}</span>
         {isOfficial && <span className="text-[9px]">⭐</span>}
       </div>
 
-      {/* Middle: Mini Document Title */}
-      <div className="my-auto px-0.5">
-        <p className="line-clamp-2 text-center text-[8px] font-bold leading-tight text-foreground/90 sm:text-[9px]">
-          {resource.title}
-        </p>
+      {/* Center: Format Badge (Clean and graphic) */}
+      <div className="my-auto text-center">
+        <span className="font-mono text-[9px] font-bold uppercase tracking-wider opacity-90 sm:text-[10px]">
+          {isLink ? "LINK" : "PDF"}
+        </span>
       </div>
 
-      {/* Bottom: Accent Strip or Exam Scope Mini Tag */}
-      <div className="flex items-center justify-center border-t border-white/10 pt-0.5">
-        <span className="text-[8px] font-mono font-medium opacity-75">
+      {/* Bottom: Type or Scope Mini Tag */}
+      <div className="flex items-center justify-center border-t border-white/10 pt-0.5 sm:pt-1">
+        <span className="text-[8px] font-bold opacity-80 sm:text-[9px]">
           {resource.target_exam === "midterm"
             ? "ميد"
             : resource.target_exam === "final"
             ? "فاينل"
-            : resource.page_count
-            ? `${resource.page_count}ص`
-            : "ملف"}
+            : typeLabel}
         </span>
       </div>
     </div>
@@ -264,74 +279,72 @@ export default function ResourceList({
         <ResourceCover resource={resource} isOfficial={isOfficial} />
 
         {/* Resource info */}
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="truncate text-sm font-semibold text-card-foreground sm:text-base">
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+          {/* Row 1: Title + Scope Badges */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-sm font-bold text-card-foreground group-hover:text-accent transition-colors line-clamp-2 sm:text-base">
               {resource.title}
             </span>
             {isOfficial && (
-              <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold text-amber-500 flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-500 shrink-0">
                 <span>⭐</span>
                 <span>رسمي</span>
               </span>
             )}
             {examScopeLabel && (
-              <span className="rounded-full bg-accent/10 border border-accent/20 px-2 py-0.5 text-[11px] font-semibold text-accent">
+              <span className="rounded-md bg-accent/10 border border-accent/20 px-2 py-0.5 text-[10px] font-semibold text-accent shrink-0">
                 {examScopeLabel}
               </span>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            {resource.author_name ? (
-              <span>👤 {resource.author_name}</span>
-            ) : resource.is_admin_uploaded ? (
-              <span>✦ إدارة المنصة</span>
-            ) : null}
-
+          {/* Row 2: Streamlined Metadata (One tight, clean line) */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
             {resource.professor_name ? (
-              <span>• 👨‍🏫 د. {resource.professor_name}</span>
+              <span className="truncate">👨‍🏫 د. {resource.professor_name}</span>
+            ) : resource.author_name ? (
+              <span className="truncate">👤 {resource.author_name}</span>
+            ) : resource.is_admin_uploaded ? (
+              <span className="truncate">✦ معتمد</span>
             ) : null}
 
             {resource.page_count ? (
-              <span className="font-mono">• 📄 {resource.page_count} صفحة</span>
+              <span className="shrink-0 font-mono">• 📄 {resource.page_count} ص</span>
             ) : null}
 
             {resource.file_size_bytes ? (
-              <span dir="ltr">• {formatBytes(resource.file_size_bytes)}</span>
-            ) : null}
-
-            {resource.academic_year ? (
-              <span>• {resource.academic_year}</span>
+              <span className="shrink-0" dir="ltr">• {formatBytes(resource.file_size_bytes)}</span>
             ) : null}
           </div>
 
           {resource.description && (
-            <p className="text-xs text-muted-foreground/90 line-clamp-2 mt-0.5">
+            <p className="text-xs text-muted-foreground/80 line-clamp-1 mt-0.5">
               {resource.description}
             </p>
           )}
         </div>
 
-        {/* Action Trigger Icon */}
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform group-hover:scale-105">
-          {isQuiz
-            ? activeEmbedId === resource.id
-              ? "🔽"
-              : "▶️"
-            : resource.type === "link" || resource.type === "other"
-            ? "↗"
-            : "⬇"}
+        {/* Action Trigger Icon (Thumb-friendly circle button) */}
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary/80 text-foreground transition-all group-hover:bg-accent group-hover:text-white group-hover:scale-105 shadow-2xs">
+          <span className="text-xs font-bold">
+            {isQuiz
+              ? activeEmbedId === resource.id
+                ? "🔽"
+                : "▶️"
+              : resource.type === "link" || resource.type === "other"
+              ? "↗"
+              : "⬇"}
+          </span>
         </div>
       </>
     );
 
     return (
-      <li key={resource.id} className="flex flex-col group">
+      <li key={resource.id} className="flex flex-col group transition-colors hover:bg-secondary/20">
         {isQuiz && !resource.quiz_data ? (
           <button
             onClick={() => setActiveEmbedId(activeEmbedId === resource.id ? null : resource.id)}
-            className="flex w-full items-center gap-3 p-4 text-start transition-colors hover:bg-secondary active:bg-secondary/80 sm:gap-4 sm:p-5 cursor-pointer"
+            className="flex w-full items-center gap-3 p-3 text-start transition-colors sm:gap-4 sm:p-4 cursor-pointer"
           >
             {content}
           </button>
@@ -340,22 +353,22 @@ export default function ResourceList({
             href={resource.storage_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 p-4 transition-colors hover:bg-secondary active:bg-secondary/80 sm:gap-4 sm:p-5"
+            className="flex items-center gap-3 p-3 transition-colors sm:gap-4 sm:p-4"
           >
             {content}
           </a>
         ) : (
           <div
-            className="flex items-center gap-3 p-4 opacity-60 cursor-not-allowed sm:gap-4 sm:p-5"
+            className="flex items-center gap-3 p-3 opacity-60 cursor-not-allowed sm:gap-4 sm:p-4"
             title="الملف قيد المعالجة أو التجهيز حالياً"
           >
             {content}
           </div>
         )}
 
-        {/* Native Quiz Player */}
+        {/* Native Quiz Player (Docked Action Bar) */}
         {resource.quiz_data && (
-          <div className="border-t border-border/50 bg-secondary/20 p-3 sm:p-5">
+          <div className="border-t border-border/60 bg-accent/5 px-3 py-2 sm:px-4 sm:py-2.5 transition-colors hover:bg-accent/10">
             <NativeQuiz
               quizData={resource.quiz_data}
               sourceTitle={resource.title}

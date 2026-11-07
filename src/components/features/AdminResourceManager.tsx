@@ -242,6 +242,107 @@ ${formattedQuestions}
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // ─── Thumbnail Extraction & Backfill ────────────────────────────────────────
+  const [isBackfilling, setIsBackfilling] = useState(false);
+  const [backfillProgress, setBackfillProgress] = useState<string | null>(null);
+
+  const missingThumbnails = useMemo(() => {
+    return resources.filter(
+      (r) =>
+        !r.thumbnail_url &&
+        r.type !== "link" &&
+        r.storage_url &&
+        r.storage_url !== "__processing__" &&
+        r.storage_url.startsWith("http")
+    );
+  }, [resources]);
+
+  const handleBackfillThumbnails = async () => {
+    if (missingThumbnails.length === 0 || isBackfilling) return;
+    setIsBackfilling(true);
+    setBackfillProgress(`بدء استخراج الأغلفة (${missingThumbnails.length} ملف)...`);
+
+    try {
+      const pdfjsLib = await import("pdfjs-dist");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "/workers/pdf.worker.min.mjs";
+
+      let completed = 0;
+      for (const res of missingThumbnails) {
+        setBackfillProgress(`جارٍ معالجة غلاف (${completed + 1}/${missingThumbnails.length}): ${res.title}...`);
+        try {
+          const fetchRes = await fetch(res.storage_url);
+          if (!fetchRes.ok) continue;
+
+          const arrayBuffer = await fetchRes.arrayBuffer();
+          const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+          const pdf = await loadingTask.promise;
+
+          if (pdf.numPages >= 1) {
+            const firstPage = await pdf.getPage(1);
+            const originalViewport = firstPage.getViewport({ scale: 1.0 });
+            const targetWidth = 320;
+            const scale = targetWidth / originalViewport.width;
+            const viewport = firstPage.getViewport({ scale });
+
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.floor(viewport.width);
+            canvas.height = Math.floor(viewport.height);
+            const context = canvas.getContext("2d");
+
+            if (context) {
+              await firstPage.render({
+                canvasContext: context,
+                viewport,
+                canvas,
+              }).promise;
+
+              const blob = await new Promise<Blob | null>((resolve) => {
+                canvas.toBlob((b) => resolve(b), "image/jpeg", 0.82);
+              });
+
+              if (blob) {
+                const formData = new FormData();
+                formData.append("resourceId", res.id);
+                formData.append("thumbnail", blob, "thumbnail.jpg");
+
+                const uploadRes = await fetch("/api/admin/thumbnails", {
+                  method: "POST",
+                  headers: { "x-admin-secret": adminSecret },
+                  body: formData,
+                });
+
+                if (uploadRes.ok) {
+                  const data = await uploadRes.json();
+                  if (data.thumbnailUrl) {
+                    setResources((prev) =>
+                      prev.map((item) =>
+                        item.id === res.id ? { ...item, thumbnail_url: data.thumbnailUrl } : item
+                      )
+                    );
+                  }
+                }
+              }
+            }
+          }
+          completed++;
+        } catch (itemErr) {
+          console.warn(`Failed to generate thumbnail for ${res.id}:`, itemErr);
+        }
+      }
+
+      setBackfillProgress(`✅ اكتمل استخراج ${completed} غلاف بنجاح!`);
+      showNotification("success", `تم استخراج ${completed} غلاف بنجاح وتحديثها في قاعدة البيانات!`);
+      setTimeout(() => setBackfillProgress(null), 4000);
+    } catch (err) {
+      console.error("Backfill failed:", err);
+      setBackfillProgress("فشل استخراج بعض الأغلفة.");
+      showNotification("error", "حدث خطأ أثناء استخراج الأغلفة.");
+      setTimeout(() => setBackfillProgress(null), 4000);
+    } finally {
+      setIsBackfilling(false);
+    }
+  };
+
   // 1-Click Tier Toggle (Featured vs Archive)
   const handleToggleFeatured = async (res: AdminResourceItem) => {
     const newFeatured = !Boolean(res.is_featured);
@@ -760,6 +861,33 @@ ${formattedQuestions}
           <div className="mt-1 text-xs text-muted-foreground">مادة دراسية تحوي ملفات</div>
         </div>
       </div>
+
+      {/* ─── 1.5 Thumbnail Backfill Banner ─────────────────────────────────── */}
+      {missingThumbnails.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-accent/25 bg-accent/5 p-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📸</span>
+            <div>
+              <h4 className="text-sm font-bold text-foreground">
+                يوجد {missingThumbnails.length} ملفات بدون صور معاينة حقيقية (Thumbnails)
+              </h4>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {backfillProgress ||
+                  "يمكنك استخراج صور الصفحة الأولى لجميع الملفات القديمة دفعة واحدة من المتصفح بنقرة زر."}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={isBackfilling}
+            onClick={handleBackfillThumbnails}
+            className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-xs sm:text-sm font-bold text-accent-foreground shadow-sm hover:bg-accent/90 disabled:opacity-50 cursor-pointer"
+          >
+            <span>{isBackfilling ? "جارٍ الاستخراج..." : "استخراج الأغلفة الحقيقية الآن"}</span>
+            <span>⚡</span>
+          </button>
+        </div>
+      )}
 
       {/* ─── 2. Search & Filters ─────────────────────────────────────────── */}
       <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
