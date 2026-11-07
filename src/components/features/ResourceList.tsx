@@ -205,15 +205,12 @@ export default function ResourceList({
     const currentPath = courseSlug ? `/courses/${courseSlug}` : window.location.pathname;
     const shareUrl = `${origin}${currentPath}?res=${resource.id}&utm_source=whatsapp&utm_medium=resource_share#res-${resource.id}`;
 
-    // Practical & friendly Jordanian student vernacular
-    let intro = `تلخيص ${resource.title} لمادة ${courseTitle || "المساق"}`;
-    if (resource.type === "past_exam") {
-      intro = `أسئلة ونماذج امتحانات لمادة ${courseTitle || "المساق"} (${resource.title})`;
-    } else if (resource.quiz_data) {
-      intro = `شوف هاد التلخيص لمادة ${courseTitle || "المساق"} (${resource.title}) وفيه كمان كويز تجريبي للامتحان`;
-    }
+    // Clean, high-converting WhatsApp message requested by students
+    const intro = courseTitle
+      ? `ملخص لمادة ${courseTitle} مع بنك أسئلة وكويزات تفاعلية:`
+      : `ملخص ${resource.title} مع بنك أسئلة وكويزات تفاعلية:`;
 
-    const shareText = `${intro}:\n${shareUrl}`;
+    const shareText = `${intro}\n${shareUrl}`;
 
     // Copy direct link to clipboard for convenience
     if (navigator.clipboard) {
