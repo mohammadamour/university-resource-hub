@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import type { DepartmentWithCourses } from "@/types/database";
+import type { DepartmentWithCourses, CourseWithResources } from "@/types/database";
 import Card, { CardBadge } from "@/components/ui/Card";
 
 interface DepartmentGridProps {
@@ -10,37 +10,72 @@ interface DepartmentGridProps {
 }
 
 /**
+ * Checks whether the slug corresponds to the IT department.
+ * Uses exact match or prefix to avoid false positives like "university-requirements".
+ */
+function isItDepartment(slug: string): boolean {
+  return slug === "it" || slug === "it-department" || slug.startsWith("it-");
+}
+
+/**
+ * Checks whether the slug corresponds to University Requirements.
+ */
+function isRequirementsDepartment(slug: string): boolean {
+  return slug === "university-requirements" || slug.includes("requirement");
+}
+
+/**
  * Returns an appropriate emoji icon based on department slug.
  */
 function getDepartmentIcon(slug: string): string {
-  if (slug === "it" || slug.includes("it")) return "💻";
-  if (slug === "university-requirements" || slug.includes("requirement")) return "🏛️";
+  if (isItDepartment(slug)) return "💻";
+  if (isRequirementsDepartment(slug)) return "🏛️";
   if (slug === "placement-exams") return "📝";
   return "📚";
 }
 
 /**
- * Returns a concise, punchy Arabic label for segment switcher tabs.
+ * Returns a concise Arabic label for segment switcher buttons.
  */
 function getDepartmentShortLabel(dept: DepartmentWithCourses): string {
-  if (dept.slug === "it" || dept.slug.includes("it")) return "مواد IT";
-  if (dept.slug === "university-requirements") return "متطلبات الجامعة";
+  if (isItDepartment(dept.slug)) return "مواد IT";
+  if (isRequirementsDepartment(dept.slug)) return "إجباري جامعة";
   if (dept.slug === "placement-exams") return "امتحانات المستوى";
   return dept.name;
 }
 
 /**
- * 2-Segment Switcher + 2-Column Mobile Course Grid + Direct Course Selector.
+ * Sorts courses within a department:
+ * Courses with active resources/quizzes surface first, sorted alphabetically in Arabic.
+ */
+function sortCourses(courses: CourseWithResources[]) {
+  return [...(courses || [])].sort((a, b) => {
+    const aActive = (a.resources || []).filter(
+      (r) => (r.status || "active") === "active"
+    ).length;
+    const bActive = (b.resources || []).filter(
+      (r) => (r.status || "active") === "active"
+    ).length;
+    if (aActive > 0 && bActive === 0) return -1;
+    if (aActive === 0 && bActive > 0) return 1;
+    return a.title.localeCompare(b.title, "ar");
+  });
+}
+
+/**
+ * DepartmentGrid Component
  *
- * Implements Step 5:
- * 1. Fast client-side segment switcher (IT vs University Requirements).
- * 2. Course selector dropdown for instant direct navigation without manual searching.
- * 3. Ergonomic 2-column mobile grid for high information density on small screens.
+ * Features:
+ * 1. Default unfiltered state: shows all departments when first opening the site.
+ * 2. Toggleable segment buttons: click to filter, click again to remove filter.
+ * 3. Accurate labels: "مواد IT" (💻) and "إجباري جامعة" (🏛️).
+ * 4. Course quick-jump selector: grouped by department when unfiltered, single department when filtered.
+ * 5. High-density 2-column mobile course grid.
  */
 export default function DepartmentGrid({ departments }: DepartmentGridProps) {
   const router = useRouter();
 
-  // Placement exams feature flag (Day 1 freshmen admission gate)
+  // Placement exams feature flag
   const SHOW_PLACEMENT_EXAMS =
     process.env.NEXT_PUBLIC_SHOW_PLACEMENT_EXAMS === "true";
 
@@ -54,40 +89,30 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
     );
   }, [departments, SHOW_PLACEMENT_EXAMS]);
 
-  // Default to IT department (highest student traffic)
-  const defaultDept = useMemo(() => {
-    return (
-      visibleDepartments.find(
-        (d) => d.slug === "it" || d.slug.includes("it")
-      ) || visibleDepartments[0]
+  // Initially null: no filter applied on first visit
+  const [activeDeptId, setActiveDeptId] = useState<string | null>(null);
+
+  // Active department object if a filter is active
+  const activeDept = useMemo(() => {
+    if (!activeDeptId) return null;
+    return visibleDepartments.find((d) => d.id === activeDeptId) || null;
+  }, [visibleDepartments, activeDeptId]);
+
+  // Departments to render: either the single active department or all departments
+  const departmentsToRender = useMemo(() => {
+    if (activeDept) return [activeDept];
+    return visibleDepartments;
+  }, [activeDept, visibleDepartments]);
+
+  // Total count of courses across all visible departments
+  const totalCoursesCount = useMemo(() => {
+    return visibleDepartments.reduce(
+      (sum, dept) => sum + (dept.courses?.length || 0),
+      0
     );
   }, [visibleDepartments]);
 
-  const [activeDeptId, setActiveDeptId] = useState<string>(
-    defaultDept?.id || ""
-  );
-
-  // Active department with fallback to default
-  const activeDept =
-    visibleDepartments.find((d) => d.id === activeDeptId) || defaultDept;
-
-  // Sort courses: courses with active resources first, then remaining courses
-  const sortedCourses = useMemo(() => {
-    if (!activeDept?.courses) return [];
-    return [...activeDept.courses].sort((a, b) => {
-      const aActive = (a.resources || []).filter(
-        (r) => (r.status || "active") === "active"
-      ).length;
-      const bActive = (b.resources || []).filter(
-        (r) => (r.status || "active") === "active"
-      ).length;
-      if (aActive > 0 && bActive === 0) return -1;
-      if (aActive === 0 && bActive > 0) return 1;
-      return a.title.localeCompare(b.title, "ar");
-    });
-  }, [activeDept]);
-
-  if (visibleDepartments.length === 0 || !activeDept) {
+  if (visibleDepartments.length === 0) {
     return (
       <div className="py-12 text-center">
         <p className="text-muted-foreground">
@@ -107,7 +132,7 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
           className="inline-flex max-w-full items-center gap-1.5 overflow-x-auto rounded-2xl border border-border bg-secondary/50 p-1.5 shadow-xs"
         >
           {visibleDepartments.map((dept) => {
-            const isActive = dept.id === activeDept.id;
+            const isActive = dept.id === activeDeptId;
             const icon = getDepartmentIcon(dept.slug);
             const label = getDepartmentShortLabel(dept);
             const count = dept.courses.length;
@@ -115,13 +140,16 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
             return (
               <button
                 key={dept.id}
+                type="button"
                 role="tab"
                 aria-selected={isActive}
-                onClick={() => setActiveDeptId(dept.id)}
+                onClick={() =>
+                  setActiveDeptId((prev) => (prev === dept.id ? null : dept.id))
+                }
                 className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-bold transition-all sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm cursor-pointer ${
                   isActive
-                    ? "bg-card text-foreground shadow-sm border border-border/80"
-                    : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
+                    ? "bg-card text-foreground shadow-sm border border-border/80 ring-2 ring-accent/30"
+                    : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground border border-transparent"
                 }`}
               >
                 <span className="text-base sm:text-lg">{icon}</span>
@@ -130,7 +158,7 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                   <span
                     className={`rounded-full px-2 py-0.5 text-[11px] font-mono ${
                       isActive
-                        ? "bg-primary/10 text-primary font-semibold"
+                        ? "bg-accent/15 text-accent font-semibold"
                         : "bg-muted text-muted-foreground"
                     }`}
                   >
@@ -143,7 +171,7 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
         </div>
 
         {/* ─── 2. Direct Course Selector Dropdown ────────────────────────────── */}
-        {sortedCourses.length > 0 && (
+        {totalCoursesCount > 0 && (
           <div className="w-full max-w-md px-1">
             <label htmlFor="course-quick-select" className="sr-only">
               اختر مادة للانتقال السريع
@@ -160,13 +188,29 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                 className="w-full appearance-none rounded-xl border border-border bg-card px-4 py-2.5 pr-10 pl-10 text-xs sm:text-sm font-medium text-foreground shadow-xs transition-all hover:border-accent/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 cursor-pointer"
               >
                 <option value="" disabled>
-                  ⚡ اختر مادة للانتقال المباشر ({sortedCourses.length} مادة)...
+                  {activeDept
+                    ? `⚡ اختر مادة من ${getDepartmentShortLabel(activeDept)} (${activeDept.courses.length} مادة)...`
+                    : `⚡ اختر مادة للانتقال المباشر (${totalCoursesCount} مادة)...`}
                 </option>
-                {sortedCourses.map((course) => (
-                  <option key={course.id} value={`/courses/${course.slug}`}>
-                    {course.title} {course.course_code ? `(${course.course_code})` : ""}
-                  </option>
-                ))}
+                {activeDept ? (
+                  sortCourses(activeDept.courses).map((course) => (
+                    <option key={course.id} value={`/courses/${course.slug}`}>
+                      {course.title}{" "}
+                      {course.course_code ? `(${course.course_code})` : ""}
+                    </option>
+                  ))
+                ) : (
+                  visibleDepartments.map((dept) => (
+                    <optgroup key={dept.id} label={dept.name}>
+                      {sortCourses(dept.courses).map((course) => (
+                        <option key={course.id} value={`/courses/${course.slug}`}>
+                          {course.title}{" "}
+                          {course.course_code ? `(${course.course_code})` : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))
+                )}
               </select>
 
               {/* Leading Icon (Right side in RTL) */}
@@ -195,93 +239,115 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
         )}
       </div>
 
-      {/* ─── 3. Active Section Header ────────────────────────────────────────── */}
-      <div className="flex items-center justify-between border-b border-border/60 pb-3 pt-1">
-        <div>
-          <h2 className="flex items-center gap-2 text-base font-bold text-foreground sm:text-xl">
-            <span>{getDepartmentIcon(activeDept.slug)}</span>
-            <span>{activeDept.name}</span>
-          </h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {activeDept.slug === "placement-exams"
-              ? "نماذج ومواد تدريبية لجميع امتحانات الكفاءة"
-              : `${sortedCourses.length} مادة دراسية متاحة`}
-          </p>
-        </div>
+      {/* ─── 3. Department Sections (Filtered or All) ────────────────────────── */}
+      <div className="space-y-8">
+        {departmentsToRender.map((dept) => {
+          const sorted = sortCourses(dept.courses);
+
+          return (
+            <section key={dept.id} className="space-y-3.5">
+              {/* Section Header */}
+              <div className="flex items-center justify-between border-b border-border/60 pb-2.5 pt-1">
+                <div>
+                  <h2 className="flex items-center gap-2 text-base font-bold text-foreground sm:text-xl">
+                    <span>{getDepartmentIcon(dept.slug)}</span>
+                    <span>{dept.name}</span>
+                  </h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {dept.slug === "placement-exams"
+                      ? "نماذج ومواد تدريبية لجميع امتحانات الكفاءة"
+                      : `${dept.courses.length} مادة دراسية متاحة`}
+                  </p>
+                </div>
+
+                {activeDeptId && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveDeptId(null)}
+                    className="flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/50 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer"
+                  >
+                    <span>✕</span>
+                    <span>عرض الكل</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Course Grid */}
+              {dept.slug === "placement-exams" ? (
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3">
+                  <Card
+                    key="mock-placement"
+                    href="/courses/placement-exams"
+                    title="امتحانات المستوى"
+                    courseCode={null}
+                    description="نماذج ومواد تحضيرية لجميع امتحانات الكفاءة (عربي، إنجليزي، حاسوب)"
+                  />
+                </div>
+              ) : sorted.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3">
+                  {sorted.map((course) => {
+                    const activeResources = (course.resources || []).filter(
+                      (r) => (r.status || "active") === "active"
+                    );
+                    const studyCount = activeResources.filter(
+                      (r) => r.type !== "quiz"
+                    ).length;
+                    const quizResources = activeResources.filter(
+                      (r) =>
+                        r.quiz_data &&
+                        r.quiz_data.questions &&
+                        r.quiz_data.questions.length > 0
+                    );
+                    const quizCount = quizResources.length;
+                    const totalQuestions = quizResources.reduce(
+                      (sum, r) => sum + (r.quiz_data?.questions?.length || 0),
+                      0
+                    );
+
+                    const badges: CardBadge[] = [];
+                    if (studyCount > 0) {
+                      badges.push({
+                        text: `${studyCount} ${studyCount === 1 ? "ملخص" : "ملخصات"}`,
+                        variant: "accent",
+                        icon: "📄",
+                      });
+                    }
+                    if (quizCount > 0) {
+                      badges.push({
+                        text: `${quizCount} كويز • ${totalQuestions} س`,
+                        variant: "emerald",
+                        icon: "✨",
+                      });
+                    }
+                    if (studyCount === 0 && quizCount === 0) {
+                      badges.push({
+                        text: "قيد الإعداد ⏳",
+                        variant: "muted",
+                      });
+                    }
+
+                    return (
+                      <Card
+                        key={course.id}
+                        href={`/courses/${course.slug}`}
+                        title={course.title}
+                        courseCode={course.course_code}
+                        badges={badges}
+                      />
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border p-8 text-center bg-card/40">
+                  <p className="text-sm text-muted-foreground">
+                    قريباً — يتم تجهيز المحتوى لهذا القسم ✨
+                  </p>
+                </div>
+              )}
+            </section>
+          );
+        })}
       </div>
-
-      {/* ─── 4. 2-Column Mobile Course Grid ──────────────────────────────────── */}
-      {activeDept.slug === "placement-exams" ? (
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3">
-          <Card
-            key="mock-placement"
-            href="/courses/placement-exams"
-            title="امتحانات المستوى"
-            courseCode={null}
-            description="نماذج ومواد تحضيرية لجميع امتحانات الكفاءة (عربي، إنجليزي، حاسوب)"
-          />
-        </div>
-      ) : sortedCourses.length > 0 ? (
-        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3">
-          {sortedCourses.map((course) => {
-            const activeResources = (course.resources || []).filter(
-              (r) => (r.status || "active") === "active"
-            );
-            const studyCount = activeResources.filter(
-              (r) => r.type !== "quiz"
-            ).length;
-            const quizResources = activeResources.filter(
-              (r) =>
-                r.quiz_data &&
-                r.quiz_data.questions &&
-                r.quiz_data.questions.length > 0
-            );
-            const quizCount = quizResources.length;
-            const totalQuestions = quizResources.reduce(
-              (sum, r) => sum + (r.quiz_data?.questions?.length || 0),
-              0
-            );
-
-            const badges: CardBadge[] = [];
-            if (studyCount > 0) {
-              badges.push({
-                text: `${studyCount} ${studyCount === 1 ? "ملخص" : "ملخصات"}`,
-                variant: "accent",
-                icon: "📄",
-              });
-            }
-            if (quizCount > 0) {
-              badges.push({
-                text: `${quizCount} كويز • ${totalQuestions} س`,
-                variant: "emerald",
-                icon: "✨",
-              });
-            }
-            if (studyCount === 0 && quizCount === 0) {
-              badges.push({
-                text: "قيد الإعداد ⏳",
-                variant: "muted",
-              });
-            }
-
-            return (
-              <Card
-                key={course.id}
-                href={`/courses/${course.slug}`}
-                title={course.title}
-                courseCode={course.course_code}
-                badges={badges}
-              />
-            );
-          })}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-border p-8 text-center bg-card/40">
-          <p className="text-sm text-muted-foreground">
-            قريباً — يتم تجهيز المحتوى لهذا القسم ✨
-          </p>
-        </div>
-      )}
     </div>
   );
 }
