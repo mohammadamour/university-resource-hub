@@ -173,6 +173,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
           resources={course.resources || []}
           courseId={course.id}
           courseTitle={course.title}
+          courseSlug={course.slug}
         />
       </main>
       <Footer />

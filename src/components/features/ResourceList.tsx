@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { Resource } from "@/types/database";
 import NativeQuiz from "@/components/features/NativeQuiz";
@@ -9,6 +9,7 @@ interface ResourceListProps {
   resources: Resource[];
   courseId?: string;
   courseTitle?: string;
+  courseSlug?: string;
 }
 
 function formatBytes(bytes: number | null | undefined): string {
@@ -162,9 +163,70 @@ export default function ResourceList({
   resources,
   courseId,
   courseTitle,
+  courseSlug,
 }: ResourceListProps) {
   const [activeEmbedId, setActiveEmbedId] = useState<string | null>(null);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Auto-scroll and highlight target resource if deep-linked via WhatsApp / share URL
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const url = new URL(window.location.href);
+      const targetId =
+        url.searchParams.get("res") ||
+        (window.location.hash.startsWith("#res-")
+          ? window.location.hash.replace("#res-", "")
+          : null);
+
+      if (!targetId) return;
+
+      const el = document.getElementById(`res-${targetId}`);
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.classList.add("ring-2", "ring-accent", "shadow-md");
+          setTimeout(() => {
+            el.classList.remove("ring-2", "ring-accent", "shadow-md");
+          }, 2500);
+        }, 350);
+      }
+    } catch {
+      // safe fallback
+    }
+  }, []);
+
+  // WhatsApp 1-tap share with deep-link & UTM tracking
+  const handleShareResource = (resource: Resource) => {
+    if (typeof window === "undefined") return;
+
+    const origin = window.location.origin;
+    const currentPath = courseSlug ? `/courses/${courseSlug}` : window.location.pathname;
+    const shareUrl = `${origin}${currentPath}?res=${resource.id}&utm_source=whatsapp&utm_medium=resource_share#res-${resource.id}`;
+
+    // Practical & friendly Jordanian student vernacular
+    let intro = `تلخيص ${resource.title} لمادة ${courseTitle || "المساق"}`;
+    if (resource.type === "past_exam") {
+      intro = `أسئلة ونماذج امتحانات لمادة ${courseTitle || "المساق"} (${resource.title})`;
+    } else if (resource.quiz_data) {
+      intro = `شوف هاد التلخيص لمادة ${courseTitle || "المساق"} (${resource.title}) وفيه كمان كويز تجريبي للامتحان`;
+    }
+
+    const shareText = `${intro}:\n${shareUrl}`;
+
+    // Copy direct link to clipboard for convenience
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(shareUrl).catch(() => {});
+    }
+
+    setToastMessage("تم فتح واتساب ونسخ الرابط للمشاركة! 📋");
+    setTimeout(() => setToastMessage(null), 3200);
+
+    // Open WhatsApp Web or Mobile App
+    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+    window.open(waUrl, "_blank", "noopener,noreferrer");
+  };
 
   // Deterministic sorting comparator: display_order ASC, then created_at ASC
   const sortByDisplayOrder = (a: Resource, b: Resource) => {
@@ -273,109 +335,151 @@ export default function ResourceList({
 
     const isOfficial = options?.isOfficial;
 
-    const content = (
-      <>
-        {/* Document Cover / Thumbnail (RTL right-aligned) */}
-        <ResourceCover resource={resource} isOfficial={isOfficial} />
-
-        {/* Resource info */}
-        <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-          {/* Row 1: Badges (Official + Exam Scope) */}
-          {(isOfficial || examScopeLabel) && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {isOfficial && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-500 shrink-0">
-                  <span>⭐</span>
-                  <span>رسمي</span>
-                </span>
-              )}
-              {examScopeLabel && (
-                <span className="rounded-md bg-accent/10 border border-accent/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent shrink-0">
-                  {examScopeLabel}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Row 2: Title */}
-          <span className="text-sm font-bold text-card-foreground group-hover:text-accent transition-colors line-clamp-2 sm:text-base leading-snug">
-            {resource.title}
-          </span>
-
-          {/* Row 3: Streamlined Metadata (One tight, clean line) */}
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
-            {resource.professor_name ? (
-              <span className="truncate">👨‍🏫 د. {resource.professor_name}</span>
-            ) : resource.author_name ? (
-              <span className="truncate">👤 {resource.author_name}</span>
-            ) : resource.is_admin_uploaded ? (
-              <span className="truncate">✦ معتمد</span>
-            ) : null}
-
-            {resource.page_count ? (
-              <span className="shrink-0 font-mono">• 📄 {resource.page_count} ص</span>
-            ) : null}
-
-            {resource.file_size_bytes ? (
-              <span className="shrink-0" dir="ltr">• {formatBytes(resource.file_size_bytes)}</span>
-            ) : null}
+    const mainInfo = (
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+        {/* Row 1: Badges (Official + Exam Scope) */}
+        {(isOfficial || examScopeLabel) && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {isOfficial && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-500 shrink-0">
+                <span>⭐</span>
+                <span>رسمي</span>
+              </span>
+            )}
+            {examScopeLabel && (
+              <span className="rounded-md bg-accent/10 border border-accent/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent shrink-0">
+                {examScopeLabel}
+              </span>
+            )}
           </div>
+        )}
 
-          {resource.description && (
-            <p className="text-xs text-muted-foreground/80 line-clamp-1 mt-0.5">
-              {resource.description}
-            </p>
-          )}
+        {/* Row 2: Title */}
+        <span className="text-sm font-bold text-card-foreground group-hover:text-accent transition-colors line-clamp-2 sm:text-base leading-snug">
+          {resource.title}
+        </span>
+
+        {/* Row 3: Streamlined Metadata (One tight, clean line) */}
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
+          {resource.professor_name ? (
+            <span className="truncate">👨‍🏫 د. {resource.professor_name}</span>
+          ) : resource.author_name ? (
+            <span className="truncate">👤 {resource.author_name}</span>
+          ) : resource.is_admin_uploaded ? (
+            <span className="truncate">✦ معتمد</span>
+          ) : null}
+
+          {resource.page_count ? (
+            <span className="shrink-0 font-mono">• 📄 {resource.page_count} ص</span>
+          ) : null}
+
+          {resource.file_size_bytes ? (
+            <span className="shrink-0" dir="ltr">• {formatBytes(resource.file_size_bytes)}</span>
+          ) : null}
         </div>
 
-        {/* Action Trigger Icon (Thumb-friendly circle button, RTL left-aligned) */}
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary/80 text-foreground transition-all group-hover:bg-accent group-hover:text-white group-hover:scale-105 shadow-2xs">
-          <span className="text-xs font-bold">
-            {isQuiz
-              ? activeEmbedId === resource.id
-                ? "🔽"
-                : "▶️"
-              : resource.type === "link" || resource.type === "other"
-              ? "↗"
-              : "⬇"}
-          </span>
-        </div>
-      </>
+        {resource.description && (
+          <p className="text-xs text-muted-foreground/80 line-clamp-1 mt-0.5">
+            {resource.description}
+          </p>
+        )}
+      </div>
     );
 
     return (
       <li
+        id={`res-${resource.id}`}
         key={resource.id}
-        className={`group flex flex-col overflow-hidden rounded-2xl border transition-all duration-200 ${
+        className={`group flex flex-col overflow-hidden rounded-2xl border transition-all duration-300 ${
           isOfficial
             ? "border-amber-500/35 bg-card shadow-xs hover:border-amber-500/60 hover:shadow-md"
             : "border-border/80 bg-card shadow-xs hover:border-accent/40 hover:shadow-md"
         }`}
       >
-        {isQuiz && !resource.quiz_data ? (
-          <button
-            onClick={() => setActiveEmbedId(activeEmbedId === resource.id ? null : resource.id)}
-            className="flex w-full items-center gap-3 p-3.5 text-start transition-colors sm:gap-4 sm:p-4 cursor-pointer hover:bg-secondary/20"
-          >
-            {content}
-          </button>
-        ) : isValidResourceUrl(resource.storage_url) ? (
-          <a
-            href={resource.storage_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 p-3.5 transition-colors sm:gap-4 sm:p-4 hover:bg-secondary/20"
-          >
-            {content}
-          </a>
-        ) : (
-          <div
-            className="flex items-center gap-3 p-3.5 opacity-60 cursor-not-allowed sm:gap-4 sm:p-4"
-            title="الملف قيد المعالجة أو التجهيز حالياً"
-          >
-            {content}
+        <div className="flex items-center justify-between gap-2 p-3.5 sm:gap-4 sm:p-4 transition-colors group-hover:bg-secondary/15">
+          {/* Main Click Target (Cover + Details) */}
+          {isQuiz && !resource.quiz_data ? (
+            <button
+              type="button"
+              onClick={() => setActiveEmbedId(activeEmbedId === resource.id ? null : resource.id)}
+              className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4 text-start cursor-pointer"
+            >
+              <ResourceCover resource={resource} isOfficial={isOfficial} />
+              {mainInfo}
+            </button>
+          ) : isValidResourceUrl(resource.storage_url) ? (
+            <a
+              href={resource.storage_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4 cursor-pointer"
+            >
+              <ResourceCover resource={resource} isOfficial={isOfficial} />
+              {mainInfo}
+            </a>
+          ) : (
+            <div
+              className="flex min-w-0 flex-1 items-center gap-3 opacity-60 cursor-not-allowed sm:gap-4"
+              title="الملف قيد المعالجة أو التجهيز حالياً"
+            >
+              <ResourceCover resource={resource} isOfficial={isOfficial} />
+              {mainInfo}
+            </div>
+          )}
+
+          {/* Action Buttons (WhatsApp Share + Download/Open) */}
+          <div className="flex items-center gap-1.5 shrink-0 pr-1 sm:pr-2">
+            {/* WhatsApp Share Button */}
+            <button
+              type="button"
+              onClick={() => handleShareResource(resource)}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/80 text-muted-foreground transition-all hover:bg-emerald-500/15 hover:text-emerald-500 hover:scale-105 active:scale-95 shadow-2xs cursor-pointer"
+              title="مشاركة الملخص عبر واتساب"
+              aria-label="مشاركة عبر واتساب"
+            >
+              <svg
+                className="h-4.5 w-4.5 fill-current"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+              </svg>
+            </button>
+
+            {/* Primary Action Button (Download/Open) */}
+            {isQuiz && !resource.quiz_data ? (
+              <button
+                type="button"
+                onClick={() => setActiveEmbedId(activeEmbedId === resource.id ? null : resource.id)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/80 text-foreground transition-all group-hover:bg-accent group-hover:text-white group-hover:scale-105 shadow-2xs cursor-pointer"
+                title="عرض الاختبار"
+              >
+                <span className="text-xs font-bold">
+                  {activeEmbedId === resource.id ? "🔽" : "▶️"}
+                </span>
+              </button>
+            ) : isValidResourceUrl(resource.storage_url) ? (
+              <a
+                href={resource.storage_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/80 text-foreground transition-all group-hover:bg-accent group-hover:text-white group-hover:scale-105 shadow-2xs"
+                title="تحميل / فتح الملف"
+              >
+                <span className="text-xs font-bold">
+                  {resource.type === "link" || resource.type === "other" ? "↗" : "⬇"}
+                </span>
+              </a>
+            ) : (
+              <div
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/40 text-muted-foreground opacity-60 cursor-not-allowed shadow-2xs"
+                title="الملف قيد المعالجة"
+              >
+                <span className="text-xs">⏳</span>
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Native Quiz Player (Docked Action Bar inside the same card) */}
         {resource.quiz_data && (
@@ -712,6 +816,13 @@ export default function ResourceList({
           </Link>
         </div>
       </div>
+
+      {/* ─── Floating Toast Notification ─────────────────────── */}
+      {toastMessage && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-xl border border-border/80 bg-foreground text-background px-4 py-2.5 text-xs font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 }

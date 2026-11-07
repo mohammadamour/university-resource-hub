@@ -191,6 +191,29 @@ export default function NativeQuiz({
   const [isFinished, setIsFinished] = useState(false);
   const [showReview, setShowReview] = useState(false);
 
+  // Local Storage Previous Attempt History (Zero-login guest retention)
+  const [lastAttempt, setLastAttempt] = useState<{
+    score: number;
+    total: number;
+    percentage: number;
+    completedAt: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!resourceId) return;
+    try {
+      const raw = localStorage.getItem("molakhasat_quiz_history");
+      if (raw) {
+        const history = JSON.parse(raw);
+        if (history[resourceId]) {
+          setLastAttempt(history[resourceId]);
+        }
+      }
+    } catch {
+      // Safe fallback for restricted or private browsing modes
+    }
+  }, [resourceId]);
+
   // Diagnostics Timing & Beacon Safeguards
   const startTimeRef = useRef<number>(Date.now());
   const hasLoggedAttemptRef = useRef<boolean>(false);
@@ -303,10 +326,28 @@ export default function NativeQuiz({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, isConfiguring, isAnswered, isFinished, handleSelectOption, handleNext]);
 
-  // ─── TELEMETRY BEACON: Log completed attempt ──────────────────────────────
+  // ─── TELEMETRY BEACON & LOCAL STORAGE: Log completed attempt ─────────────
   useEffect(() => {
     if (!isFinished || hasLoggedAttemptRef.current || !resourceId || !courseId) return;
     hasLoggedAttemptRef.current = true;
+
+    // Save to local storage for anonymous guest retention
+    try {
+      const LOCAL_KEY = "molakhasat_quiz_history";
+      const existingRaw = localStorage.getItem(LOCAL_KEY);
+      const history = existingRaw ? JSON.parse(existingRaw) : {};
+      const newAttempt = {
+        score,
+        total: activeQuestions.length,
+        percentage: scorePercentage,
+        completedAt: Date.now(),
+      };
+      history[resourceId] = newAttempt;
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(history));
+      setLastAttempt(newAttempt);
+    } catch {
+      // Ignore storage errors in private browsing
+    }
 
     const durationSeconds = Math.max(
       1,
@@ -362,11 +403,20 @@ export default function NativeQuiz({
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-base shrink-0">🎯</span>
           <span className="text-xs sm:text-sm font-bold text-foreground truncate">
-            كويز تفاعلي لاختبار الفهم
+            {lastAttempt
+              ? `آخر نتيجة: ${lastAttempt.score}/${lastAttempt.total} (${lastAttempt.percentage}%)`
+              : "كويز تفاعلي لاختبار الفهم"}
           </span>
-          <span className="inline-flex rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold text-accent shrink-0">
-            {bankSize} سؤالاً
-          </span>
+          {lastAttempt ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-500 shrink-0">
+              <span>{lastAttempt.percentage >= 80 ? "🏆" : "✨"}</span>
+              <span>مكتمل</span>
+            </span>
+          ) : (
+            <span className="inline-flex rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold text-accent shrink-0">
+              {bankSize} سؤالاً
+            </span>
+          )}
         </div>
 
         <button
@@ -380,7 +430,7 @@ export default function NativeQuiz({
           }}
           className="inline-flex items-center gap-1 rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-accent-foreground shadow-2xs transition-all hover:bg-accent/90 active:scale-95 cursor-pointer shrink-0"
         >
-          <span>ابدأ الكويز</span>
+          <span>{lastAttempt ? "إعادة الكويز ↺" : "ابدأ الكويز"}</span>
           <span className="text-[10px]">❯</span>
         </button>
       </div>

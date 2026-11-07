@@ -57,6 +57,8 @@ export interface Course {
   instructor: string | null;
   semester: string | null;
   display_order: number;
+  midterm_exam_date?: string | null;
+  final_exam_date?: string | null;
   created_at: string;
 }
 
