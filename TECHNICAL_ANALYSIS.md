@@ -28,6 +28,7 @@
    - [3.6 Upload Form Taxonomy, Exam Scope & Curated Syllabus Toggle](#36-upload-form-taxonomy-exam-scope--curated-syllabus-toggle)
    - [3.7 Segment Switcher, Course Quick-Jump Selector & 2-Column Mobile Grid](#37-segment-switcher-course-quick-jump-selector--2-column-mobile-grid)
    - [3.8 Client-Side First-Page Thumbnail Generation & Dynamic CSS Book Covers](#38-client-side-first-page-thumbnail-generation--dynamic-css-book-covers)
+   - [3.9 Decoupled Standalone Card Architecture & Docked Quiz Trays](#39-decoupled-standalone-card-architecture--docked-quiz-trays)
 4. [Database, RLS Security & Caching Strategy](#4-database-rls-security--caching-strategy)
    - [4.1 Relational Hierarchy & "Fake Departments"](#41-relational-hierarchy--fake-departments)
    - [4.2 Row Level Security (RLS) Permission Matrix](#42-row-level-security-rls-permission-matrix)
@@ -573,6 +574,17 @@ POST /api/upload
   4. **Graceful Fallback CSS Digital Book Cover:** On resource cards (`ResourceCover` in `ResourceList.tsx`), if a thumbnail is missing or fails to load, it dynamically renders an elegant CSS binder cover with category-specific gradients (Blue for summaries, Amber for exams, Emerald for guides, Violet for links), clean format badges (`PDF` / `LINK`), and an RTL-aligned decorative book spine, completely eliminating redundant title text inside the cover.
   5. **Streamlined 2-Row Mobile Card & Docked Quiz Strip:** Restructured resource cards into a strict 2-row hierarchy on mobile (bold title + inline scope badges; single-line breadcrumb with doctor/author, page count, and file size). Replaced the bloated, detached quiz block with an integrated docked action strip (`🎯 كويز تفاعلي لاختبار الفهم [ابدأ الكويز ❯]`) that reduces mobile card height by over 50%.
   6. **Browser-Powered 1-Click Backfill Engine (`/admin/resources` & `/api/admin/thumbnails`):** Built an automated in-browser backfill utility in the Admin Resource Manager. Because standard browsers natively run HTML5 `<canvas>` and `pdfjs-dist`, clicking the backfill banner extracts Page 1 JPEG covers for all legacy PDFs and persists them via `/api/admin/thumbnails` without requiring local CLI tools or server-side binaries.
+
+---
+
+### 3.9 Decoupled Standalone Card Architecture & Docked Quiz Trays
+
+- **Files:** [`src/components/features/ResourceList.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/ResourceList.tsx), [`src/components/features/NativeQuiz.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/NativeQuiz.tsx)
+- **Problem Solved:** Previously, all materials inside Shelves 1, 2, and 3 were wrapped in a monolithic `<div className="rounded-2xl border ... bg-card"><ul className="divide-y divide-border">` block. On mobile screens, this compressed all resources and interactive quizzes into one continuous, uninterrupted slab with only 1px dividers, obscuring where one resource ended and the next began, and detaching the visual connection between a summary and its quiz.
+- **Architectural Enhancements:**
+  1. **Decoupled Card Islands (`space-y-3`):** Removed the monolithic outer shelf container and replaced it with an unconstrained `<ul className="space-y-3 sm:space-y-3.5 list-none">`. Every resource item is elevated into its own standalone `<li className="rounded-2xl border bg-card shadow-xs">` island with physical vertical whitespace between cards.
+  2. **Dedicated Badges Micro-Row:** To eliminate chaotic line-wrapping on narrow 360px mobile viewports when Arabic titles are long, badges (`[⭐ رسمي]`, `[مادة الفاينل]`, `[مادة الميد]`) are extracted into a dedicated top micro-row above the title. This establishes a clean visual hierarchy: Badges ➔ Bold Title ➔ Doctor/Author & Metadata.
+  3. **Docked Quiz Action Tray:** The interactive `<NativeQuiz />` bar is physically docked inside the resource card container at the bottom (`border-t border-border/50 bg-accent/[0.04]`), seamlessly clipped by the card's rounded bottom corners. This makes it unmistakable that the quiz belongs to that exact summary, while maintaining a clean separation from the next resource below it.
 
 ---
 

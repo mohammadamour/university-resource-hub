@@ -275,30 +275,34 @@ export default function ResourceList({
 
     const content = (
       <>
-        {/* Document Cover / Thumbnail */}
+        {/* Document Cover / Thumbnail (RTL right-aligned) */}
         <ResourceCover resource={resource} isOfficial={isOfficial} />
 
         {/* Resource info */}
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-          {/* Row 1: Title + Scope Badges */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-sm font-bold text-card-foreground group-hover:text-accent transition-colors line-clamp-2 sm:text-base">
-              {resource.title}
-            </span>
-            {isOfficial && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-500 shrink-0">
-                <span>⭐</span>
-                <span>رسمي</span>
-              </span>
-            )}
-            {examScopeLabel && (
-              <span className="rounded-md bg-accent/10 border border-accent/20 px-2 py-0.5 text-[10px] font-semibold text-accent shrink-0">
-                {examScopeLabel}
-              </span>
-            )}
-          </div>
+          {/* Row 1: Badges (Official + Exam Scope) */}
+          {(isOfficial || examScopeLabel) && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {isOfficial && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-500 shrink-0">
+                  <span>⭐</span>
+                  <span>رسمي</span>
+                </span>
+              )}
+              {examScopeLabel && (
+                <span className="rounded-md bg-accent/10 border border-accent/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent shrink-0">
+                  {examScopeLabel}
+                </span>
+              )}
+            </div>
+          )}
 
-          {/* Row 2: Streamlined Metadata (One tight, clean line) */}
+          {/* Row 2: Title */}
+          <span className="text-sm font-bold text-card-foreground group-hover:text-accent transition-colors line-clamp-2 sm:text-base leading-snug">
+            {resource.title}
+          </span>
+
+          {/* Row 3: Streamlined Metadata (One tight, clean line) */}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
             {resource.professor_name ? (
               <span className="truncate">👨‍🏫 د. {resource.professor_name}</span>
@@ -324,7 +328,7 @@ export default function ResourceList({
           )}
         </div>
 
-        {/* Action Trigger Icon (Thumb-friendly circle button) */}
+        {/* Action Trigger Icon (Thumb-friendly circle button, RTL left-aligned) */}
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary/80 text-foreground transition-all group-hover:bg-accent group-hover:text-white group-hover:scale-105 shadow-2xs">
           <span className="text-xs font-bold">
             {isQuiz
@@ -340,11 +344,18 @@ export default function ResourceList({
     );
 
     return (
-      <li key={resource.id} className="flex flex-col group transition-colors hover:bg-secondary/20">
+      <li
+        key={resource.id}
+        className={`group flex flex-col overflow-hidden rounded-2xl border transition-all duration-200 ${
+          isOfficial
+            ? "border-amber-500/35 bg-card shadow-xs hover:border-amber-500/60 hover:shadow-md"
+            : "border-border/80 bg-card shadow-xs hover:border-accent/40 hover:shadow-md"
+        }`}
+      >
         {isQuiz && !resource.quiz_data ? (
           <button
             onClick={() => setActiveEmbedId(activeEmbedId === resource.id ? null : resource.id)}
-            className="flex w-full items-center gap-3 p-3 text-start transition-colors sm:gap-4 sm:p-4 cursor-pointer"
+            className="flex w-full items-center gap-3 p-3.5 text-start transition-colors sm:gap-4 sm:p-4 cursor-pointer hover:bg-secondary/20"
           >
             {content}
           </button>
@@ -353,22 +364,22 @@ export default function ResourceList({
             href={resource.storage_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 p-3 transition-colors sm:gap-4 sm:p-4"
+            className="flex items-center gap-3 p-3.5 transition-colors sm:gap-4 sm:p-4 hover:bg-secondary/20"
           >
             {content}
           </a>
         ) : (
           <div
-            className="flex items-center gap-3 p-3 opacity-60 cursor-not-allowed sm:gap-4 sm:p-4"
+            className="flex items-center gap-3 p-3.5 opacity-60 cursor-not-allowed sm:gap-4 sm:p-4"
             title="الملف قيد المعالجة أو التجهيز حالياً"
           >
             {content}
           </div>
         )}
 
-        {/* Native Quiz Player (Docked Action Bar) */}
+        {/* Native Quiz Player (Docked Action Bar inside the same card) */}
         {resource.quiz_data && (
-          <div className="border-t border-border/60 bg-accent/5 px-3 py-2 sm:px-4 sm:py-2.5 transition-colors hover:bg-accent/10">
+          <div className="border-t border-border/50 bg-accent/[0.04] px-3.5 py-2.5 sm:px-4 sm:py-3 transition-colors group-hover:bg-accent/[0.08]">
             <NativeQuiz
               quizData={resource.quiz_data}
               sourceTitle={resource.title}
@@ -474,13 +485,11 @@ export default function ResourceList({
             </p>
           </div>
 
-          <div className="rounded-2xl border-2 border-amber-500/30 bg-card overflow-hidden shadow-sm">
-            <ul className="divide-y divide-border">
-              {officialSyllabusResources.map((r) =>
-                renderResourceCard(r, { isOfficial: true })
-              )}
-            </ul>
-          </div>
+          <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
+            {officialSyllabusResources.map((r) =>
+              renderResourceCard(r, { isOfficial: true })
+            )}
+          </ul>
         </section>
       )}
 
@@ -497,11 +506,9 @@ export default function ResourceList({
             </p>
           </div>
 
-          <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-            <ul className="divide-y divide-border">
-              {summaryResources.map((r) => renderResourceCard(r))}
-            </ul>
-          </div>
+          <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
+            {summaryResources.map((r) => renderResourceCard(r))}
+          </ul>
         </section>
       )}
 
@@ -518,11 +525,9 @@ export default function ResourceList({
             </p>
           </div>
 
-          <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-            <ul className="divide-y divide-border">
-              {pastExamResources.map((r) => renderResourceCard(r))}
-            </ul>
-          </div>
+          <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
+            {pastExamResources.map((r) => renderResourceCard(r))}
+          </ul>
         </section>
       )}
 
