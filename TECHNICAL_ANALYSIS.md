@@ -560,6 +560,8 @@ POST /api/upload
   4. **Compact Card Optimization (`Card.tsx`):** Adjusted internal padding (`p-3.5 sm:p-5`), title font clamp (`line-clamp-2` with `justify-between` flexbox), and compact micro-badges (`text-[10px] sm:text-[11px]`) to ensure cards maintain consistent heights without overflowing narrow 360px mobile viewports.
   5. **Smart Course Ordering:** Courses within each active department are intelligently prioritized so courses with active resources and quizzes appear first, while emerging courses retain the `قيد الإعداد ⏳` indicator to drive crowdsourced contributions.
   6. **Slug Substring Collision Defense:** Addressed an insidious substring gotcha where `"university-requirements".includes("it")` evaluated to `true` (due to the letters `it` inside `university`), causing both buttons to mislabel as IT courses. Fixed with exact slug matching (`slug === "it" || slug.startsWith("it-")`).
+  7. **Empty Course Auto-Hiding & "Lazy Lighting":** To ensure the public homepage never looks like a half-empty construction site, `DepartmentGrid` automatically hides courses with 0 active resources. All courses remain selectable in `/upload` and the Admin panel. As soon as at least one resource is published to an empty course, it instantly lights up and appears on the homepage grid.
+  8. **Department-Grouped Course Ingestion Dropdown (`UploadForm.tsx`):** With the catalog expanded to 27 courses, the upload dropdown organizes all courses into clean `<optgroup>` clusters by department, drastically accelerating material uploads.
 
 ---
 
@@ -952,6 +954,20 @@ This living backlog serves as the authoritative North Star for future developmen
 ### 9.3 Phase 3: Student Personalization & Engagement
 *Target: Mid-Semester Adoption & Retention*
 
+- [ ] **Quiz Results "Share My Score" WhatsApp Challenge:**
+  - When a student achieves a high score on the Results screen (`isFinished === true`), render a prominent `[ 🏆 شارك نتيجتك وتحدّ زملاءك على واتساب ]` action.
+  - Generates a viral peer-challenge message (`"جبت 9 من 10 في كويز مادة الجبر الخطي! بتقدر تجيب علامة أعلى؟ حل الكويز من هون: [Link]"`) to turn individual study sessions into viral group-chat acquisition loops.
+- [ ] **Dynamic OpenGraph & WhatsApp Social Unfurl Cards:**
+  - Add dynamic `generateMetadata` in `src/app/courses/[slug]/page.tsx` with high-impact OpenGraph tags (`og:title`, `og:description`, `og:image`).
+  - When links are posted to university WhatsApp/Telegram groups, they render a rich graphic preview showcasing course title, approved summaries count, and active question bank volume.
+- [ ] **"My Saved Courses" (Zero-Login Homepage Carousel):**
+  - Provide a 1-tap pin/star icon on course cards.
+  - Selected courses are persisted in `localStorage` and surfaced at the very top of the landing page in a quick-access carousel (`مقرراتي المحفوظة 📌`), eliminating search friction for students enrolled in 5–6 concurrent classes.
+- [ ] **In-App Mobile Fullscreen PDF Reading Sheet:**
+  - A lightweight mobile slide-over PDF reader sheet with a sticky bottom action bar (`[ 📥 تحميل مباشر ] [ 🎯 ابدأ كويز الملخص ]`).
+  - Eliminates the friction where mobile Android/WhatsApp in-app browsers force external PDF app downloads, keeping students engaged on the site.
+- [ ] **Exam Countdown Alert Pill:**
+  - A smart contextual countdown widget placed in the course header when `midterm_exam_date` or `final_exam_date` is populated in Supabase, creating study urgency during exam weeks.
 - [ ] **Client-Side Favorites & Bookmarks:**
   - Provide one-tap bookmarking on course cards and individual summaries stored in `localStorage` (with seamless Supabase sync when logged in) for instant mobile retrieval during exam week.
 - [ ] **Frictionless Auth & Basic Student Profiles:**

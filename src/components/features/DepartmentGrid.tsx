@@ -79,14 +79,25 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
   const SHOW_PLACEMENT_EXAMS =
     process.env.NEXT_PUBLIC_SHOW_PLACEMENT_EXAMS === "true";
 
-  // Filter visible departments according to business rules
+  // Filter visible departments according to business rules:
+  // Only display courses that have at least one active resource so the homepage looks bustling and populated.
+  // Empty courses remain hidden until at least one resource is uploaded to them.
   const visibleDepartments = useMemo(() => {
-    return departments.filter(
-      (dept) =>
-        (SHOW_PLACEMENT_EXAMS || dept.slug !== "placement-exams") &&
-        dept.slug !== "english" &&
-        (dept.courses.length > 0 || dept.slug === "placement-exams")
-    );
+    return departments
+      .map((dept) => ({
+        ...dept,
+        courses: (dept.courses || []).filter((course) =>
+          (course.resources || []).some(
+            (r) => (r.status || "active") === "active"
+          )
+        ),
+      }))
+      .filter(
+        (dept) =>
+          (SHOW_PLACEMENT_EXAMS || dept.slug !== "placement-exams") &&
+          dept.slug !== "english" &&
+          (dept.courses.length > 0 || dept.slug === "placement-exams")
+      );
   }, [departments, SHOW_PLACEMENT_EXAMS]);
 
   // Initially null: no filter applied on first visit

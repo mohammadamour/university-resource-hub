@@ -181,6 +181,19 @@ export default function UploadForm({
     [courses, selectedCourseId]
   );
 
+  // Group courses by department for fast, organized selection
+  const groupedCourses = useMemo(() => {
+    const map = new Map<string, UploadCourse[]>();
+    courses.forEach((c) => {
+      const deptName = c.department?.name || "مواد عامة";
+      if (!map.has(deptName)) {
+        map.set(deptName, []);
+      }
+      map.get(deptName)!.push(c);
+    });
+    return Array.from(map.entries());
+  }, [courses]);
+
   // Smart preset coupling: auto-select target_exam based on resource type
   const handleResourceTypeChange = useCallback(
     (newType: ResourceType) => {
@@ -517,12 +530,16 @@ export default function UploadForm({
           className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground transition-colors focus:border-ring focus:outline-none disabled:opacity-50"
           required
         >
-          <option value="">— اختر المادة من القائمة —</option>
-          {courses.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.course_code ? `${c.course_code} — ` : ""}
-              {c.title}
-            </option>
+          <option value="">— اختر المادة من القائمة ({courses.length} مادة متاحة) —</option>
+          {groupedCourses.map(([deptName, deptCourses]) => (
+            <optgroup key={deptName} label={deptName}>
+              {deptCourses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.course_code ? `${c.course_code} — ` : ""}
+                  {c.title}
+                </option>
+              ))}
+            </optgroup>
           ))}
           {courses.length === 0 && (
             <option disabled value="">
