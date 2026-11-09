@@ -1,303 +1,355 @@
-# Platform Architecture & Strategy Blueprint
-
-## Molakhasat (ملخصات) - University Academic Resource Hub
+# Molakhasat (ملخصات) — University Academic Resource Hub
 
 > A fast, mobile-first, and curated single source of truth for university course materials and placement exams — replacing the chaos of ephemeral WhatsApp group chats.
 
+**Live Domain:** `molakhasat.me` · **Target Audience:** Jadara University freshmen (Sanafer / سنافر), expanding to multi-university · **Status:** Pre-launch seeding phase
+
 ---
 
-## 🛠️ Quick Start: How to Run Locally
+## 🚀 Quick Start
 
-1. Open your terminal in the project root directory:
-   ```bash
-   cd "c:\Users\somet\Downloads\Coding\university resource hub"
-   ```
-2. Run the local development server:
-   ```bash
-   npm run dev
-   ```
-   _(Starts Next.js on Turbopack at **http://localhost:3000** with instant hot-reload)._
-3. Type-check changes across the codebase:
-   ```bash
-   npx tsc --noEmit
-   ```
-4. Verify production build locally (uses Webpack to prevent Turbopack production source-map panic):
-   ```bash
-   npx next build --webpack
-   ```
+```bash
+# 1. Start the local dev server (Turbopack, http://localhost:3000)
+npm run dev
+
+# 2. Type-check the entire codebase without emitting
+npx tsc --noEmit
+
+# 3. Production build (Webpack; avoids Turbopack source-map panic in CI)
+npx next build --webpack
+
+# 4. Seed pre-generated quiz banks from src/quiz_seeds/*.json into Supabase
+npm run seed:quizzes
+
+# 5. Backfill missing PDF thumbnails via browser-powered HTML5 canvas pipeline
+npm run backfill:thumbnails
+
+# 6. Verify & benchmark the 4-account Gemini API key pool
+npm run test:keys
+```
 
 ---
 
 ## 1. Executive Summary & Core Vision
 
-- **Mission:** Build a permanent, searchable, and highly curated single source of truth for university course materials.
-- **Brand & Language:** Named "Molakhasat" (ملخصات), meaning summaries. The platform is primarily in Arabic to match the students' native language.
-- **Target Content:** Initial focus on IT department courses (major focus) AND University Requirement/Elective courses (National Education, Communication Skills, Life Skills) which have massive cross-department enrollment.
-- **Target Audience:** Newcomers and freshmen (Sanafer / سنافر), acting as their ultimate resource and guide for placement exams and introductory courses.
-- **Timeline Constraints:** Aggressive 20-day timeline to launch before the first semester starts.
-- **Budget Constraint:** $0/month deployment leveraging free-tier infrastructure.
-- **Strategic Positioning:** Compliment, do not compete. The platform acts as a permanent link repository shared _inside_ WhatsApp.
-- **Scaling Goal:** Capture 200-500 active users from Jadara University (out of 12k total) to hit a network-effect tipping point.
+| Dimension | Detail |
+|---|---|
+| **Mission** | Permanent, searchable, curated single source of truth for university course materials |
+| **Brand** | "Molakhasat" (ملخصات) — Arabic for "Summaries". Full RTL UI (`dir="rtl"`, `lang="ar"`) with Tajawal & Cairo typography |
+| **UX Philosophy** | **Zero-login guest experience.** Students browse, read, and download every file with zero registration or email prompts. Auth is a future opt-in, never a barrier |
+| **Permanent Links** | Clean, unfurlable shortlinks (`molakhasat.me/r/:id`) safe for Telegram and WhatsApp study groups |
+| **Budget Target** | \$0/month on free-tier infrastructure (Vercel + Supabase + Gemini free quota) |
+| **Scale Goal** | 200–500 active users at Jadara University (12k total) to trigger network-effect tipping point |
+| **Scaling Architecture** | Multi-university DB schema ready. Switching to University #2 requires changing one constant (`DEFAULT_UNIVERSITY_SLUG`), not a refactor |
 
 ---
 
-## 2. Technical Architecture & Data Model
+## 2. Technology Stack
 
-### Infrastructure Stack (Zero-Cost Focus)
+| Layer | Technology | Notes |
+|---|---|---|
+| **Framework** | **Next.js 16.3.6** (App Router + Turbopack, React 19, TypeScript 5) | ISR with literal revalidation values (`60`s / `3600`s) — Turbopack AST requirement |
+| **Styling** | **Pure Vanilla CSS** (`src/app/globals.css` with CSS custom properties) | No TailwindCSS in runtime. Tailwind v4 is listed as a devDependency for tooling only |
+| **Database** | **Supabase PostgreSQL** with Row Level Security (RLS) | 4-tier hierarchy: Universities → Departments → Courses → Resources |
+| **Object Storage** | **Supabase Storage** (`materials` bucket) | Public bucket; IPv4 Session Pooler required on local Jordanian networks |
+| **Hosting** | **Vercel** (serverless, free tier) | No native binaries in Lambda — all PDF rasterization delegated to client |
+| **AI Engine** | **Google Gemini** (`gemini-3.8-flash:generateContent`) via direct REST | 4-account round-robin key pool with 429 cooldown & dead-key blacklisting |
+| **PDF Pipeline** | `pdfjs-dist` (client WebWorker) + `pdf-parse` (server fallback) + `pdf-lib` (watermarking) + `Ghostscript gswin64c` (local compression) | Client-first extraction; Ghostscript runs locally pre-upload, not in serverless |
+| **Analytics** | `@vercel/analytics` | Tracks WhatsApp/Telegram referrer attribution from watermarked PDFs |
+| **CI/CD** | Vercel GitHub Integration | Auto-deploys on `main` push |
 
-| Layer                  | Technology                       | Why                                                                                      |
-| ---------------------- | -------------------------------- | ---------------------------------------------------------------------------------------- |
-| **Database & Auth**    | Supabase (PostgreSQL)            | Indexed relational data + magic-link auth                                                |
-| **Object Storage**     | Cloudflare R2                    | Zero-egress cost hosting of compressed PDF assets                                        |
-| **Hosting & Frontend** | Vercel or Render + Next.js/React | SSR, fast deploys, generous free tier                                                    |
-| **Styling**            | Tailwind CSS                     | Rapid UI development                                                                     |
-| **CI/CD & DevOps**     | GitHub Actions / Vercel CI       | Automated deployments and future integrations (Sentry for error tracking, Azure for AI). |
-
-### Infrastructure Edge Cases & Decisions
-
-- **Storage Privacy:** Cloudflare R2 will remain **Public** for V1 to ensure maximum speed and simplicity. The risk of scrapers is deemed low initially.
-- **Anonymous Access:** The platform must be completely frictionless. Guest users can read/download any file without an account. We will rely on Next.js API rate-limiting rather than forced auth to prevent abuse.
-- **Rendering Strategy (Next.js):** To survive exam-night traffic spikes without exhausting the Supabase free tier, we will use **Incremental Static Regeneration (ISR)**. Next.js will cache pages statically and re-validate them periodically in the background.
-- **Development Environments:** V1 will use a single production database to move fast. A separate staging environment will be introduced later as user risk increases.
-
-### Data Model, "Doctor Shift" Mitigation & Scalability
-
-The database schema uses an **extended hierarchy** (University → Department → Course Code → Instructor/Doctor → Semester/Year).
-
-- **Hidden Complexity (V1 Backend):** The backend MUST be fully built out for multi-university and multi-department scaling from Day 1 (schema, foreign keys, routing logic). We will not retroactively refactor the backend when things change.
-- **V1 Simplification (Frontend):** The UI will completely hide this backend complexity. The frontend will hard-assume "Jadara University" and show a flat list or basic filtering for courses initially. We just expose the UI filters later when volume dictates it.
-
-### Auth, User Profiles & Bookmarks (Schema Foundation)
-
-To transition from a "repository" to a "platform," the schema will include tables for users and personalization from Day 1, even if the UI for registration is hidden in V1:
-
-- `users` (Managed by Supabase Auth).
-- `profiles` (Linked to Auth, storing Major/Department).
-- `bookmarks` (Join table linking `user_id` to `course_id` or `resource_id` for quick access).
-
-### Security & Role-Based Access Control (RBAC)
-
-We will implement strict Supabase Row Level Security (RLS) from the beginning using a multi-tiered role system:
-
-- **Super Admin (Founder):** Can manage universities, departments, users, and all resources.
-- **Admin (Future Ambassadors):** Can only upload, edit, and delete resources within their assigned department.
-- **User (Students):** Can only read resources and manage their personal bookmarks.
-
-### The PDF Compression Pipeline
-
-Scanned notes create massive file sizes that exhaust storage.
-
-- **Solution:** A Ghostscript pipeline downsampling embedded images to 150 DPI (`/ebook` setting).
-- **Result:** Reduces 40MB raw scans to ~2MB with zero loss in readability, while flattening objects to strip out potential malicious code.
+> **Critical Environment Quirk:** The local Jordanian ISP network does not support IPv6. Always use the **Session Pooler** endpoint (`aws-0-[region].pooler.supabase.com:5432`) for all Supabase connections. Direct `db.[project].supabase.co` hostnames time out immediately. In Node.js scripts, enforce `dns.setDefaultResultOrder('ipv4first')`.
 
 ---
 
-## 3. Core Features & Scope Management
+## 3. Feature Architecture & Shipped Milestones
 
-### Phase 1 MVP (The "Anti-Feature Creep" Strategy)
+### 3.1 Content Catalog & 4-Tier Semantic Shelf
 
-| Feature                       | Decision                                                                                                                                                                                                                                                                          |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Admin Panel**               | ❌ No custom CMS in V1. Saves 60% of dev time. All V1 resource uploads and management will be done directly through the **Supabase Dashboard UI** (drag-and-drop storage + table editor) to avoid hardcoding files in the frontend.                                               |
-| **UI/UX Philosophy**          | ✅ Simple, lightweight, fast (optimized for mobile data). Layout mimics the official university portal for instant familiarity, but distinct enough to avoid looking like a scam.                                                                                                 |
-| **Mobile-First Design**       | ✅ Built explicitly for smartphones and iPads, as this is how 90% of students access resources on campus.                                                                                                                                                                         |
-| **Unified Hierarchy**         | ✅ Single `CourseView` page dynamically renders folders (Summaries, Quizzes, Past Exams) from DB rows. Empty states handled gracefully.                                                                                                                                           |
-| **In-App Browser Resilience** | ✅ UI optimized to render PDFs cleanly inside WhatsApp/Telegram embedded browsers.                                                                                                                                                                                                |
-| **Trust Disclaimer**          | ✅ A clear, non-invasive footer disclaimer stating: "A student-made initiative to help peers. Not officially affiliated with the university."                                                                                                                                     |
-| **"Fake Departments"**        | ✅ The UI will group courses by major (e.g., IT), but will include prominent "fake departments" for _University Electives_ and _Placement Exams/Prep_ to capture all students.                                                                                                    |
-| **Campus Survival Guides**    | ✅ High-value, static guides solving the "unwritten rules" of campus: Library usage, Wi-Fi connection, Cafe menus, and navigating portals. This bypasses the toxic/unreliable nature of massive WhatsApp groups. _Constraint: Absolutely NO financial advice to avoid liability._ |
+The course detail page (`/courses/[slug]`) renders materials in 4 deterministic shelves — no title-pipe hacks, no empty ghost sections:
 
-### Curated Content Ingestion & Shelf Taxonomy
+| Shelf | Filter | Purpose |
+|---|---|---|
+| **📚 Shelf 1 — المادة الرسمية** | `is_featured === true` | Official textbook chapters, curriculum syllabi, faculty slides. Exclusive `⭐ رسمي` badge |
+| **🌟 Shelf 2 — ملخصات ومراجعات** | `type === "summary" && !is_featured` | Student summaries sorted: Midterm → Final → Other, then `display_order ASC`. Hosts inline `<NativeQuiz />` |
+| **📝 Shelf 3 — أسئلة ونماذج امتحانات** | `type === "past_exam" && !is_featured` | Past exams. Entire section hidden when empty (Zero-Ghost Rule) |
+| **🗂️ Shelf 4 — أرشيف إضافي (Collapsible)** | `type === "link" \| "other" \| "guide"` | Collapsible drawer: external links (YouTube/GitHub/Drive badges), chapter notes, student contributions |
 
-- **Unified Taxonomy:** Resources are strictly categorized into 5 standardized types: `summary` (ملخص), `past_exam` (أسئلة سنوات), `guide` (دليل دراسي), `link` (رابط خارجي), and `other` (أرشيف إضافي).
-- **Exam Scope Alignment:** Every upload explicitly captures the target exam (`midterm`, `final`, or `other`) for automatic sorting.
-- **Official Syllabus Designation (`is_featured`):** Curators can mark official university textbooks/slides as **"مادة رسمية"** to anchor them at the top shelf of the course page.
-- **Dynamic External Link Ingestion:** Native support for YouTube playlists, GitHub repos, and Google Drive folders with automatic platform detection without requiring dummy PDF uploads.
-- **Deterministic Priority Sorting (`display_order`):** Curators can manually specify numeric order weights so primary midterms and official slides surface first.
-- **4-Tier Semantic Shelf Layout:** Eliminates title-split hacks in favor of 4 dedicated shelves: Shelf 1 (Official Syllabus), Shelf 2 (Curated Summaries with Native Quizzes), Shelf 3 (Past Exams), and Shelf 4 (Collapsible Multi-Source Archive Drawer).
-- **2-Segment Switcher & 2-Column Mobile Grid:** Instant client-side switching between faculty segments (IT vs General Requirements), a direct `<select>` quick-jump course selector, and a 2-column mobile card grid for fast, single-screen course discovery.
-- **Client-Side First-Page Thumbnails & Dynamic Book Covers:** Renders real PDF page 1 previews via browser HTML5 canvas during upload (bypassing Vercel serverless graphics binary limits), auto-resolves YouTube thumbnails, and features a CSS digital book cover fallback with dynamic category gradients and Arabic micro-typography.
+**Homepage Catalog:** 27 courses seeded in DB; only courses with `status = 'active'` resources are visible on `/`. Real-time metrics on course cards (`{n} مورد • {m} سؤال`). Segment switcher (IT ↔ General Requirements) + `<select>` quick-jump + 2-column mobile grid.
 
-### Content Strategy & Liability Mitigation
+### 3.2 Ingestion Pipeline
 
-To provide maximum value while avoiding legal or academic liability, the platform strictly adheres to these content rules:
-
-1. **The "What is this course?" Solution:** Instead of subjective reviews, we utilize the database `description` field for a 2-sentence objective summary, and upload the **Official University Syllabus (الخطة الدراسية)** as a PDF resource for each course.
-2. **Professor Offices & Contact Info:** Instead of hardcoding a directory (which raises privacy/maintenance issues), we use a static guide to explain the general building layouts, and we document a "Moodle Hack" (teaching students to check the 'Participants' tab in their e-learning courses to extract official emails/locations directly from the university system). This shifts liability and maintenance entirely back to the university.
-3. **Volatile Information Exclusion:** We explicitly exclude data that changes unofficially and frequently (e.g., Campus bus schedules). If a student misses an exam because our bus schedule was wrong, the platform takes the blame. If we can't guarantee the data, we don't host it.
-4. **Universal WhatsApp Directories:** Instead of trying to host every piece of communication, we will provide a curated list of "Universal WhatsApp Groups" (e.g., Book Exchange, Placement Exams prep, University Electives). This centralizes the scattered links into one trusted place without having to build a chat feature.
-
-### The Native Interactive Quiz Engine (Implemented)
-
-- **Architecture:** Custom `<NativeQuiz />` React 19 component rendering pre-generated JSON quizzes natively with zero external iframes and zero third-party `X-Frame-Options` blocks.
-- **Dynamic Bank Sizing (15–50 Questions):** Rather than fixed 10-question tests, the synthesis engine dynamically scales bank sizes based on source character density:
-  - `< 8,000 chars` (~1–4 pages, cheat-sheets): **15 questions**
-  - `8,000 – 25,000 chars` (~5–12 pages, single lectures): **25 questions**
-  - `25,000 – 60,000 chars` (~13–30 pages, chapter summaries): **35 questions**
-  - `> 60,000 chars` (30+ pages, full course syllabus booklets): **50 questions**
-- **Adaptive Launcher Modal & Decoupled Controls:**
-  - Students independently choose **Volume** (`5`, `10 [Default]`, `20`, `All`) and **Difficulty** (`متوازن [Default: 40% Easy, 40% Med, 20% Hard]`, `مفاهيم (سهل)`, `امتحاني (متوسط)`, `تحدي (متقدم)`).
-  - _Graceful Backfill:_ If a student requests 20 "Hard" questions and the bank only has 10, the algorithm takes all 10 hard questions and backfills 10 from medium with a polite UI notification.
-- **Dynamic In-Session Option Shuffling:** On every question display, option positions are randomized via Fisher-Yates and `correctIndex` is dynamically remapped in memory, completely eliminating option letter/position memorization traps.
-- **Data Flow & Telemetry Lifecycle:**
-  1. **Upload Pipeline / Seeding:** Asynchronous background worker calls Gemini 3.8 Flash (`gemini-quiz.ts`) with syllabus-wide scanning to output structured JSON with `topic` and `difficulty` metadata.
-  2. **Storage:** Stored in a `quiz_data` (JSONB) column in the Supabase `resources` table.
-  3. **Frontend Rendering:** `ResourceList.tsx` detects `quiz_data` and mounts `<NativeQuiz />` directly inline.
-  4. **Diagnostic Attempt Logging:** Upon quiz completion, a fire-and-forget beacon (`/api/quiz/record-attempt`) logs session metrics and question-level responses to `quiz_attempts` and `quiz_attempt_answers` (supports anonymous guest tokens today and user profiles in V2).
-- **Core Benefits:**
-  - **Zero Runtime Latency:** Tests start in `0ms` on mobile with zero spinners and zero runtime API quota exhaustion during exam nights.
-  - **Infinite Replayability:** Re-taking a quiz pulls a fresh random sample with freshly randomized choices.
-  - **Future-Proof Diagnostic Foundation:** Structured attempt history enables upcoming V2 features like "Train My Weaknesses".
-
----
-
-## 4. Operational Hurdles & Mitigation Strategy
-
-| Existential Risk                | Root Cause                                   | Systemic Solution                                                                                                                                                 |
-| ------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Trust Liability / Bad Notes** | Unverified files cause failed exams          | **Curated Excellence:** Publish only _one_ definitive guide per subject. Enforce strict **Scope Disclaimers** detailing exactly what chapters are/aren't covered. |
-| **Cold-Start Seeding**          | Manually uploading 100+ files is exhausting  | **Batch Ingestion Script:** Node/Python script to process a local `/seed_files` folder and bulk-upload metadata to Supabase.                                      |
-| **Endless UX Tweaking**         | Getting trapped in "fake work" before launch | **The 80/20 Rule:** If the site loads fast and a user can find their Doctor's PDF in under 3 clicks, stop tweaking and ship.                                      |
-
----
-
-## 5. Growth, Launch & User Acquisition
-
-### 1. The Freshmen Placement Hook
-
-Capture users **before** the semester begins. Launch a "Freshmen Starter Kit" containing interactive prep quizzes for Arabic, English, and Computer Skills. This secures a captive audience looking for immediate value.
-
-### 2. Organic Footers (The Referral Engine)
-
-Every PDF processed through the pipeline receives a subtle footer watermark:
+Upload flow (`/api/upload`):
 
 ```
-Indexed via [YourSite.com] • Original Author: [Name] / Batch '[Year]
+[Admin on /upload]
+      │
+      ├─ Client: pdfjs-dist WebWorker extracts text (up to 300k chars) + renders Page 1 canvas thumbnail
+      │
+      │  POST /api/upload (FormData)
+      ├──────────────────────────────► [/api/upload Handler]
+      │  202 { resourceId } in <150ms │  ┌─ SHA-256 duplicate check (409 on collision)
+      │◄─────────────────────────────── │  ├─ Ghostscript compression (40MB → ~2MB, /ebook 150 DPI)
+      │                                 │  ├─ pdf-lib watermarking (micro-pill badge + native PDF Link Annotation)
+      │  GET /api/upload/progress/:id   │  ├─ Supabase Storage upload (Buffer.from(arrayBuffer) — no ArrayBuffer corruption)
+      ├──────────────────────────────► │  └─ Gemini quiz synthesis (async, via Next.js after())
+      │◄── SSE events (ProgressBus) ───┘
+      │    uploading → processing → synthesizing → done
 ```
 
-When students share the raw PDF in private chats, the document itself acts as an organic referral link back to the platform.
+Key pipeline safeguards:
+- **Magic byte verification** (`%PDF-` signature check before any processing)
+- **SHA-256 duplicate gate** — HTTP 409 on collision, preventing storage bloat
+- **`Buffer.from(arrayBuffer)` enforcement** — prevents silent binary truncation on Supabase Storage uploads
+- **`sanitizeTextForPostgres()`** — strips `\u0000` null bytes that crash PostgreSQL UTF-8 storage
+- **SSE dual-engine** — in-memory `ProgressBus` (0ms) + Supabase polling fallback (2s) for distributed deployments
+- **`__processing__` leak defense** — `resourceId` and `publicUrl` are computed client-side before the first DB insert; `storage_url` is never a placeholder sentinel in production
 
-### 3. High-Touch Manual Distribution & Targeted Drop-Links
+### 3.3 Dynamic AI Question Bank Engine
 
-Growth in V1 will be completely manual, organic, and face-to-face.
+| Document Volume | Characters | Bank Size |
+|---|---|---|
+| Cheat-sheets (1–4 pages) | < 8,000 | **15 questions** |
+| Single lectures (5–12 pages) | 8,000 – 25,000 | **25 questions** |
+| Chapter summaries (13–30 pages) | 25,000 – 60,000 | **35 questions** |
+| Full course booklets (30+ pages) | > 60,000 | **50 questions** |
 
-- Pitch the platform directly to peers and the incoming batch of freshmen to gather immediate qualitative feedback.
-- Do **not** broadcast generic "Check out my site" messages or spam links everywhere, as this feels invasive and creates a bad reputation.
-- Instead, when a student asks a specific question in a group chat, drop the **exact URL** as the highly relevant answer:
+- Stratified by difficulty: **40% Easy / 40% Medium / 20% Hard**
+- Each question tagged with Arabic `topic` and `subtopic` metadata for V2 adaptive drilling
+- **4-Account Round-Robin Key Pool** (`GEMINI_API_KEYS`): rotates initial account index, flags exhausted keys with 5-minute cooldown (`keyCooldowns`), blacklists dead keys to skip wasted network round-trips
+- On-demand admin re-generation via `/api/admin/resources/[id]/quiz` (`POST` / `DELETE`)
+- Admin "Expand Bank" action appends non-duplicate questions to existing `quiz_data` JSONB
 
-```
-Site.com/CS101/Midterm-Quiz
-```
+### 3.4 Native Quiz Player (`<NativeQuiz />`)
 
-### 4. The Front-Loaded Study Loop
+A pure client React 19 component with 4 visual states (Closed → Launcher Modal → Active Session → Results):
 
-Use the platform as an academic weapon for yourself:
+- **Zero runtime latency:** Pre-generated JSON starts in `0ms` on mobile — no spinners, no API calls on exam night
+- **Adaptive Launcher:** Students independently pick **Volume** (`5` / `10 [default]` / `20` / `All`) and **Difficulty** (`متوازن` / `سهل` / `امتحاني` / `تحدي`). Graceful backfill if fewer hard questions exist than requested
+- **Fisher-Yates option shuffling** on every session render — eliminates position-memorization traps by remapping `correctIndex` dynamically in memory
+- **SVG circular score ring** (circumference math: `r=42, C=2πr`) with color-coded performance tiers
+- **Fire-and-forget telemetry** (`/api/quiz/record-attempt`, `fetch(..., { keepalive: true })`) logging session metrics to `quiz_attempts` and question-level diagnostics to `quiz_attempt_answers`
+- **localStorage score retention:** Completed scores persist across sessions (`molakhasat_quiz_history`). Docked quiz bar transforms from `[ ابدأ الكويز ❯ ]` to `[ نتيجتك السابقة: 9/10 (90%) 🏆 ] [ إعادة ↺ ]` on return
 
-1. When course registration opens, grab the syllabi
-2. Summarize the first 3 chapters
-3. Generate quizzes _before_ the semester starts
-4. Lock in high grades while stocking the site with Day 1 inventory
+### 3.5 Thumbnail Engine
 
-### 5. The Ambassador Program (Long-Term Scaling)
+Generating PDF thumbnails server-side is impossible in Vercel Lambda (no native rasterization binaries):
 
-Once the platform hits the tipping point (200-500 users), recruit "Ambassadors" from other departments (and eventually other universities).
+1. **Client HTML5 Canvas (Primary):** `pdfjs-dist` worker renders Page 1 off-screen to a `<canvas>` (320px wide) → converts to JPEG blob (`quality: 0.82`) → attached to `FormData` → stored to `thumbnails/${resourceId}.jpg` in Supabase Storage
+2. **YouTube zero-cost thumbnails:** Regex extracts video ID → sets `thumbnail_url = https://img.youtube.com/vi/${videoId}/hqdefault.jpg` with zero storage overhead
+3. **CSS Digital Book Cover fallback:** If `thumbnail_url` is null or fails to load, renders an elegant CSS binder cover with category-specific gradients (Blue: summaries, Amber: exams, Emerald: guides, Violet: links), format badge (`PDF` / `LINK`), and decorative RTL book spine
+4. **In-browser backfill** (`npm run backfill:thumbnails` / `/api/admin/thumbnails`): backfills legacy resources via browser canvas without CLI tools or server binaries
 
-- **Value Proposition for them:** A powerful resume booster ("X Department Admin for campus-wide resource platform").
-- **Value for the platform:** Decentralized curation and monitoring. The founder transitions to an administrative/oversight role rather than a manual content creator.
+### 3.6 WhatsApp Virality Loops
 
-### 6. User-Generated Content (UGC) Pipeline & Architecture
+Every feature is engineered to generate organic peer sharing:
 
-V1 relies on manual curation to ensure high quality and trust. True scale requires UGC (allowing users to upload their own resources), which introduces architectural risks.
+- **Watermarked PDFs:** Every ingested PDF receives a micro-pill badge (`✦ molakhasat.me`, ~99pt wide, `opacity: 0.72` semi-translucent glassmorphism) stamped at bottom-gutter `y=5pt`. Native PDF Link Annotation covers the full pill bounding box — mobile students tap it to deep-link directly to `/r/:id`. SVG vector sparkle (`✦`) avoids the WinAnsi encoding crash of standard Helvetica fonts
+- **Universal Redirect Engine (`/r/:id`):** `src/app/r/[id]/route.ts` dynamically resolves resource → course. Future domain/route changes are handled at DNS level without touching stored PDFs
+- **1-Tap Resource Share:** Each card has a WhatsApp share trigger that pre-fills an Arabic recommendation message with a UTM deep link (`?res=${id}&utm_source=whatsapp&utm_medium=resource_share#res-${id}`). On arrival, the page scrolls to the card and triggers a **2.5-second highlight pulse** (`ring-2 ring-accent shadow-md`)
+- **Quiz Score Challenge (Phase 3):** Results screen will generate a viral challenge message (`"جبت 9/10 في الجبر! بتقدر تجيب أعلى؟"`) for WhatsApp forwarding
 
-To prevent the platform from becoming an unorganized "dump", V2 will implement the following UGC strategies:
+### 3.7 Admin & Moderation System
 
-1. **The "Verified" Badge Pattern:** No separate tabs for user uploads. All resources live inside their specific Course bucket. Resources uploaded by Admins/Founders receive a "Verified (موثّق)" badge. Student uploads live below them, marked as community contributions.
-2. **The "Missing Course" Policy:** Users **cannot** manually type course names during upload (prevents database fragmentation like "CS 101" vs "cs101"). They must select from existing courses. If a course is missing, they submit a "Request Course" form.
-3. **The Approval Queue:** Student uploads default to `status: 'pending'` in the database. They do not appear on the live site until an Ambassador or Founder reviews and marks them as `approved`. This protects the platform's academic reputation from incorrect or malicious files.
-4. **Security & Sanitization:** The pipeline will require strict MIME-type validation, 10MB size limits, and Ghostscript flattening to strip embedded payloads before reaching public storage buckets (Supabase/R2).
-5. **The Automated Quiz Synthesis Pipeline (Summary → AI Question Bank):**
-   - **The Friction Bottleneck:** Students cannot and will not manually type out 20 questions, answer options, and explanations into an upload form. Forcing manual quiz creation guarantees zero quiz submissions.
-   - **The Solution:** Students upload what they already own: **Summaries (ملخصات)** and lecture notes. During the backend ingestion pipeline:
-     1. Client or server extracts text up to 300,000 characters from the uploaded PDF.
-     2. An asynchronous background worker calls **Gemini 3.8 Flash** with dynamic bank sizing (`calculateDynamicBankSize` producing 15 to 50 questions depending on document volume) and syllabus-wide coverage rules.
-     3. The server attaches this structured JSON to the resource in the `quiz_data` (JSONB) column in Supabase, broadcasting live progress over the Server-Sent Events (SSE) bus.
-   - **The "2-for-1" Value Multiplier:** A single upload produces two assets: the watermarked PDF summary + a multi-difficulty interactive quiz bank for peers.
-6. **Adaptive Question Banks & Diagnostic Quizzes (Implemented):**
-   - **Dynamic Sizing & Stratification:** Generates 15–50 questions proportionally stratified (40% Easy, 40% Medium, 20% Hard) and tagged with Arabic `topic` metadata.
-   - **Client-Side Adaptive Launcher:** `<NativeQuiz />` provides decoupled **Volume** (`5`, `10`, `20`, `All`) and **Difficulty** (`متوازن`, `سهل`, `متوسط`, `متقدم`) selectors with automatic priority backfill.
-   - **Dynamic Option Shuffling:** Randomizes choice positions on each start to eliminate muscle-memory answer memorization.
-   - **Diagnostic Telemetry Schema:** Logs session metrics to `quiz_attempts` and question-level responses to `quiz_attempt_answers` via fire-and-forget beacon (`/api/quiz/record-attempt`), powering the future _"Train My Weaknesses"_ dashboard.
-
-### 7. The AI Campus Assistant (V2+ Feature)
-
-To strictly prevent feature creep, V1 will not include a chatbot. However, as the repository of static guides, course descriptions, and syllabi grows, V2 will introduce a Gemini Pro-powered chatbot using the **RAG (Retrieval-Augmented Generation)** pattern.
-
-- **The RAG Constraint:** The AI will _only_ be allowed to answer questions based on the text existing in the platform's database. This completely eliminates hallucinations about university policies.
-- **Value:** Instead of clicking through 5 menus to find the GPA calculation formula or the library hours, a student can just ask the AI, which will instantly retrieve and summarize the exact paragraph from the static guides.
+- **Decoupled upload funnels:** `/upload` (no key) → public crowdsourcing, `status = 'pending'`. `/upload?key=...` → admin, `status = 'active'`
+- **Split-tab moderation queue** (`/admin/resources`): Active tab + Pending tab with 1-click approve-to-Core / approve-to-Archive / reject with atomic storage purge
+- **Binary immutability:** Replacing stored PDFs is prohibited. Wrong files are atomically deleted and re-uploaded clean. Metadata fields (`title`, `type`, `status`, `course_id`) are freely editable
+- **Atomic DELETE:** `DELETE /api/admin/resources/[id]` purges physical binary from Supabase Storage then cascades DB deletion (`quiz_attempts` + `quiz_attempt_answers`)
+- **1-Click AI Audit Modal:** Embedded in the Edit Resource modal — inline question inspection with answer keys, raw JSON export, and "Copy Verification Prompt for Claude/ChatGPT" for instant human review
 
 ---
 
-## 6. Development Timeline & Code Scope
+## 4. Database Schema Contracts
 
-**Total estimated time to launch: 20 Days (Strict deadline before Fall semester starts)**
+**Key TypeScript types** (`src/types/database.ts`):
+
+```typescript
+// Resource taxonomy
+type ResourceType = "summary" | "quiz" | "past_exam" | "guide" | "link" | "other";
+type TargetExam   = "midterm" | "final" | "other";
+type ResourceStatus = "processing" | "active" | "pending" | "rejected";
+
+// Quiz JSON stored in resources.quiz_data (JSONB)
+interface QuizData {
+  version: 1;
+  questions: QuizQuestion[];   // 15 | 25 | 35 | 50 based on doc volume
+  generatedAt: string;         // ISO timestamp
+  sourceTitle?: string;
+}
+
+interface QuizQuestion {
+  question: string;
+  options: string[];            // Always exactly 4 options
+  correctIndex: number;         // 0-indexed
+  explanation: string;
+  difficulty?: "easy" | "medium" | "hard";
+  topic?: string;               // Arabic topic tag for adaptive drilling
+  subtopic?: string;
+}
+```
+
+**4-tier relational hierarchy:**
 
 ```
-Days 1–5   │ CORE INFRASTRUCTURE & SEEDING
-           │ • Setup Supabase Database (Schema for future-proof filtering)
-           │ • Setup Supabase Storage for V1 file hosting (Pivot: Cloudflare R2 delayed to V2)
-           │ • Skip Ghostscript/AI automation for V1 (Anti-feature creep)
-           │
-Days 6–14  │ FRONTEND MVP (~18–24 hours)
-           │ • Build MVP (~1,000 LOC across 3 main views)
-           │   ├── Landing Page (Targeted at Sanafer/Freshmen)
-           │   ├── Course Hub (Simple view, no mandatory Doctor filtering yet)
-           │   └── PDF Renderer
-           │
-Days 15–20 │ QA & LAUNCH
-           │ • Seed initial database rows
-           │ • QA test on mobile devices (WhatsApp in-app browser)
-           │ • Deploy to Vercel and soft-launch via targeted group links
+universities  (Jadara University)
+  └── departments  (IT, English, University Requirements, Placement Exams, ...)
+        └── courses  (CS101, Calculus 1, National Education, ...)
+              └── resources  (PDFs, Quizzes, External Links)
 ```
 
----
+**RLS Permission Matrix:**
 
-## 7. Social Dynamics & Founder Positioning
-
-> Building this platform shifts your reputation from "student" to "execution-oriented engineer."
-
-### Avoiding the "Utility Trap"
-
-- **The Trap:** Becoming an unpaid 24/7 tutor or custom-making notes to win social approval.
-- **The Pivot:** Use the platform to deliver value at scale. When users message with thanks, acknowledge briefly, then pivot to peer-to-peer conversation.
-- **Maintain Boundaries:** Speak as an equal, not a customer service rep.
-
-### The Integrity Firewall & Screenshot Immunity
-
-- Treat every user — male or female — with the **exact same** direct, polite, and professional baseline.
-- This guarantees zero vulnerability to out-of-context screenshots, protects your brand, and acts as a natural filter.
-- Let the platform handle your "exposure area." High campus visibility + absolute professionalism = unassailable social standing.
+| Role | Read Courses/Resources | Write Resources | Bookmarks |
+|---|---|---|---|
+| **Guest (Anon)** | ✅ Public SELECT | ❌ | ❌ |
+| **Student** | ✅ Public SELECT | ❌ | ✅ Own rows |
+| **Admin (Ambassador)** | ✅ | ✅ Own department | ✅ Own rows |
+| **Super Admin (Founder)** | ✅ Full | ✅ Full | ✅ Full |
 
 ---
 
-## Project Status
+## 5. Operational Scripts
 
-- [x] Strategic planning & architecture design
-- [x] Database schema & infrastructure setup (Supabase PostgreSQL, RLS policies, session pooler IPv4)
-- [x] Frontend MVP development (Next.js 16 App Router, React 19, Vanilla CSS, RTL, mobile-first)
-- [x] Real-time SSE Upload Ingestion Pipeline (Ghostscript compression, 300k-char text extraction, PDF watermarking)
-- [x] Dynamic AI Question Bank Engine (15–50 questions scaling by volume, syllabus-wide scanning, topic/difficulty metadata)
-- [x] Adaptive Native Quiz Player (`<NativeQuiz />` launcher modal, option shuffling, graceful backfill, telemetry beaconing)
-- [ ] Seed file collection & compression (Curating definitive summaries for initial course catalog)
-- [ ] QA testing & mobile optimization (WhatsApp / Telegram in-app browser validation)
-- [ ] Launch & user acquisition
+| Script | Command | Description |
+|---|---|---|
+| Dev server | `npm run dev` | Next.js 16 + Turbopack at `localhost:3000` |
+| Type-check | `npx tsc --noEmit` | Full codebase type validation |
+| Production build | `npx next build --webpack` | Webpack build (avoids Turbopack production source-map panic) |
+| Seed quizzes | `npm run seed:quizzes` | Idempotent upsert of `src/quiz_seeds/*.json` → Supabase `resources.quiz_data` |
+| Backfill thumbnails | `npm run backfill:thumbnails` | Browser-canvas Page 1 JPEG extraction for legacy PDFs via `/api/admin/thumbnails` |
+| Verify Gemini pool | `npm run test:keys` | Tests all 4 Gemini API keys with forced IPv4 + sub-token latency benchmarks |
 
 ---
 
-_This README serves as the living master reference for the project. It will be updated as decisions evolve and development progresses._
+## 6. Project Status
 
-### Watermarking & Permanent Referral Strategy
+### ✅ Phase 1 — Decoupled Foundation (Shipped, October 2026)
 
-- [x] **Configure Permanent Domain Base:** `NEXT_PUBLIC_SITE_URL=https://molakhasat.me` configured in `.env` and `src/lib/constants.ts`.
-- [x] **Automated Clickable Watermarking (`pdf-lib`):** Watermarks PDFs with centered slate-gray footer and embeds native clickable PDF Link Annotations mapped to the permanent `/r/:id` route.
-- [x] **Universal Redirect Engine (`/r/:id`):** Built Next.js redirect route (`src/app/r/[id]/route.ts`) that dynamically resolves resources to courses. PDFs remain 100% static; future domain or route changes are handled at DNS/routing level without ever modifying stored binary PDFs.
-- [ ] **Seed Prototype Data:** Run the ingestion pipeline to watermark and store the initial batch of PDFs using the evergreen redirect architecture.
+- [x] Supabase PostgreSQL schema (4-tier hierarchy, RLS policies, session pooler IPv4)
+- [x] Next.js 16 App Router + React 19 + Vanilla CSS RTL mobile-first frontend
+- [x] Real-time SSE Upload Pipeline (`ProgressBus` + DB polling fallback)
+- [x] Ghostscript compression (40MB → ~2MB, `/ebook` 150 DPI, exploit flattening)
+- [x] `pdf-lib` watermarking (micro-pill badge, SVG sparkle, native PDF Link Annotation)
+- [x] Universal Redirect Engine (`/r/:id`) — permanent shortlinks
+- [x] Dynamic AI Question Bank Engine (15–50 questions, `calculateDynamicBankSize`)
+- [x] Adaptive `<NativeQuiz />` Player (launcher modal, Fisher-Yates shuffling, SVG score ring, telemetry)
+- [x] 4-Account Gemini round-robin key pool + 429 cooldown + dead-key blacklisting
+- [x] `npm run test:keys` automated key pool verifier
+- [x] On-demand admin quiz synthesis (`/api/admin/resources/[id]/quiz`)
+- [x] SHA-256 duplicate gate (HTTP 409 Conflict)
+- [x] GitHub Linguist fix (PDF.js worker vendored in `.gitattributes`)
+
+### ✅ Phase 2 — Launch Readiness Sprint (Shipped, October 2026)
+
+- [x] Metadata expansion migration `20261020` (`page_count`, `file_hash`, `target_exam`, `academic_year`, `professor_name`, `author_name`)
+- [x] 4-tier semantic shelf architecture (`ResourceList.tsx`)
+- [x] Decoupled card islands + docked quiz action trays (mobile card height ↓50%)
+- [x] Client-side HTML5 canvas PDF thumbnail generator + YouTube zero-cost thumbnails + CSS digital book cover fallback
+- [x] In-browser thumbnail backfill engine (`/api/admin/thumbnails`)
+- [x] 1-tap WhatsApp resource share + UTM deep-link + `#res-[id]` highlight pulse
+- [x] `localStorage` quiz score retention (prior score badge on return)
+- [x] Crowdsourcing funnel (`/upload` public, `pending` queue, frozen appreciation card, deep-link pre-selection)
+- [x] Admin moderation queue (`/admin/resources`) — split-tab, 1-click approve/reject, atomic purge
+- [x] Dynamic homepage metrics (`{n} مورد • {m} كويز • {q} سؤال` per course card)
+- [x] 3-tier content engine (Core Curated Shelf / Community Archive Drawer / External Toolkit Grid)
+- [x] Admin "Expand Bank" action (append non-duplicate Gemini questions)
+- [x] Verified contributor badges + metadata chips (`📄 18 ص`, `مادة الميد`, `مادة الفاينل`)
+- [x] WhatsApp community gateway card (Footer, `NEXT_PUBLIC_WHATSAPP_COMMUNITY_URL`)
+- [x] `@vercel/analytics` integration (referrer detection, watermarked PDF UTM tracking)
+- [x] 1-click AI Audit Modal + raw JSON export + verification prompt exporter
+- [x] `sanitizeTextForPostgres()` — strips `\u0000` null bytes that crash PostgreSQL
+- [x] `__processing__` storage_url leak defense (tri-layer: upfront URL allocation, upsert immunity, self-healing PATCH)
+- [ ] **Content seeding** — 7 core courses (Calculus 1, C++, Data Structures, Discrete Math, Linear Algebra, National Education, Military Sciences)
+
+### 🔜 Phase 3 — Student Personalization (Upcoming)
+
+- [ ] Dynamic OpenGraph / WhatsApp social unfurl cards (`generateMetadata` on course pages)
+- [ ] Quiz "Share My Score" WhatsApp challenge (viral peer acquisition loop)
+- [ ] "My Saved Courses" `localStorage` carousel on homepage (`مقرراتي المحفوظة 📌`)
+- [ ] In-app mobile fullscreen PDF reading sheet (sticky bottom action bar)
+- [ ] Exam countdown alert pill (from `midterm_exam_date` / `final_exam_date` on `Course`)
+- [ ] Frictionless auth (Supabase Magic Links / Google OAuth) — zero-login guest reading is never broken
+- [ ] Diagnostic "Train My Weaknesses" mode (adaptive drilling from `quiz_attempt_answers` by Arabic topic tag)
+
+### 🗺️ Phase 4 — Multi-University Scaling
+
+- [ ] Multi-university routing (activate `DEFAULT_UNIVERSITY_SLUG` switching)
+- [ ] Ambassador RBAC portal (scoped curation credentials per department)
+- [ ] AI Campus Assistant RAG chatbot (Gemini Pro + Supabase vector store, hallucination-free)
+- [ ] Hyper-local B2B campus sponsorships (Study Café / Student Housing partner pills)
+
+---
+
+## 7. Architecture Decisions & Gotchas
+
+| Gotcha | Cause | Fix |
+|---|---|---|
+| **Supabase IPv6 timeout** | Local Jordanian ISP drops IPv6 packets | Always use Session Pooler (`aws-0-[region].pooler.supabase.com:5432`). Node scripts: `dns.setDefaultResultOrder('ipv4first')` |
+| **Turbopack `revalidate` crash** | AST static analysis can't resolve imported constants | Use literal numbers: `export const revalidate = 60;` — never `export const revalidate = CONSTANT;` |
+| **Supabase ArrayBuffer corruption** | Web `ArrayBuffer` passed directly to `supabase.storage.upload()` truncates binary | Always wrap: `Buffer.from(arrayBuffer)` |
+| **WinAnsi `✦` encoding crash** | Helvetica/standard PDF fonts use Windows-1252 encoding | Render sparkle via `page.drawSvgPath()` SVG vector operators instead |
+| **Gemini model 404** | `gemini-2.0-flash` and `gemini-2.5-*` endpoints return HTTP 404 | Always target `gemini-3.8-flash:generateContent` |
+| **PostgreSQL null-byte crash** | `pdfjs-dist` / `pdf-parse` emits `\u0000` from malformed PDFs | Run `sanitizeTextForPostgres()` on `source_text`, `title`, `description` before DB writes |
+| **Supabase free-tier pause** | Auto-pauses after 7 days of inactivity | ISR + scheduled uptime monitor pinging `/api/courses` every 24h keeps queries active |
+
+---
+
+## 8. Content Strategy & Liability
+
+1. **Curated Excellence over Volume:** One definitive guide per subject, not 15 unverified uploads. Strict scope disclaimers on every resource
+2. **Legal-Safe Professor Info:** No hardcoded contact directory. Static guide teaches students to use the university Moodle "Participants" tab (shifts maintenance liability back to the university)
+3. **Volatile Data Exclusion:** No bus schedules, cafeteria hours, or anything that changes unofficially. If we can't guarantee accuracy, we don't host it
+4. **Trust Disclaimer:** Non-invasive footer: "مبادرة طلابية لمساعدة الزملاء. غير تابعة رسمياً للجامعة"
+5. **UGC Approval Queue:** Student uploads default to `status: 'pending'`, invisible to public until an admin approves
+
+---
+
+## 9. Growth & Acquisition Strategy
+
+- **Freshmen Placement Hook:** Launch "Starter Kit" quizzes for Arabic, English, and Computer Skills placement exams before the semester begins — capturing users when they're most anxious and most receptive
+- **Targeted Drop-Links:** When a student asks for a resource in a WhatsApp group, respond with the exact URL (`molakhasat.me/courses/calculus-1`) — not a generic "check my site"
+- **Self-Referencing PDF Watermarks:** Every shared PDF carries the `molakhasat.me/r/:id` shortlink, turning peer file-forwarding into passive organic acquisition
+- **The Ambassador Program:** At 200–500 users, recruit per-department "Ambassadors" (resume value: "IT Department Admin for campus-wide platform") to decentralize curation and monitoring
+
+---
+
+## 10. Sustainability & Monetization
+
+**Core Golden Rule: Zero-login PDF reading is 100% free forever. No paywalls on course notes.**
+
+- **Hyper-local B2B campus sponsorships** (Study Cafés, Student Housing, Electronics Repair shops near Jadara gates) — 1–2 sponsors at 50–100 JOD/month covers all infrastructure costs
+- **No invasive ad networks.** Sponsorships rendered as curated "شريك الدراسة" partner pills — high-contrast, non-intrusive
+- **Jordan CliQ tips** — friction-free micro-support from grateful students with no credit card required
+- **The Macro Moat:** Live production system with real users is undeniable Proof of Work for DAAD scholarships, German Werkstudent positions, and remote engineering contracts
+
+---
+
+## 11. Key File Map
+
+| File / Directory | Purpose |
+|---|---|
+| [`src/app/page.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/page.tsx) | Landing page with segment switcher, course grid, real-time metrics (ISR `revalidate = 3600`) |
+| [`src/app/courses/[slug]/page.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/courses/%5Bslug%5D/page.tsx) | Course detail page with 4-tier shelf (ISR `revalidate = 60`) |
+| [`src/app/r/[id]/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/r/%5Bid%5D/route.ts) | Universal redirect engine — permanent shortlinks |
+| [`src/app/api/upload/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/upload/route.ts) | Main ingestion pipeline (202 fast-accept + background worker) |
+| [`src/app/api/upload/progress/[resourceId]/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/upload/progress/%5BresourceId%5D/route.ts) | SSE live progress stream (`ProgressBus` + DB fallback) |
+| [`src/app/api/admin/resources/[id]/quiz/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/admin/resources/%5Bid%5D/quiz/route.ts) | On-demand quiz generation / deletion |
+| [`src/components/features/ResourceList.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/ResourceList.tsx) | 4-tier shelf renderer + card islands + WhatsApp share + highlight pulse |
+| [`src/components/features/NativeQuiz.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/NativeQuiz.tsx) | 4-state quiz client component (launcher → session → results) |
+| [`src/components/features/UploadForm.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/UploadForm.tsx) | Upload form with WebWorker extraction + canvas thumbnail + SSE progress bar |
+| [`src/components/features/AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx) | Admin CRUD console with moderation queue, audit modal, thumbnail backfill |
+| [`src/lib/pipeline/client-pdf-extractor.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/client-pdf-extractor.ts) | `pdfjs-dist` WebWorker — text extraction + page count + thumbnail canvas render |
+| [`src/lib/pipeline/progress-bus.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/progress-bus.ts) | In-memory EventEmitter pub/sub for SSE pipeline events |
+| [`src/lib/pipeline/gemini-quiz.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/gemini-quiz.ts) | Gemini REST client — round-robin key pool, 429 cooldown, dynamic bank sizing |
+| [`src/types/database.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/types/database.ts) | TypeScript contracts for all DB tables — source of truth for schema |
+| [`src/quiz_seeds/`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/quiz_seeds) | Pre-generated quiz JSON banks for `npm run seed:quizzes` |
+| [`scripts/seed-quizzes.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/scripts/seed-quizzes.ts) | Idempotent upsert script — validates against `QuizData` schema, matches by `sourceTitle` |
+| [`scripts/backfill-thumbnails.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/scripts/backfill-thumbnails.ts) | Node.js thumbnail backfill runner |
+| [`scripts/verify-gemini-pool.mjs`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/scripts/verify-gemini-pool.mjs) | Gemini key pool health checker (`npm run test:keys`) |
+| [`TECHNICAL_ANALYSIS.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/TECHNICAL_ANALYSIS.md) | **Living architectural master reference** — state machines, code breakdowns, environment quirks, engineering backlog |
+| [`supabase/schema.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/schema.sql) | Full PostgreSQL schema with RLS policies |
+| [`supabase/seed.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/seed.sql) | Seed data (universities, departments, 27 courses) |
+
+---
+
+_This README is the public-facing project overview. For deep architectural rationale, state machine diagrams, and environment troubleshooting, see [`TECHNICAL_ANALYSIS.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/TECHNICAL_ANALYSIS.md). Last updated: November 2026._
