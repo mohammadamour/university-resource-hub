@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { after } from "next/server";
+import { revalidatePath } from "next/cache";
 import dns from "node:dns";
 import crypto from "node:crypto";
 import type { ResourceType, TargetExam, ExternalPlatform } from "@/types/database";
@@ -216,6 +217,15 @@ async function processFileInBackground(
     console.log(
       `[pipeline] ✅ Resource ${resourceId} is now ${targetStatus}. URL: ${publicUrl}`
     );
+
+    if (targetStatus === "active") {
+      try {
+        revalidatePath("/");
+        revalidatePath("/courses/[slug]", "page");
+      } catch (revErr) {
+        console.warn("[pipeline] Revalidation notice:", revErr);
+      }
+    }
   } catch (error) {
     // Mark the row as rejected so the admin can identify failed uploads
     console.error(

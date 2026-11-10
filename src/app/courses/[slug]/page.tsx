@@ -8,8 +8,8 @@ import { REVALIDATE_COURSE, SITE_NAME } from "@/lib/constants";
 import type { CourseWithResources, Resource } from "@/types/database";
 import type { Metadata } from "next";
 
-// ISR: Re-fetch data every 60 seconds (new resources appear within a minute)
-export const revalidate = 60;
+// ISR: Cache course pages at the edge for 1 hour (3600s). On-demand revalidation purges this instantly on uploads/edits.
+export const revalidate = 3600;
 
 interface CoursePageProps {
   params: Promise<{ slug: string }>;

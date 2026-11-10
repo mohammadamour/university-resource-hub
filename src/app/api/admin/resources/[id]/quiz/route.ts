@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import dns from "node:dns";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeTextForPostgres } from "@/lib/utils";
@@ -177,6 +178,11 @@ export async function POST(
       throw new Error(`DB update failed: ${updateError.message}`);
     }
 
+    try {
+      revalidatePath("/");
+      revalidatePath("/courses/[slug]", "page");
+    } catch {}
+
     return NextResponse.json({
       success: true,
       quizData: finalQuizData,
@@ -224,6 +230,11 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  try {
+    revalidatePath("/");
+    revalidatePath("/courses/[slug]", "page");
+  } catch {}
 
   return NextResponse.json({
     success: true,

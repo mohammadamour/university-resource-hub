@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ResourceType, ResourceStatus } from "@/types/database";
 
@@ -82,6 +83,10 @@ export async function DELETE(request: Request, props: RouteProps) {
         { status: 500 }
       );
     }
+
+    // Invalidate edge cache so public course pages and catalog update immediately
+    revalidatePath("/");
+    revalidatePath("/courses/[slug]", "page");
 
     return NextResponse.json({
       success: true,
@@ -224,6 +229,14 @@ export async function PATCH(request: Request, props: RouteProps) {
         { error: `Update failed: ${updateError.message}` },
         { status: 500 }
       );
+    }
+
+    // Invalidate edge cache so public views update immediately
+    revalidatePath("/");
+    if (updatedResource?.course?.slug) {
+      revalidatePath(`/courses/${updatedResource.course.slug}`);
+    } else {
+      revalidatePath("/courses/[slug]", "page");
     }
 
     return NextResponse.json({
