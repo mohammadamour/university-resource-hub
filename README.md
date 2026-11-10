@@ -32,31 +32,31 @@ npm run test:keys
 
 ## 1. Executive Summary & Core Vision
 
-| Dimension | Detail |
-|---|---|
-| **Mission** | Permanent, searchable, curated single source of truth for university course materials |
-| **Brand** | "Molakhasat" (ملخصات) — Arabic for "Summaries". Full RTL UI (`dir="rtl"`, `lang="ar"`) with Tajawal & Cairo typography |
-| **UX Philosophy** | **Zero-login guest experience.** Students browse, read, and download every file with zero registration or email prompts. Auth is a future opt-in, never a barrier |
-| **Permanent Links** | Clean, unfurlable shortlinks (`molakhasat.me/r/:id`) safe for Telegram and WhatsApp study groups |
-| **Budget Target** | \$0/month on free-tier infrastructure (Vercel + Supabase + Gemini free quota) |
-| **Scale Goal** | 200–500 active users at Jadara University (12k total) to trigger network-effect tipping point |
-| **Scaling Architecture** | Multi-university DB schema ready. Switching to University #2 requires changing one constant (`DEFAULT_UNIVERSITY_SLUG`), not a refactor |
+| Dimension                | Detail                                                                                                                                                            |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Mission**              | Permanent, searchable, curated single source of truth for university course materials                                                                             |
+| **Brand**                | "Molakhasat" (ملخصات) — Arabic for "Summaries". Full RTL UI (`dir="rtl"`, `lang="ar"`) with Tajawal & Cairo typography                                            |
+| **UX Philosophy**        | **Zero-login guest experience.** Students browse, read, and download every file with zero registration or email prompts. Auth is a future opt-in, never a barrier |
+| **Permanent Links**      | Clean, unfurlable shortlinks (`molakhasat.me/r/:id`) safe for Telegram and WhatsApp study groups                                                                  |
+| **Budget Target**        | \$0/month on free-tier infrastructure (Vercel + Supabase + Gemini free quota)                                                                                     |
+| **Scale Goal**           | 200–500 active users at Jadara University (12k total) to trigger network-effect tipping point                                                                     |
+| **Scaling Architecture** | Multi-university DB schema ready. Switching to University #2 requires changing one constant (`DEFAULT_UNIVERSITY_SLUG`), not a refactor                           |
 
 ---
 
 ## 2. Technology Stack
 
-| Layer | Technology | Notes |
-|---|---|---|
-| **Framework** | **Next.js 16.3.6** (App Router + Turbopack, React 19, TypeScript 5) | ISR with literal revalidation values (`60`s / `3600`s) — Turbopack AST requirement |
-| **Styling** | **Pure Vanilla CSS** (`src/app/globals.css` with CSS custom properties) | No TailwindCSS in runtime. Tailwind v4 is listed as a devDependency for tooling only |
-| **Database** | **Supabase PostgreSQL** with Row Level Security (RLS) | 4-tier hierarchy: Universities → Departments → Courses → Resources |
-| **Object Storage** | **Supabase Storage** (`materials` bucket) | Public bucket; IPv4 Session Pooler required on local Jordanian networks |
-| **Hosting** | **Vercel** (serverless, free tier) | No native binaries in Lambda — all PDF rasterization delegated to client |
-| **AI Engine** | **Google Gemini** (`gemini-3.8-flash:generateContent`) via direct REST | 4-account round-robin key pool with 429 cooldown & dead-key blacklisting |
-| **PDF Pipeline** | `pdfjs-dist` (client WebWorker) + `pdf-parse` (server fallback) + `pdf-lib` (watermarking) + `Ghostscript gswin64c` (local compression) | Client-first extraction; Ghostscript runs locally pre-upload, not in serverless |
-| **Analytics** | `@vercel/analytics` | Tracks WhatsApp/Telegram referrer attribution from watermarked PDFs |
-| **CI/CD** | Vercel GitHub Integration | Auto-deploys on `main` push |
+| Layer              | Technology                                                                                                                              | Notes                                                                                |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Framework**      | **Next.js 16.3.6** (App Router + Turbopack, React 19, TypeScript 5)                                                                     | ISR with literal revalidation values (`60`s / `3600`s) — Turbopack AST requirement   |
+| **Styling**        | **Pure Vanilla CSS** (`src/app/globals.css` with CSS custom properties)                                                                 | No TailwindCSS in runtime. Tailwind v4 is listed as a devDependency for tooling only |
+| **Database**       | **Supabase PostgreSQL** with Row Level Security (RLS)                                                                                   | 4-tier hierarchy: Universities → Departments → Courses → Resources                   |
+| **Object Storage** | **Supabase Storage** (`materials` bucket)                                                                                               | Public bucket; IPv4 Session Pooler required on local Jordanian networks              |
+| **Hosting**        | **Vercel** (serverless, free tier)                                                                                                      | No native binaries in Lambda — all PDF rasterization delegated to client             |
+| **AI Engine**      | **Google Gemini** (`gemini-3.8-flash:generateContent`) via direct REST                                                                  | 4-account round-robin key pool with 429 cooldown & dead-key blacklisting             |
+| **PDF Pipeline**   | `pdfjs-dist` (client WebWorker) + `pdf-parse` (server fallback) + `pdf-lib` (watermarking) + `Ghostscript gswin64c` (local compression) | Client-first extraction; Ghostscript runs locally pre-upload, not in serverless      |
+| **Analytics**      | `@vercel/analytics`                                                                                                                     | Tracks WhatsApp/Telegram referrer attribution from watermarked PDFs                  |
+| **CI/CD**          | Vercel GitHub Integration                                                                                                               | Auto-deploys on `main` push                                                          |
 
 > **Critical Environment Quirk:** The local Jordanian ISP network does not support IPv6. Always use the **Session Pooler** endpoint (`aws-0-[region].pooler.supabase.com:5432`) for all Supabase connections. Direct `db.[project].supabase.co` hostnames time out immediately. In Node.js scripts, enforce `dns.setDefaultResultOrder('ipv4first')`.
 
@@ -68,12 +68,12 @@ npm run test:keys
 
 The course detail page (`/courses/[slug]`) renders materials in 4 deterministic shelves — no title-pipe hacks, no empty ghost sections:
 
-| Shelf | Filter | Purpose |
-|---|---|---|
-| **📚 Shelf 1 — المادة الرسمية** | `is_featured === true` | Official textbook chapters, curriculum syllabi, faculty slides. Exclusive `⭐ رسمي` badge |
-| **🌟 Shelf 2 — ملخصات ومراجعات** | `type === "summary" && !is_featured` | Student summaries sorted: Midterm → Final → Other, then `display_order ASC`. Hosts inline `<NativeQuiz />` |
-| **📝 Shelf 3 — أسئلة ونماذج امتحانات** | `type === "past_exam" && !is_featured` | Past exams. Entire section hidden when empty (Zero-Ghost Rule) |
-| **🗂️ Shelf 4 — أرشيف إضافي (Collapsible)** | `type === "link" \| "other" \| "guide"` | Collapsible drawer: external links (YouTube/GitHub/Drive badges), chapter notes, student contributions |
+| Shelf                                      | Filter                                  | Purpose                                                                                                    |
+| ------------------------------------------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **📚 Shelf 1 — المادة الرسمية**            | `is_featured === true`                  | Official textbook chapters, curriculum syllabi, faculty slides. Exclusive `⭐ رسمي` badge                  |
+| **🌟 Shelf 2 — ملخصات ومراجعات**           | `type === "summary" && !is_featured`    | Student summaries sorted: Midterm → Final → Other, then `display_order ASC`. Hosts inline `<NativeQuiz />` |
+| **📝 Shelf 3 — أسئلة ونماذج امتحانات**     | `type === "past_exam" && !is_featured`  | Past exams. Entire section hidden when empty (Zero-Ghost Rule)                                             |
+| **🗂️ Shelf 4 — أرشيف إضافي (Collapsible)** | `type === "link" \| "other" \| "guide"` | Collapsible drawer: external links (YouTube/GitHub/Drive badges), chapter notes, student contributions     |
 
 **Homepage Catalog:** 27 courses seeded in DB; only courses with `status = 'active'` resources are visible on `/`. Real-time metrics on course cards (`{n} مورد • {m} سؤال`). Segment switcher (IT ↔ General Requirements) + `<select>` quick-jump + 2-column mobile grid.
 
@@ -98,6 +98,7 @@ Upload flow (`/api/upload`):
 ```
 
 Key pipeline safeguards:
+
 - **Magic byte verification** (`%PDF-` signature check before any processing)
 - **SHA-256 duplicate gate** — HTTP 409 on collision, preventing storage bloat
 - **`Buffer.from(arrayBuffer)` enforcement** — prevents silent binary truncation on Supabase Storage uploads
@@ -107,12 +108,12 @@ Key pipeline safeguards:
 
 ### 3.3 Dynamic AI Question Bank Engine
 
-| Document Volume | Characters | Bank Size |
-|---|---|---|
-| Cheat-sheets (1–4 pages) | < 8,000 | **15 questions** |
-| Single lectures (5–12 pages) | 8,000 – 25,000 | **25 questions** |
-| Chapter summaries (13–30 pages) | 25,000 – 60,000 | **35 questions** |
-| Full course booklets (30+ pages) | > 60,000 | **50 questions** |
+| Document Volume                  | Characters      | Bank Size        |
+| -------------------------------- | --------------- | ---------------- |
+| Cheat-sheets (1–4 pages)         | < 8,000         | **15 questions** |
+| Single lectures (5–12 pages)     | 8,000 – 25,000  | **25 questions** |
+| Chapter summaries (13–30 pages)  | 25,000 – 60,000 | **35 questions** |
+| Full course booklets (30+ pages) | > 60,000        | **50 questions** |
 
 - Stratified by difficulty: **40% Easy / 40% Medium / 20% Hard**
 - Each question tagged with Arabic `topic` and `subtopic` metadata for V2 adaptive drilling
@@ -165,25 +166,31 @@ Every feature is engineered to generate organic peer sharing:
 
 ```typescript
 // Resource taxonomy
-type ResourceType = "summary" | "quiz" | "past_exam" | "guide" | "link" | "other";
-type TargetExam   = "midterm" | "final" | "other";
+type ResourceType =
+  | "summary"
+  | "quiz"
+  | "past_exam"
+  | "guide"
+  | "link"
+  | "other";
+type TargetExam = "midterm" | "final" | "other";
 type ResourceStatus = "processing" | "active" | "pending" | "rejected";
 
 // Quiz JSON stored in resources.quiz_data (JSONB)
 interface QuizData {
   version: 1;
-  questions: QuizQuestion[];   // 15 | 25 | 35 | 50 based on doc volume
-  generatedAt: string;         // ISO timestamp
+  questions: QuizQuestion[]; // 15 | 25 | 35 | 50 based on doc volume
+  generatedAt: string; // ISO timestamp
   sourceTitle?: string;
 }
 
 interface QuizQuestion {
   question: string;
-  options: string[];            // Always exactly 4 options
-  correctIndex: number;         // 0-indexed
+  options: string[]; // Always exactly 4 options
+  correctIndex: number; // 0-indexed
   explanation: string;
   difficulty?: "easy" | "medium" | "hard";
-  topic?: string;               // Arabic topic tag for adaptive drilling
+  topic?: string; // Arabic topic tag for adaptive drilling
   subtopic?: string;
 }
 ```
@@ -199,25 +206,25 @@ universities  (Jadara University)
 
 **RLS Permission Matrix:**
 
-| Role | Read Courses/Resources | Write Resources | Bookmarks |
-|---|---|---|---|
-| **Guest (Anon)** | ✅ Public SELECT | ❌ | ❌ |
-| **Student** | ✅ Public SELECT | ❌ | ✅ Own rows |
-| **Admin (Ambassador)** | ✅ | ✅ Own department | ✅ Own rows |
-| **Super Admin (Founder)** | ✅ Full | ✅ Full | ✅ Full |
+| Role                      | Read Courses/Resources | Write Resources   | Bookmarks   |
+| ------------------------- | ---------------------- | ----------------- | ----------- |
+| **Guest (Anon)**          | ✅ Public SELECT       | ❌                | ❌          |
+| **Student**               | ✅ Public SELECT       | ❌                | ✅ Own rows |
+| **Admin (Ambassador)**    | ✅                     | ✅ Own department | ✅ Own rows |
+| **Super Admin (Founder)** | ✅ Full                | ✅ Full           | ✅ Full     |
 
 ---
 
 ## 5. Operational Scripts
 
-| Script | Command | Description |
-|---|---|---|
-| Dev server | `npm run dev` | Next.js 16 + Turbopack at `localhost:3000` |
-| Type-check | `npx tsc --noEmit` | Full codebase type validation |
-| Production build | `npx next build --webpack` | Webpack build (avoids Turbopack production source-map panic) |
-| Seed quizzes | `npm run seed:quizzes` | Idempotent upsert of `src/quiz_seeds/*.json` → Supabase `resources.quiz_data` |
+| Script              | Command                       | Description                                                                       |
+| ------------------- | ----------------------------- | --------------------------------------------------------------------------------- |
+| Dev server          | `npm run dev`                 | Next.js 16 + Turbopack at `localhost:3000`                                        |
+| Type-check          | `npx tsc --noEmit`            | Full codebase type validation                                                     |
+| Production build    | `npx next build --webpack`    | Webpack build (avoids Turbopack production source-map panic)                      |
+| Seed quizzes        | `npm run seed:quizzes`        | Idempotent upsert of `src/quiz_seeds/*.json` → Supabase `resources.quiz_data`     |
 | Backfill thumbnails | `npm run backfill:thumbnails` | Browser-canvas Page 1 JPEG extraction for legacy PDFs via `/api/admin/thumbnails` |
-| Verify Gemini pool | `npm run test:keys` | Tests all 4 Gemini API keys with forced IPv4 + sub-token latency benchmarks |
+| Verify Gemini pool  | `npm run test:keys`           | Tests all 4 Gemini API keys with forced IPv4 + sub-token latency benchmarks       |
 
 ---
 
@@ -282,15 +289,15 @@ universities  (Jadara University)
 
 ## 7. Architecture Decisions & Gotchas
 
-| Gotcha | Cause | Fix |
-|---|---|---|
-| **Supabase IPv6 timeout** | Local Jordanian ISP drops IPv6 packets | Always use Session Pooler (`aws-0-[region].pooler.supabase.com:5432`). Node scripts: `dns.setDefaultResultOrder('ipv4first')` |
-| **Turbopack `revalidate` crash** | AST static analysis can't resolve imported constants | Use literal numbers: `export const revalidate = 60;` — never `export const revalidate = CONSTANT;` |
-| **Supabase ArrayBuffer corruption** | Web `ArrayBuffer` passed directly to `supabase.storage.upload()` truncates binary | Always wrap: `Buffer.from(arrayBuffer)` |
-| **WinAnsi `✦` encoding crash** | Helvetica/standard PDF fonts use Windows-1252 encoding | Render sparkle via `page.drawSvgPath()` SVG vector operators instead |
-| **Gemini model 404** | `gemini-2.0-flash` and `gemini-2.5-*` endpoints return HTTP 404 | Always target `gemini-3.8-flash:generateContent` |
-| **PostgreSQL null-byte crash** | `pdfjs-dist` / `pdf-parse` emits `\u0000` from malformed PDFs | Run `sanitizeTextForPostgres()` on `source_text`, `title`, `description` before DB writes |
-| **Supabase free-tier pause** | Auto-pauses after 7 days of inactivity | ISR + scheduled uptime monitor pinging `/api/courses` every 24h keeps queries active |
+| Gotcha                              | Cause                                                                             | Fix                                                                                                                           |
+| ----------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **Supabase IPv6 timeout**           | Local Jordanian ISP drops IPv6 packets                                            | Always use Session Pooler (`aws-0-[region].pooler.supabase.com:5432`). Node scripts: `dns.setDefaultResultOrder('ipv4first')` |
+| **Turbopack `revalidate` crash**    | AST static analysis can't resolve imported constants                              | Use literal numbers: `export const revalidate = 60;` — never `export const revalidate = CONSTANT;`                            |
+| **Supabase ArrayBuffer corruption** | Web `ArrayBuffer` passed directly to `supabase.storage.upload()` truncates binary | Always wrap: `Buffer.from(arrayBuffer)`                                                                                       |
+| **WinAnsi `✦` encoding crash**      | Helvetica/standard PDF fonts use Windows-1252 encoding                            | Render sparkle via `page.drawSvgPath()` SVG vector operators instead                                                          |
+| **Gemini model 404**                | `gemini-2.0-flash` and `gemini-2.5-*` endpoints return HTTP 404                   | Always target `gemini-3.8-flash:generateContent`                                                                              |
+| **PostgreSQL null-byte crash**      | `pdfjs-dist` / `pdf-parse` emits `\u0000` from malformed PDFs                     | Run `sanitizeTextForPostgres()` on `source_text`, `title`, `description` before DB writes                                     |
+| **Supabase free-tier pause**        | Auto-pauses after 7 days of inactivity                                            | ISR + scheduled uptime monitor pinging `/api/courses` every 24h keeps queries active                                          |
 
 ---
 
@@ -326,29 +333,29 @@ universities  (Jadara University)
 
 ## 11. Key File Map
 
-| File / Directory | Purpose |
-|---|---|
-| [`src/app/page.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/page.tsx) | Landing page with segment switcher, course grid, real-time metrics (ISR `revalidate = 3600`) |
-| [`src/app/courses/[slug]/page.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/courses/%5Bslug%5D/page.tsx) | Course detail page with 4-tier shelf (ISR `revalidate = 60`) |
-| [`src/app/r/[id]/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/r/%5Bid%5D/route.ts) | Universal redirect engine — permanent shortlinks |
-| [`src/app/api/upload/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/upload/route.ts) | Main ingestion pipeline (202 fast-accept + background worker) |
-| [`src/app/api/upload/progress/[resourceId]/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/upload/progress/%5BresourceId%5D/route.ts) | SSE live progress stream (`ProgressBus` + DB fallback) |
-| [`src/app/api/admin/resources/[id]/quiz/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/admin/resources/%5Bid%5D/quiz/route.ts) | On-demand quiz generation / deletion |
-| [`src/components/features/ResourceList.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/ResourceList.tsx) | 4-tier shelf renderer + card islands + WhatsApp share + highlight pulse |
-| [`src/components/features/NativeQuiz.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/NativeQuiz.tsx) | 4-state quiz client component (launcher → session → results) |
-| [`src/components/features/UploadForm.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/UploadForm.tsx) | Upload form with WebWorker extraction + canvas thumbnail + SSE progress bar |
-| [`src/components/features/AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx) | Admin CRUD console with moderation queue, audit modal, thumbnail backfill |
-| [`src/lib/pipeline/client-pdf-extractor.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/client-pdf-extractor.ts) | `pdfjs-dist` WebWorker — text extraction + page count + thumbnail canvas render |
-| [`src/lib/pipeline/progress-bus.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/progress-bus.ts) | In-memory EventEmitter pub/sub for SSE pipeline events |
-| [`src/lib/pipeline/gemini-quiz.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/gemini-quiz.ts) | Gemini REST client — round-robin key pool, 429 cooldown, dynamic bank sizing |
-| [`src/types/database.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/types/database.ts) | TypeScript contracts for all DB tables — source of truth for schema |
-| [`src/quiz_seeds/`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/quiz_seeds) | Pre-generated quiz JSON banks for `npm run seed:quizzes` |
-| [`scripts/seed-quizzes.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/scripts/seed-quizzes.ts) | Idempotent upsert script — validates against `QuizData` schema, matches by `sourceTitle` |
-| [`scripts/backfill-thumbnails.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/scripts/backfill-thumbnails.ts) | Node.js thumbnail backfill runner |
-| [`scripts/verify-gemini-pool.mjs`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/scripts/verify-gemini-pool.mjs) | Gemini key pool health checker (`npm run test:keys`) |
-| [`TECHNICAL_ANALYSIS.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/TECHNICAL_ANALYSIS.md) | **Living architectural master reference** — state machines, code breakdowns, environment quirks, engineering backlog |
-| [`supabase/schema.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/schema.sql) | Full PostgreSQL schema with RLS policies |
-| [`supabase/seed.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/seed.sql) | Seed data (universities, departments, 27 courses) |
+| File / Directory                                                                                                                                                                 | Purpose                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| [`src/app/page.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/page.tsx)                                                                       | Landing page with segment switcher, course grid, real-time metrics (ISR `revalidate = 3600`)                         |
+| [`src/app/courses/[slug]/page.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/courses/%5Bslug%5D/page.tsx)                                     | Course detail page with 4-tier shelf (ISR `revalidate = 60`)                                                         |
+| [`src/app/r/[id]/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/r/%5Bid%5D/route.ts)                                                     | Universal redirect engine — permanent shortlinks                                                                     |
+| [`src/app/api/upload/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/upload/route.ts)                                                 | Main ingestion pipeline (202 fast-accept + background worker)                                                        |
+| [`src/app/api/upload/progress/[resourceId]/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/upload/progress/%5BresourceId%5D/route.ts) | SSE live progress stream (`ProgressBus` + DB fallback)                                                               |
+| [`src/app/api/admin/resources/[id]/quiz/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/admin/resources/%5Bid%5D/quiz/route.ts)       | On-demand quiz generation / deletion                                                                                 |
+| [`src/components/features/ResourceList.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/ResourceList.tsx)                       | 4-tier shelf renderer + card islands + WhatsApp share + highlight pulse                                              |
+| [`src/components/features/NativeQuiz.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/NativeQuiz.tsx)                           | 4-state quiz client component (launcher → session → results)                                                         |
+| [`src/components/features/UploadForm.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/UploadForm.tsx)                           | Upload form with WebWorker extraction + canvas thumbnail + SSE progress bar                                          |
+| [`src/components/features/AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx)       | Admin CRUD console with moderation queue, audit modal, thumbnail backfill                                            |
+| [`src/lib/pipeline/client-pdf-extractor.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/client-pdf-extractor.ts)                       | `pdfjs-dist` WebWorker — text extraction + page count + thumbnail canvas render                                      |
+| [`src/lib/pipeline/progress-bus.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/progress-bus.ts)                                       | In-memory EventEmitter pub/sub for SSE pipeline events                                                               |
+| [`src/lib/pipeline/gemini-quiz.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/gemini-quiz.ts)                                         | Gemini REST client — round-robin key pool, 429 cooldown, dynamic bank sizing                                         |
+| [`src/types/database.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/types/database.ts)                                                             | TypeScript contracts for all DB tables — source of truth for schema                                                  |
+| [`src/quiz_seeds/`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/quiz_seeds)                                                                          | Pre-generated quiz JSON banks for `npm run seed:quizzes`                                                             |
+| [`scripts/seed-quizzes.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/scripts/seed-quizzes.ts)                                                         | Idempotent upsert script — validates against `QuizData` schema, matches by `sourceTitle`                             |
+| [`scripts/backfill-thumbnails.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/scripts/backfill-thumbnails.ts)                                           | Node.js thumbnail backfill runner                                                                                    |
+| [`scripts/verify-gemini-pool.mjs`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/scripts/verify-gemini-pool.mjs)                                           | Gemini key pool health checker (`npm run test:keys`)                                                                 |
+| [`TECHNICAL_ANALYSIS.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/TECHNICAL_ANALYSIS.md)                                                             | **Living architectural master reference** — state machines, code breakdowns, environment quirks, engineering backlog |
+| [`supabase/schema.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/schema.sql)                                                                 | Full PostgreSQL schema with RLS policies                                                                             |
+| [`supabase/seed.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/seed.sql)                                                                     | Seed data (universities, departments, 27 courses)                                                                    |
 
 ---
 

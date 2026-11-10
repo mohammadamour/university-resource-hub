@@ -933,6 +933,17 @@ This living backlog serves as the authoritative North Star for future developmen
 ### 9.2 Phase 2: Immediate Launch Sprint (Seed & Polish)
 *Target: Freshman Semester Kickoff (Jadara University)*
 
+- [ ] **Phase 0 (P0 Hotfix): Frictionless Navigation & Campus Latency Defense:**
+  - *Top Course Back Pill & Breadcrumbs:* Sticky/top `[ ← العودة لكافة المقررات ]` link in `courses/[slug]` and high-visibility `[ تصفح المقررات ]` CTA in `Header.tsx` so visitors from WhatsApp links never feel trapped.
+  - *Campus Wi-Fi Latency Defense (~10s TTFB):* Co-locate Vercel compute to Frankfurt (`vercel.json` regions: `["fra1"]`) to eliminate cross-continental ping between Jordan, US serverless, and EU Supabase. Optimize ISR cache windows (`revalidate = 3600` with on-demand `revalidatePath`).
+  - *Architectural Pushback on SWR/React Query for Public SSR:* Retain static Edge ISR instead of client fetching. Avoid adding client-side fetching waterfalls and extra JS bundle weight on slow 3G campus networks.
+- [ ] **Phase 5: Discrete Mathematics Modular Tool Engine (Academic Group Project Deliverable):**
+  - *Deterministic Client-Side Propositional Logic Parser:* Pure TypeScript Shunting-yard AST parser (`src/lib/academic-tools/discrete-math/`) generating full truth tables, tautology/contradiction classifications, and logical equivalence proofs in <2ms.
+  - *Zero LLM Dependency:* 100% deterministic mathematical accuracy, zero latency, $0 API costs, and full offline functionality on dead campus networks.
+  - *Modular Tool Framework:* Pluggable `AcademicTool` interface extensible to Linear Algebra (Matrix Solvers) and Calculus.
+- [ ] **Phase 6: The "Benevolent Dictator" Contributor Dashboard (Classmate Onboarding):**
+  - *Repository & Infra Isolation:* Sole developer maintains exclusive access to GitHub, Supabase credentials, and Vercel deployments. Classmates receive zero Git or direct database access.
+  - *Lightweight Reviewer Portal:* Simple passcode-gated interface (`/admin/contributor`) for syllabus taxonomy mapping, logic test-case submissions, question bank QA, and generating academic presentation binders for professor grading.
 - [x] **Metadata Expansion & Exam Scope Architecture (Migration `20261020`):** Extended `resources` schema with `page_count`, `file_hash`, `target_exam` (midterm/final/other), `academic_year`, `professor_name`, `author_name`, and `description`.
 - [x] **Pre-Storage SHA-256 Duplicate Defense:** Cryptographic duplicate rejection (`HTTP 409 Conflict`) preventing duplicate storage bloat and redundant serverless compute.
 - [x] **Decoupled Crowdsourcing Funnel (`/upload`):** Opened public student upload gateway with pending moderation queue, frozen appreciation card, deep-linking pre-selection, and 150-char description guardrail.
