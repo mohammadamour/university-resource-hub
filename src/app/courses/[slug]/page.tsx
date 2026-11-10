@@ -138,6 +138,30 @@ export default async function CoursePage({ params }: CoursePageProps) {
     <>
       <Header />
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-10">
+        {/* Navigation: Return to Homepage Pill */}
+        <div className="mb-5 sm:mb-6">
+          <Link
+            href="/"
+            className="group inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card/60 px-3.5 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur-xs transition-all hover:border-primary/40 hover:bg-card hover:text-primary hover:shadow-2xs active:scale-95"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+              aria-hidden="true"
+            >
+              {/* Right-pointing arrow for RTL back navigation */}
+              <path
+                fillRule="evenodd"
+                d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <span>العودة للرئيسية</span>
+          </Link>
+        </div>
+
         {/* Course Header */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
