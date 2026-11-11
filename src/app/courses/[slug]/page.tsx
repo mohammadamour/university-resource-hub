@@ -3,6 +3,7 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ResourceList from "@/components/features/ResourceList";
+import CoursePinButton from "@/components/features/CoursePinButton";
 import { createClient } from "@/lib/supabase/server";
 import { REVALIDATE_COURSE, SITE_NAME } from "@/lib/constants";
 import type { CourseWithResources, Resource } from "@/types/database";
@@ -183,13 +184,16 @@ export default async function CoursePage({ params }: CoursePageProps) {
             )}
           </div>
 
-          <Link
-            href={`/upload?courseId=${encodeURIComponent(course.id)}`}
-            className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-xl border border-primary/20 bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95 shadow-2xs"
-          >
-            <span>➕</span>
-            <span>شارك ملخصاً</span>
-          </Link>
+          <div className="flex flex-wrap items-center gap-2 shrink-0 self-start">
+            <CoursePinButton courseSlug={course.slug} />
+            <Link
+              href={`/upload?courseId=${encodeURIComponent(course.id)}`}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-primary/20 bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95 shadow-2xs"
+            >
+              <span>➕</span>
+              <span>شارك ملخصاً</span>
+            </Link>
+          </div>
         </div>
 
         {/* Resource List */}

@@ -1,9 +1,74 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { DepartmentWithCourses, CourseWithResources } from "@/types/database";
+import type {
+  DepartmentWithCourses,
+  CourseWithResources,
+  ResourceType,
+} from "@/types/database";
 import Card, { CardBadge } from "@/components/ui/Card";
+import {
+  useBookmarks,
+  toggleSavedCourse,
+  removeSavedResource,
+} from "@/lib/bookmarks";
+
+function buildCourseBadges(course: CourseWithResources): CardBadge[] {
+  const activeResources = (course.resources || []).filter(
+    (r) => (r.status || "active") === "active"
+  );
+  const studyCount = activeResources.filter((r) => r.type !== "quiz").length;
+  const quizResources = activeResources.filter(
+    (r) => r.quiz_data && r.quiz_data.questions && r.quiz_data.questions.length > 0
+  );
+  const quizCount = quizResources.length;
+  const totalQuestions = quizResources.reduce(
+    (sum, r) => sum + (r.quiz_data?.questions?.length || 0),
+    0
+  );
+
+  const badges: CardBadge[] = [];
+  if (studyCount > 0) {
+    badges.push({
+      text: `${studyCount} ${studyCount === 1 ? "ملخص" : "ملخصات"}`,
+      variant: "accent",
+      icon: "📄",
+    });
+  }
+  if (quizCount > 0) {
+    badges.push({
+      text: `${quizCount} كويز • ${totalQuestions} س`,
+      variant: "emerald",
+      icon: "✨",
+    });
+  }
+  if (studyCount === 0 && quizCount === 0) {
+    badges.push({
+      text: "قيد الإعداد ⏳",
+      variant: "muted",
+    });
+  }
+  return badges;
+}
+
+function getResourceTypeIcon(type: ResourceType): string {
+  switch (type) {
+    case "summary":
+      return "📄";
+    case "past_exam":
+      return "📝";
+    case "quiz":
+      return "✨";
+    case "guide":
+      return "📖";
+    case "link":
+      return "🔗";
+    default:
+      return "📎";
+  }
+}
 
 interface DepartmentGridProps {
   departments: DepartmentWithCourses[];
@@ -99,6 +164,28 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
           (dept.courses.length > 0 || dept.slug === "placement-exams")
       );
   }, [departments, SHOW_PLACEMENT_EXAMS]);
+
+  // Reactive localStorage bookmarks (SSR-safe via useSyncExternalStore)
+  const { courses: savedCourseSlugs, resources: savedResources } = useBookmarks();
+
+  const savedCourseSlugSet = useMemo(
+    () => new Set(savedCourseSlugs),
+    [savedCourseSlugs]
+  );
+
+  // Preserve the user's pin order (most recently pinned first) using courses visible in catalog
+  const savedCourses = useMemo(() => {
+    if (savedCourseSlugs.length === 0) return [];
+    const bySlug = new Map<string, CourseWithResources>();
+    for (const dept of visibleDepartments) {
+      for (const course of dept.courses || []) {
+        bySlug.set(course.slug, course);
+      }
+    }
+    return savedCourseSlugs
+      .map((slug) => bySlug.get(slug))
+      .filter((c): c is CourseWithResources => Boolean(c));
+  }, [savedCourseSlugs, visibleDepartments]);
 
   // Initially null: no filter applied on first visit
   const [activeDeptId, setActiveDeptId] = useState<string | null>(null);
@@ -250,6 +337,94 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
         )}
       </div>
 
+      {/* ─── 2.5 My Saved Courses & Resources (Zero-Login localStorage) ─────── */}
+      {(savedCourses.length > 0 || savedResources.length > 0) && (
+        <section
+          aria-label="محفوظاتي السريعة"
+          className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.04] p-3.5 sm:p-5 space-y-4"
+        >
+          {savedCourses.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="flex items-center gap-1.5 text-sm font-bold text-foreground sm:text-base">
+                  <span>📌</span>
+                  <span>مقرراتي المحفوظة</span>
+                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-mono font-semibold text-amber-500">
+                    {savedCourses.length}
+                  </span>
+                </h2>
+                <span className="text-[11px] text-muted-foreground hidden sm:inline">
+                  وصول سريع للمواد التي تتابعها هذا الفصل
+                </span>
+              </div>
+
+              <div className="flex gap-2.5 overflow-x-auto pb-1 snap-x sm:grid sm:grid-cols-2 sm:gap-3.5 sm:overflow-visible sm:pb-0 md:grid-cols-3">
+                {savedCourses.map((course) => (
+                  <Card
+                    key={`saved-${course.id}`}
+                    href={`/courses/${course.slug}`}
+                    title={course.title}
+                    courseCode={course.course_code}
+                    badges={buildCourseBadges(course)}
+                    isPinned={true}
+                    onTogglePin={() => toggleSavedCourse(course.slug)}
+                    className="w-[72%] min-w-[200px] shrink-0 snap-start sm:w-auto sm:min-w-0"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {savedResources.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="flex items-center gap-1.5 text-xs font-bold text-foreground sm:text-sm">
+                <span>🔖</span>
+                <span>مواردي المحفوظة</span>
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-mono text-muted-foreground">
+                  {savedResources.length}
+                </span>
+              </h3>
+
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {savedResources.map((res) => (
+                  <div
+                    key={`saved-res-${res.id}`}
+                    className="group flex shrink-0 items-center gap-1.5 rounded-xl border border-border bg-card ps-2.5 pe-1.5 py-1.5 text-xs shadow-2xs hover:border-accent/60 transition-colors max-w-[260px]"
+                  >
+                    <Link
+                      href={`/courses/${res.courseSlug}?res=${encodeURIComponent(res.id)}#res-${res.id}`}
+                      className="flex min-w-0 items-center gap-2 py-0.5"
+                    >
+                      <span className="shrink-0 text-sm">
+                        {getResourceTypeIcon(res.type)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-foreground group-hover:text-accent truncate">
+                          {res.title}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {res.courseTitle}
+                          {res.hasQuiz ? " • ✨ كويز" : ""}
+                        </p>
+                      </div>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => removeSavedResource(res.id)}
+                      aria-label={`إزالة ${res.title} من المحفوظات`}
+                      title="إزالة من المحفوظات"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* ─── 3. Department Sections (Filtered or All) ────────────────────────── */}
       <div className="space-y-8">
         {departmentsToRender.map((dept) => {
@@ -296,57 +471,17 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                 </div>
               ) : sorted.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3">
-                  {sorted.map((course) => {
-                    const activeResources = (course.resources || []).filter(
-                      (r) => (r.status || "active") === "active"
-                    );
-                    const studyCount = activeResources.filter(
-                      (r) => r.type !== "quiz"
-                    ).length;
-                    const quizResources = activeResources.filter(
-                      (r) =>
-                        r.quiz_data &&
-                        r.quiz_data.questions &&
-                        r.quiz_data.questions.length > 0
-                    );
-                    const quizCount = quizResources.length;
-                    const totalQuestions = quizResources.reduce(
-                      (sum, r) => sum + (r.quiz_data?.questions?.length || 0),
-                      0
-                    );
-
-                    const badges: CardBadge[] = [];
-                    if (studyCount > 0) {
-                      badges.push({
-                        text: `${studyCount} ${studyCount === 1 ? "ملخص" : "ملخصات"}`,
-                        variant: "accent",
-                        icon: "📄",
-                      });
-                    }
-                    if (quizCount > 0) {
-                      badges.push({
-                        text: `${quizCount} كويز • ${totalQuestions} س`,
-                        variant: "emerald",
-                        icon: "✨",
-                      });
-                    }
-                    if (studyCount === 0 && quizCount === 0) {
-                      badges.push({
-                        text: "قيد الإعداد ⏳",
-                        variant: "muted",
-                      });
-                    }
-
-                    return (
-                      <Card
-                        key={course.id}
-                        href={`/courses/${course.slug}`}
-                        title={course.title}
-                        courseCode={course.course_code}
-                        badges={badges}
-                      />
-                    );
-                  })}
+                  {sorted.map((course) => (
+                    <Card
+                      key={course.id}
+                      href={`/courses/${course.slug}`}
+                      title={course.title}
+                      courseCode={course.course_code}
+                      badges={buildCourseBadges(course)}
+                      isPinned={savedCourseSlugSet.has(course.slug)}
+                      onTogglePin={() => toggleSavedCourse(course.slug)}
+                    />
+                  ))}
                 </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-border p-8 text-center bg-card/40">

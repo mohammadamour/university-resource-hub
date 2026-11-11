@@ -421,6 +421,7 @@ export default function NativeQuiz({
 
         <button
           type="button"
+          data-quiz-start="true"
           onClick={() => {
             setIsOpen(true);
             setIsConfiguring(bankSize > 10);

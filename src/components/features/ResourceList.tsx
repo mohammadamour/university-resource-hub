@@ -1,9 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { Resource } from "@/types/database";
 import NativeQuiz from "@/components/features/NativeQuiz";
+import BookmarkIcon from "@/components/ui/BookmarkIcon";
+import { toggleSavedResource, useBookmarks } from "@/lib/bookmarks";
+
+// Code-split the pdf.js reader modal so initial course page JS pays 0 KB overhead
+const PdfReaderModal = dynamic(
+  () => import("@/components/features/PdfReaderModal"),
+  { ssr: false }
+);
 
 interface ResourceListProps {
   resources: Resource[];
@@ -23,6 +32,13 @@ function formatBytes(bytes: number | null | undefined): string {
 function isValidResourceUrl(url: string | null | undefined): boolean {
   if (!url || url === "__processing__") return false;
   return url.startsWith("http://") || url.startsWith("https://");
+}
+
+function isInAppReadablePdf(resource: Resource): boolean {
+  if (!isValidResourceUrl(resource.storage_url)) return false;
+  if (resource.type === "link" || resource.type === "quiz") return false;
+  const lower = resource.storage_url.toLowerCase();
+  return lower.includes(".supabase.co/storage/") || /\.pdf($|[?#])/.test(lower);
 }
 
 function getPlatformMeta(res: Resource) {
@@ -166,8 +182,67 @@ export default function ResourceList({
   courseSlug,
 }: ResourceListProps) {
   const [activeEmbedId, setActiveEmbedId] = useState<string | null>(null);
+  const [activeReaderResource, setActiveReaderResource] = useState<Resource | null>(null);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { resources: savedResources } = useBookmarks();
+  const savedResourceIdSet = useMemo(
+    () => new Set(savedResources.map((r) => r.id)),
+    [savedResources]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  const showToast = (msg: string, durationMs = 2800) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToastMessage(msg);
+    toastTimerRef.current = setTimeout(() => setToastMessage(null), durationMs);
+  };
+
+  const handleToggleSaveResource = (resource: Resource) => {
+    const slug = courseSlug || courseId || "";
+    if (!slug) return;
+
+    const nowSaved = toggleSavedResource({
+      id: resource.id,
+      title: resource.title,
+      courseSlug: slug,
+      courseTitle: courseTitle || slug,
+      type: resource.type,
+      targetExam: resource.target_exam,
+      pageCount: resource.page_count,
+      hasQuiz: Boolean(resource.quiz_data?.questions?.length),
+    });
+
+    showToast(
+      nowSaved
+        ? "تم حفظ المورد في مواردي السريعة 🔖"
+        : "تمت إزالة المورد من المحفوظات"
+    );
+  };
+
+  const handleStartQuizFromReader = (resourceId: string) => {
+    setActiveReaderResource(null);
+    setTimeout(() => {
+      const dock = document.getElementById(`quiz-${resourceId}`);
+      if (dock) {
+        const trigger = dock.querySelector<HTMLButtonElement>("[data-quiz-start='true']");
+        if (trigger) trigger.click();
+        dock.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        document.getElementById(`res-${resourceId}`)?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+    }, 80);
+  };
 
   // Auto-scroll and highlight target resource if deep-linked via WhatsApp / share URL
   useEffect(() => {
@@ -182,15 +257,26 @@ export default function ResourceList({
 
       if (!targetId) return;
 
+      const highlightTarget = (el: HTMLElement) => {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("ring-2", "ring-accent", "shadow-md");
+        setTimeout(() => {
+          el.classList.remove("ring-2", "ring-accent", "shadow-md");
+        }, 2500);
+      };
+
       const el = document.getElementById(`res-${targetId}`);
       if (el) {
+        setTimeout(() => highlightTarget(el), 350);
+      } else {
+        // Target might reside inside collapsed Shelf 4 archive; open drawer and scroll after mount
         setTimeout(() => {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-          el.classList.add("ring-2", "ring-accent", "shadow-md");
+          setIsArchiveOpen(true);
           setTimeout(() => {
-            el.classList.remove("ring-2", "ring-accent", "shadow-md");
-          }, 2500);
-        }, 350);
+            const expandedEl = document.getElementById(`res-${targetId}`);
+            if (expandedEl) highlightTarget(expandedEl);
+          }, 120);
+        }, 120);
       }
     } catch {
       // safe fallback
@@ -217,8 +303,7 @@ export default function ResourceList({
       navigator.clipboard.writeText(shareUrl).catch(() => {});
     }
 
-    setToastMessage("تم فتح واتساب ونسخ الرابط للمشاركة! 📋");
-    setTimeout(() => setToastMessage(null), 3200);
+    showToast("تم فتح واتساب ونسخ الرابط للمشاركة! 📋", 3200);
 
     // Open WhatsApp Web or Mobile App
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
@@ -323,6 +408,8 @@ export default function ResourceList({
     options?: { isOfficial?: boolean }
   ) => {
     const isQuiz = resource.type === "quiz";
+    const isPdfReadable = isInAppReadablePdf(resource);
+    const isSaved = savedResourceIdSet.has(resource.id);
     const examScopeLabel =
       resource.target_exam === "midterm"
         ? "مادة الميد"
@@ -404,6 +491,16 @@ export default function ResourceList({
               <ResourceCover resource={resource} isOfficial={isOfficial} />
               {mainInfo}
             </button>
+          ) : isPdfReadable ? (
+            <button
+              type="button"
+              onClick={() => setActiveReaderResource(resource)}
+              className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4 text-start cursor-pointer"
+              title="قراءة الملف داخل الموقع"
+            >
+              <ResourceCover resource={resource} isOfficial={isOfficial} />
+              {mainInfo}
+            </button>
           ) : isValidResourceUrl(resource.storage_url) ? (
             <a
               href={resource.storage_url}
@@ -424,8 +521,24 @@ export default function ResourceList({
             </div>
           )}
 
-          {/* Action Buttons (WhatsApp Share + Download/Open) */}
+          {/* Action Buttons (Bookmark + WhatsApp Share + Download/Open) */}
           <div className="flex items-center gap-1.5 shrink-0 pr-1 sm:pr-2">
+            {/* Resource Bookmark Button */}
+            <button
+              type="button"
+              onClick={() => handleToggleSaveResource(resource)}
+              aria-pressed={isSaved}
+              className={`flex h-9 w-9 items-center justify-center rounded-full transition-all hover:scale-105 active:scale-95 shadow-2xs cursor-pointer ${
+                isSaved
+                  ? "bg-amber-500/15 text-amber-500 border border-amber-500/35"
+                  : "bg-secondary/80 text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
+              title={isSaved ? "إزالة من مواردي المحفوظة" : "حفظ المورد للرجوع السريع"}
+              aria-label={isSaved ? "إزالة من المحفوظات" : "حفظ المورد"}
+            >
+              <BookmarkIcon filled={isSaved} className="h-4 w-4" />
+            </button>
+
             {/* WhatsApp Share Button */}
             <button
               type="button"
@@ -480,7 +593,10 @@ export default function ResourceList({
 
         {/* Native Quiz Player (Docked Action Bar inside the same card) */}
         {resource.quiz_data && (
-          <div className="border-t border-border/50 bg-accent/[0.04] px-3.5 py-2.5 sm:px-4 sm:py-3 transition-colors group-hover:bg-accent/[0.08]">
+          <div
+            id={`quiz-${resource.id}`}
+            className="border-t border-border/50 bg-accent/[0.04] px-3.5 py-2.5 sm:px-4 sm:py-3 transition-colors group-hover:bg-accent/[0.08]"
+          >
             <NativeQuiz
               quizData={resource.quiz_data}
               sourceTitle={resource.title}
@@ -507,6 +623,8 @@ export default function ResourceList({
 
   // ─── Subdued Row Renderer (Used inside Shelf 4 Drawer) ─────────────────────
   const renderSubduedArchiveRow = (res: Resource) => {
+    const isPdfReadable = isInAppReadablePdf(res);
+    const isSaved = savedResourceIdSet.has(res.id);
     const examScopeLabel =
       res.target_exam === "midterm"
         ? "مادة الميد"
@@ -514,59 +632,92 @@ export default function ResourceList({
         ? "مادة الفاينل"
         : null;
 
+    const infoBody = (
+      <div className="flex items-center gap-3 min-w-0 flex-1 text-start">
+        <span className="text-lg shrink-0 opacity-80">
+          {res.type === "past_exam" ? "📝" : res.type === "guide" ? "📖" : "📎"}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium text-foreground truncate">
+              {res.title}
+            </span>
+            {examScopeLabel && (
+              <span className="rounded bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                {examScopeLabel}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+            {res.author_name ? (
+              <span>مساهمة: {res.author_name}</span>
+            ) : (
+              <span>مساهمة طالب</span>
+            )}
+            {res.page_count ? <span>• 📄 {res.page_count} صفحة</span> : null}
+            {res.file_size_bytes ? (
+              <span dir="ltr">• {formatBytes(res.file_size_bytes)}</span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+
     return (
       <div
+        id={`res-${res.id}`}
         key={res.id}
         className="flex items-center justify-between gap-3 p-3.5 sm:p-4 hover:bg-secondary/30 transition-colors"
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="text-lg shrink-0 opacity-80">
-            {res.type === "past_exam" ? "📝" : res.type === "guide" ? "📖" : "📎"}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-medium text-foreground truncate">
-                {res.title}
-              </span>
-              {examScopeLabel && (
-                <span className="rounded bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                  {examScopeLabel}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-              {res.author_name ? (
-                <span>مساهمة: {res.author_name}</span>
-              ) : (
-                <span>مساهمة طالب</span>
-              )}
-              {res.page_count ? <span>• 📄 {res.page_count} صفحة</span> : null}
-              {res.file_size_bytes ? (
-                <span dir="ltr">• {formatBytes(res.file_size_bytes)}</span>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        {isValidResourceUrl(res.storage_url) ? (
-          <a
-            href={res.storage_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shrink-0"
+        {isPdfReadable ? (
+          <button
+            type="button"
+            onClick={() => setActiveReaderResource(res)}
+            className="flex min-w-0 flex-1 items-center cursor-pointer"
+            title="قراءة الملف داخل الموقع"
           >
-            <span>تحميل</span>
-            <span>⬇</span>
-          </a>
+            {infoBody}
+          </button>
         ) : (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground opacity-60 cursor-not-allowed shrink-0"
-            title="الملف قيد المعالجة حالياً"
-          >
-            <span>قيد التجهيز</span>
-            <span>⏳</span>
-          </span>
+          infoBody
         )}
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => handleToggleSaveResource(res)}
+            aria-pressed={isSaved}
+            title={isSaved ? "إزالة من المحفوظات" : "حفظ المورد"}
+            aria-label={isSaved ? "إزالة من المحفوظات" : "حفظ المورد"}
+            className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-colors cursor-pointer ${
+              isSaved
+                ? "border-amber-500/40 bg-amber-500/15 text-amber-500"
+                : "border-border bg-card text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <BookmarkIcon filled={isSaved} className="h-3.5 w-3.5" />
+          </button>
+
+          {isValidResourceUrl(res.storage_url) ? (
+            <a
+              href={res.storage_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shrink-0"
+            >
+              <span>تحميل</span>
+              <span>⬇</span>
+            </a>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground opacity-60 cursor-not-allowed shrink-0"
+              title="الملف قيد المعالجة حالياً"
+            >
+              <span>قيد التجهيز</span>
+              <span>⏳</span>
+            </span>
+          )}
+        </div>
       </div>
     );
   };
@@ -813,6 +964,18 @@ export default function ResourceList({
           </Link>
         </div>
       </div>
+
+      {/* ─── Lazy-Loaded In-App PDF Reader Modal ────────────────────── */}
+      {activeReaderResource && (
+        <PdfReaderModal
+          key={activeReaderResource.id}
+          resource={activeReaderResource}
+          isSaved={savedResourceIdSet.has(activeReaderResource.id)}
+          onToggleSave={() => handleToggleSaveResource(activeReaderResource)}
+          onClose={() => setActiveReaderResource(null)}
+          onStartQuiz={handleStartQuizFromReader}
+        />
+      )}
 
       {/* ─── Floating Toast Notification ─────────────────────── */}
       {toastMessage && (

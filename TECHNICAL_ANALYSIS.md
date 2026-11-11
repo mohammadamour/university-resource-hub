@@ -989,22 +989,27 @@ This living backlog serves as the authoritative North Star for future developmen
 - [ ] **Dynamic OpenGraph & WhatsApp Social Unfurl Cards:**
   - Add dynamic `generateMetadata` in `src/app/courses/[slug]/page.tsx` with high-impact OpenGraph tags (`og:title`, `og:description`, `og:image`).
   - When links are posted to university WhatsApp/Telegram groups, they render a rich graphic preview showcasing course title, approved summaries count, and active question bank volume.
-- [ ] **"My Saved Courses" (Zero-Login Homepage Carousel):**
-  - Provide a 1-tap pin/star icon on course cards.
-  - Selected courses are persisted in `localStorage` and surfaced at the very top of the landing page in a quick-access carousel (`مقرراتي المحفوظة 📌`), eliminating search friction for students enrolled in 5–6 concurrent classes.
-- [ ] **In-App Mobile Fullscreen PDF Reading Sheet:**
-  - A lightweight mobile slide-over PDF reader sheet with a sticky bottom action bar (`[ 📥 تحميل مباشر ] [ 🎯 ابدأ كويز الملخص ]`).
-  - Eliminates the friction where mobile Android/WhatsApp in-app browsers force external PDF app downloads, keeping students engaged on the site.
+- [x] **"My Saved Courses" & Saved Resources (`localStorage` Carousel):**
+  - Implemented zero-login client store [`src/lib/bookmarks.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/bookmarks.ts) using React 19 `useSyncExternalStore` (stable snapshots + multi-tab `"storage"` sync) without adding Supabase queries to `/`.
+  - Added bookmark toggles on [`Card.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/ui/Card.tsx) (valid sibling `<button>` outside `<Link>`), [`CoursePinButton.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/CoursePinButton.tsx) in [`courses/[slug]/page.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/courses/%5Bslug%5D/page.tsx), and resource cards in [`ResourceList.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/ResourceList.tsx), surfacing both `مقرراتي المحفوظة 📌` (horizontal mobile carousel / desktop grid) and `مواردي المحفوظة 🔖` quick-jump chips in [`DepartmentGrid.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/DepartmentGrid.tsx).
+- [x] **In-App Mobile Fullscreen PDF Reading Sheet ([`PdfReaderModal.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/PdfReaderModal.tsx)):**
+  - Code-split via `next/dynamic(..., { ssr: false })` + dynamic `await import("pdfjs-dist")` in [`ResourceList.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/ResourceList.tsx) (`0 KB` initial bundle impact on `/courses/[slug]`).
+  - Configured HTTP range-chunk streaming (`disableAutoFetch: true`, `disableStream: true`, `rangeChunkSize: 65536`), strict Page-1-first paint before enabling neighbor rendering, DPR capped at `2x`, and an `IntersectionObserver` `±2` page window with explicit canvas bitmap release (`canvas.width = 0; canvas.height = 0`) + CORS direct-download fallback and docked Quiz launcher.
 - [ ] **Exam Countdown Alert Pill:**
   - A smart contextual countdown widget placed in the course header when `midterm_exam_date` or `final_exam_date` is populated in Supabase, creating study urgency during exam weeks.
-- [ ] **Client-Side Favorites & Bookmarks:**
-  - Provide one-tap bookmarking on course cards and individual summaries stored in `localStorage` (with seamless Supabase sync when logged in) for instant mobile retrieval during exam week.
+- [x] **Client-Side Favorites & Bookmarks (Local Phase Complete; Cloud Sync Post-Auth):**
+  - Completed local-first course and resource bookmarking across homepage cards, course headers, resource rows, and the in-app PDF reader bar using compact metadata snapshots in `localStorage` (seamless Supabase profile sync deferred until auth lands).
 - [ ] **Frictionless Auth & Basic Student Profiles:**
   - Implement zero-barrier authentication (Supabase Auth via Magic Links or Google/Telegram OAuth).
   - **Golden Architectural Rule:** *Zero-login guest reading must never be broken.* Unauthenticated visitors can always read and download freely; profiles simply unlock cloud bookmarks, quiz history, and weak-point analytics.
 - [ ] **Diagnostic Mistake Remediation ("Train My Weaknesses"):**
   - Store student quiz attempt history in `quiz_attempts` / `quiz_attempt_answers`.
   - Introduce an adaptive drill mode filtering only previously missed questions grouped by Arabic topic tags (e.g., "أخطائي في المصفوفات").
+- [ ] **Cohesive Course Card & Header Backgrounds (Deferred — Campus Performance Priority):**
+  - **Guardrails:** Never sacrifice homepage load speed on slow campus mobile networks or legibility on 2-column Arabic cards (`Card.tsx`). Avoid watermarked stock images, third-party textbook covers, baked-in text overlays, and mismatched visual styles across light/dark modes.
+  - **Viable Paths to Revisit Later:**
+    1. *Shared Domain-Familiar or Matched AI-Generated WebP/AVIF Assets:* Reuse a small, cohesive set of text-free domain backgrounds (e.g., coding backdrop for PL1/PL2, math/geometry for Calculus/Discrete Math) paired with a consistent gradient scrim for text contrast.
+    2. *Zero-Byte Inline SVG Motifs + Accent Tints:* Lightweight corner vector symbols per subject family for instant load and native light/dark theme compatibility.
 
 ---
 
