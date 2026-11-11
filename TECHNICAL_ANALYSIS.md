@@ -1104,8 +1104,49 @@ This living backlog serves as the authoritative North Star for future developmen
      1. **Vercel Speed Insights + Web Analytics ([`layout.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/layout.tsx)):** Captures real device Web Vitals (LCP, INP, CLS, TTFB) and referrer traffic (WhatsApp/Telegram vs Direct) directly inside the Vercel Dashboard.
      2. **Automated Webhook Alerting ([`src/lib/ops-alerts.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/ops-alerts.ts)):** Sends real-time push alerts via `DISCORD_WEBHOOK_URL` and/or `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` on new uploads (`/api/upload` inside `after()`) and unexpected HTTP 500 errors (`/api/upload`, `/api/admin/resources/[id]/quiz`, `/api/quiz/record-attempt`, `/api/admin/resources/[id]`, `/api/admin/thumbnails`, `/api/admin/resources/[id]/quiz/import`). Webhook messages purposefully link to `/admin/resources` without appending `ADMIN_SECRET`.
      3. **First-Party Behavioral Event Log ([`src/lib/analytics.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/analytics.ts) ➔ [`POST /api/events`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/events/route.ts) ➔ [`analytics_events`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/migrations/20261116_analytics_events.sql)):** Uses `navigator.sendBeacon` (with `fetch(..., { keepalive: true })` fallback) so events never block downloads, shares, or page navigation. Server route reuses `createAdminClient()`, validates UUIDs safely (handling non-UUID mock course IDs like `placement-exams`), retries without FK IDs on Postgres `23503`, and always returns HTTP 200 to prevent client retry storms.
-   - **Tracked Events Coverage:**
+   - **Tracked Events Coverage (`analytics_events.event_type`):**
      - `resource_view` (course page visits + deep-link `?res=`/`?rid=` + `utm_source` / `ref=pdf_watermark`), `pdf_reader_open`, `pdf_reader_error`, `pdf_download`, `external_link_click`, `whatsapp_share`, `bookmark_add`, `bookmark_remove`, `course_pin`, `course_unpin`, `quiz_start`, `quiz_complete`.
+   - **Production Configuration Checklist:**
+     - Migration applied in Supabase SQL Editor: [`supabase/migrations/20261116_analytics_events.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/migrations/20261116_analytics_events.sql) (RLS enabled, public `INSERT` only, `SELECT` restricted to service role).
+     - Vercel Environment Variables: `DISCORD_WEBHOOK_URL` (Production Secret) and optional `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`.
+   - **Saved Supabase Diagnostic SQL Queries (Run in Supabase → SQL Editor):**
+     ```sql
+     -- 1. Event totals & unique anonymous students (last 7 days)
+     SELECT event_type, COUNT(*) AS total, COUNT(DISTINCT guest_session_id) AS unique_students
+     FROM analytics_events
+     WHERE created_at >= now() - interval '7 days'
+     GROUP BY event_type
+     ORDER BY total DESC;
+
+     -- 2. Top read, downloaded, and WhatsApp-shared resources
+     SELECT resource_title, course_slug, event_type, COUNT(*) AS hits
+     FROM analytics_events
+     WHERE event_type IN ('pdf_reader_open', 'pdf_download', 'whatsapp_share')
+     GROUP BY resource_title, course_slug, event_type
+     ORDER BY hits DESC
+     LIMIT 20;
+
+     -- 3. Broken PDFs / client render errors
+     SELECT created_at, resource_title, course_slug, metadata->>'error' AS error_msg, user_agent
+     FROM analytics_events
+     WHERE event_type = 'pdf_reader_error'
+     ORDER BY created_at DESC
+     LIMIT 20;
+
+     -- 4. Quiz start -> completion funnel & viral referral sources
+     SELECT event_type, COUNT(*) AS total, COUNT(DISTINCT guest_session_id) AS unique_students
+     FROM analytics_events
+     WHERE event_type IN ('quiz_start', 'quiz_complete')
+     GROUP BY event_type;
+
+     SELECT
+       COALESCE(metadata->>'utm_source', metadata->>'ref', 'direct') AS source,
+       COUNT(*) AS visits
+     FROM analytics_events
+     WHERE event_type = 'resource_view'
+     GROUP BY source
+     ORDER BY visits DESC;
+     ```
    - **Remaining Future Enhancement:** Wire a `search_query` event if/when a live keyword search bar is introduced on `/`.
 
 ---
