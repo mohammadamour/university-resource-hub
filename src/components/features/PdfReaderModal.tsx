@@ -196,9 +196,18 @@ export default function PdfReaderModal({
 
         const loadingTask = pdfjsLib.getDocument({
           url: resource.storage_url,
-          rangeChunkSize: 65536, // 64 KB chunks
-          disableAutoFetch: true, // Prevent eager full-file download
-          disableStream: true, // Required alongside disableAutoFetch so range chunks work strictly on-demand
+          // CID font maps required for correct rendering of embedded fonts in textbooks.
+          // Without these, pdfjs falls back to broken substitution fonts → garbled text with
+          // extra letter spacing. Using unpkg CDN avoids bloating the git repo (cmaps ~2MB).
+          cMapUrl: "https://unpkg.com/pdfjs-dist@6.4.299/cmaps/",
+          cMapPacked: true,
+          standardFontDataUrl:
+            "https://unpkg.com/pdfjs-dist@6.4.299/standard_fonts/",
+          rangeChunkSize: 65536, // 64 KB HTTP range chunks — only fetch what's needed
+          // disableAutoFetch: suppress pre-fetching the whole file eagerly on slow campus networks.
+          // disableStream must stay false (the default) — disabling streaming forces pdfjs to
+          // download the entire PDF before displaying anything, which is the opposite of what we want.
+          disableAutoFetch: true,
         });
 
         activeLoadingTask = loadingTask;

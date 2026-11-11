@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { SITE_NAME } from "@/lib/constants";
+import { BookmarkDrawerButton } from "@/components/features/BookmarkDrawer";
 
 /**
  * Site header with branding and navigation.
  * Mobile-first, lightweight, and RTL-aware.
+ *
+ * Intentionally stays a Server Component — the bookmark drawer trigger is
+ * extracted into BookmarkDrawerButton (a "use client" leaf) so the rest of
+ * the header doesn't pay the client-bundle cost.
  */
 export default function Header() {
   return (
@@ -19,7 +24,7 @@ export default function Header() {
         </Link>
 
         {/* Navigation */}
-        <nav className="flex items-center gap-3 sm:gap-4">
+        <nav className="flex items-center gap-2 sm:gap-3">
           {/* Guides link temporarily hidden until guides are populated */}
           {/* <Link
             href="/guides"
@@ -27,6 +32,9 @@ export default function Header() {
           >
             أدلة ونصائح
           </Link> */}
+
+          {/* Bookmark drawer trigger — client leaf, keeps this file as a Server Component */}
+          <BookmarkDrawerButton />
 
           <Link
             href="/upload"
