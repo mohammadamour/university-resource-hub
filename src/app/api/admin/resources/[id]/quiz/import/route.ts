@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeTextForPostgres } from "@/lib/utils";
+import { sendOpsAlert } from "@/lib/ops-alerts";
 import type { QuizQuestion, QuizData } from "@/types/database";
 
 interface RouteProps {
@@ -385,6 +386,9 @@ export async function POST(request: Request, props: RouteProps) {
 
   if (updateError) {
     console.error(`[quiz-import] Failed to persist quiz data for resource ${id}:`, updateError);
+    await sendOpsAlert(
+      `🚨 خطأ 500 في استيراد كويز (POST /api/admin/resources/${id}/quiz/import): ${updateError.message}`
+    );
     return NextResponse.json(
       { error: `فشل حفظ بنك الأسئلة في قاعدة البيانات: ${updateError.message}` },
       { status: 500 }

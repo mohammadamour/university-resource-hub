@@ -967,9 +967,11 @@ This living backlog serves as the authoritative North Star for future developmen
 - [x] **The 3-Tier Content Engine:** Restructured course detail pages into Tier 1 (Core Curated Shelf), Tier 2 (Collapsible Community Archive Drawer), and Tier 3 (External Deep-Dive Toolkit Grid with YouTube/Docs/GitHub badges).
 - [x] **Admin Question Bank Expansion Action:** Built admin-triggered "Expand Bank" (`[➕ توسيع]`) appending non-duplicate Gemini questions to `quiz_data`.
 - [x] **Verified Contributor Badges & Metadata Chips:** Rendered `✦ المعتمد`, `✦ إدارة المنصة`, professor tags, page counts (`📄 18 ص`), and exam scope (`مادة الميد`/`مادة الفاينل`).
-- [x] **IT Student Community Portal & Observability Stack:**
+- [x] **IT Student Community Portal & First-Party Observability Stack:**
   - Embedded prominent WhatsApp community gateway card in [`Footer.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/layout/Footer.tsx) (`WHATSAPP_COMMUNITY_URL` via `NEXT_PUBLIC_WHATSAPP_COMMUNITY_URL`) for freshman peer support and resource requests.
-  - Integrated `@vercel/analytics` into root layout for real-time traffic observability, referrer detection (WhatsApp vs Telegram vs Direct), and tracking organic link forwarding from watermarked PDFs (`/r/:id?ref=pdf_watermark`).
+  - Added `@vercel/analytics` + `@vercel/speed-insights` in [`layout.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/layout.tsx) for real Web Vitals (LCP, CLS, INP) from Jordanian mobile networks without third-party SDK bloat.
+  - Built zero-weight first-party event tracking ([`src/lib/analytics.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/analytics.ts) via `navigator.sendBeacon` -> [`POST /api/events`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/events/route.ts) -> [`analytics_events`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/migrations/20261116_analytics_events.sql)) covering `resource_view`, `pdf_reader_open`, `pdf_reader_error`, `pdf_download`, `external_link_click`, `whatsapp_share`, `bookmark_add`, `bookmark_remove`, `course_pin`, `course_unpin`, `quiz_start`, and `quiz_complete`, sharing anonymous guest IDs via [`src/lib/guest-session.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/guest-session.ts).
+  - Added Discord & Telegram ops alerts ([`src/lib/ops-alerts.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/ops-alerts.ts)) triggered on new `/api/upload` submissions (via `after()`) and unexpected `500` API errors across upload, quiz generation, attempt recording, and admin routes (never embedding `ADMIN_SECRET` in webhook URLs).
 - [x] **Curator 1-Click AI Audit Modal & Prompt Exporter:**
   - Embedded inside the Edit Resource modal in [`AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx) to prevent dashboard clutter. Features in-modal question inspection with answer keys, raw JSON export, and a 1-click "Copy Verification Prompt for AI" formatted for instant Claude/ChatGPT auditing.
 - [x] **Phase 1: Custom Question Bank JSON Importer (Phase 1.1 + 1.2):**
@@ -1097,20 +1099,14 @@ This living backlog serves as the authoritative North Star for future developmen
 7. **Developer Sustainability (Solo Operator Cadence):**
    - Given Ethan's 18-credit university schedule: Batch content curation strictly into pre-exam sprints (Midterm sprint, Final sprint) rather than daily ad-hoc uploads. Keep ongoing weekly maintenance to < 2 hours.
 
-8. **Observability, Real-Time Webhook Alerts & Product Telemetry:**
-   - **Operational Philosophy:** A solo founder cannot monitor production dashboards 24/7. Immediate push alerts to a mobile channel (Discord or Telegram webhook) provide instant situational awareness with zero infrastructure overhead.
-   - **Automated Webhook Alerting (Low-Effort Push Notifications):**
-     - *Critical Backend Failures:* Wrap AI quiz generation (`/api/admin/resources/[id]/quiz`) and upload processing in a lightweight catch helper that sends a formatted markdown message to a private Discord/Telegram webhook via standard `fetch()` when an unexpected 500 or repeated quota failure occurs.
-     - *Community Ingestion Beacon:* Trigger a webhook message whenever a guest submits a new summary via `/upload`, enabling rapid moderation and approval from mobile without manually polling the admin dashboard.
-   - **Telemetry & Event Logging (`analytics_events` Table):**
-     - Create a lightweight Supabase table (`id, event_type, resource_id, metadata JSONB, created_at`) to log critical engagement milestones:
-       1. `quiz_started` vs. `quiz_completed` (reveals question drop-off rates and completion friction).
-       2. `search_query` (logs raw user queries to identify high-demand courses/topics missing from the platform).
-       3. `resource_viewed` & `resource_downloaded` (pinpoints the top 20% of materials driving 80%+ of campus traffic).
-   - **Key Actionable Insights:**
-     - *Fill Content Gaps:* Search query logs tell Ethan exactly what subjects to source or summarize next.
-     - *Calibrate Question Difficulty:* High failure rates on specific questions highlight poorly tuned AI questions or tricky exam traps.
-     - *Exam Season Surge Tracking:* Measure real adoption spikes during Midterms and Finals to quantify campus penetration.
+8. **Observability, Real-Time Webhook Alerts & Product Telemetry (Implemented — Nov 2026):**
+   - **Operational Philosophy:** Instead of heavy third-party SDKs (Sentry ~30-50 KB + Session Replay, PostHog) that hurt Jordanian mobile 4G load budgets, Molakhasat uses a three-part zero-bloat stack:
+     1. **Vercel Speed Insights + Web Analytics ([`layout.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/layout.tsx)):** Captures real device Web Vitals (LCP, INP, CLS, TTFB) and referrer traffic (WhatsApp/Telegram vs Direct) directly inside the Vercel Dashboard.
+     2. **Automated Webhook Alerting ([`src/lib/ops-alerts.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/ops-alerts.ts)):** Sends real-time push alerts via `DISCORD_WEBHOOK_URL` and/or `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` on new uploads (`/api/upload` inside `after()`) and unexpected HTTP 500 errors (`/api/upload`, `/api/admin/resources/[id]/quiz`, `/api/quiz/record-attempt`, `/api/admin/resources/[id]`, `/api/admin/thumbnails`, `/api/admin/resources/[id]/quiz/import`). Webhook messages purposefully link to `/admin/resources` without appending `ADMIN_SECRET`.
+     3. **First-Party Behavioral Event Log ([`src/lib/analytics.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/analytics.ts) ➔ [`POST /api/events`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/events/route.ts) ➔ [`analytics_events`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/migrations/20261116_analytics_events.sql)):** Uses `navigator.sendBeacon` (with `fetch(..., { keepalive: true })` fallback) so events never block downloads, shares, or page navigation. Server route reuses `createAdminClient()`, validates UUIDs safely (handling non-UUID mock course IDs like `placement-exams`), retries without FK IDs on Postgres `23503`, and always returns HTTP 200 to prevent client retry storms.
+   - **Tracked Events Coverage:**
+     - `resource_view` (course page visits + deep-link `?res=`/`?rid=` + `utm_source` / `ref=pdf_watermark`), `pdf_reader_open`, `pdf_reader_error`, `pdf_download`, `external_link_click`, `whatsapp_share`, `bookmark_add`, `bookmark_remove`, `course_pin`, `course_unpin`, `quiz_start`, `quiz_complete`.
+   - **Remaining Future Enhancement:** Wire a `search_query` event if/when a live keyword search bar is introduced on `/`.
 
 ---
 
@@ -1206,7 +1202,7 @@ If and when student-facing paid features are introduced, they must strictly foll
 
 ---
 
-_Maintained continuously during development. Last updated: October 22, 2026._
+_Maintained continuously during development. Last updated: November 11, 2026._
 
 
 

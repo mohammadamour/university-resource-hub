@@ -5,6 +5,8 @@ import dns from "node:dns";
 import crypto from "node:crypto";
 import type { ResourceType, TargetExam, ExternalPlatform } from "@/types/database";
 import { sanitizeTextForPostgres } from "@/lib/utils";
+import { SITE_URL } from "@/lib/constants";
+import { sendOpsAlert } from "@/lib/ops-alerts";
 
 // ─── Serverless & Network Runtime Config ──────────────────────────────────────
 // Next.js Route Segment Config: allow up to 60s execution for background AI synthesis
@@ -43,6 +45,31 @@ function createAdminClient() {
 // ─── Background Pipeline (fire-and-forget) ────────────────────────────────────
 
 import { progressBus } from "@/lib/pipeline/progress-bus";
+
+async function notifyNewUpload(
+  supabase: ReturnType<typeof createAdminClient>,
+  params: {
+    courseId: string;
+    title: string;
+    targetStatus: "active" | "pending";
+    kindLabel: string;
+  }
+) {
+  const { data: courseRow } = await supabase
+    .from("courses")
+    .select("title")
+    .eq("id", params.courseId)
+    .maybeSingle();
+
+  const badge =
+    params.targetStatus === "pending"
+      ? `📤 [بانتظار المراجعة] ${params.kindLabel} طالب جديد`
+      : `✅ [نشر مباشر] ${params.kindLabel} إداري جديد`;
+
+  await sendOpsAlert(
+    `${badge}\n**العنوان:** ${params.title.trim()}\n**المادة:** ${courseRow?.title || params.courseId}\n**لوحة الإدارة:** ${SITE_URL}/admin/resources`
+  );
+}
 
 /**
  * Runs after the initial DB row is inserted.
@@ -226,6 +253,14 @@ async function processFileInBackground(
         console.warn("[pipeline] Revalidation notice:", revErr);
       }
     }
+
+    // Notify admin channel once the file is safely persisted in storage + DB
+    await notifyNewUpload(supabase, {
+      courseId,
+      title,
+      targetStatus,
+      kindLabel: "ملف PDF",
+    });
   } catch (error) {
     // Mark the row as rejected so the admin can identify failed uploads
     console.error(
@@ -256,6 +291,10 @@ async function processFileInBackground(
     } else {
       console.log(`[pipeline] Resource ${resourceId} marked as rejected.`);
     }
+
+    await sendOpsAlert(
+      `❌ فشل معالجة ملف PDF في الخلفية (/api/upload)\n**العنوان:** ${title.trim() || resourceId}\n**المعرّف:** \`${resourceId}\`\n**السبب:** ${errorMessage}`
+    );
   }
 }
 
@@ -300,78 +339,92 @@ export async function POST(req: Request) {
   const authorName = isAdmin ? (authorNameInput || "Mohammad Al-Amour") : null;
   const targetStatus: "active" | "pending" = isAdmin ? "active" : "pending";
 
-  // ── Stage 1A: External Link Ingestion (No PDF / No Ghostscript pipeline needed) ──
-  if (type === "link") {
-    if (!courseId || !title || !linkUrl) {
-      return Response.json(
-        { error: "يرجى تعبئة جميع الحقول الإلزامية وإدخال الرابط الخارجي للمورد." },
-        { status: 400 }
-      );
-    }
-
-    try {
-      new URL(linkUrl);
-    } catch {
-      return Response.json(
-        { error: "INVALID_URL: الرابط المدخل غير صالح. يرجى التأكد من كتابة الرابط بشكل صحيح مع https://" },
-        { status: 422 }
-      );
-    }
-
-    let platform: ExternalPlatform = "general";
-    let linkThumbnailUrl: string | null = null;
-    if (linkUrl.includes("youtube.com") || linkUrl.includes("youtu.be")) {
-      platform = "youtube";
-      const ytMatch = linkUrl.match(
-        /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/
-      );
-      if (ytMatch && ytMatch[1]) {
-        linkThumbnailUrl = `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
+  try {
+    // ── Stage 1A: External Link Ingestion (No PDF / No Ghostscript pipeline needed) ──
+    if (type === "link") {
+      if (!courseId || !title || !linkUrl) {
+        return Response.json(
+          { error: "يرجى تعبئة جميع الحقول الإلزامية وإدخال الرابط الخارجي للمورد." },
+          { status: 400 }
+        );
       }
-    } else if (linkUrl.includes("github.com")) {
-      platform = "github";
-    } else if (linkUrl.includes("drive.google.com")) {
-      platform = "drive";
-    } else if (linkUrl.includes("docs.google.com")) {
-      platform = "docs";
-    }
 
-    const supabase = createAdminClient();
-    const resourceId = crypto.randomUUID();
+      try {
+        new URL(linkUrl);
+      } catch {
+        return Response.json(
+          { error: "INVALID_URL: الرابط المدخل غير صالح. يرجى التأكد من كتابة الرابط بشكل صحيح مع https://" },
+          { status: 422 }
+        );
+      }
 
-    const { data: newResource, error: insertError } = await supabase
-      .from("resources")
-      .insert({
-        id: resourceId,
-        course_id: courseId,
-        title: title.trim(),
-        type: "link",
-        storage_url: linkUrl,
-        file_size_bytes: null,
-        is_admin_uploaded: isAdmin,
+      let platform: ExternalPlatform = "general";
+      let linkThumbnailUrl: string | null = null;
+      if (linkUrl.includes("youtube.com") || linkUrl.includes("youtu.be")) {
+        platform = "youtube";
+        const ytMatch = linkUrl.match(
+          /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/
+        );
+        if (ytMatch && ytMatch[1]) {
+          linkThumbnailUrl = `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
+        }
+      } else if (linkUrl.includes("github.com")) {
+        platform = "github";
+      } else if (linkUrl.includes("drive.google.com")) {
+        platform = "drive";
+      } else if (linkUrl.includes("docs.google.com")) {
+        platform = "docs";
+      }
+
+      const supabase = createAdminClient();
+      const resourceId = crypto.randomUUID();
+
+      const { data: newResource, error: insertError } = await supabase
+        .from("resources")
+        .insert({
+          id: resourceId,
+          course_id: courseId,
+          title: title.trim(),
+          type: "link",
+          storage_url: linkUrl,
+          file_size_bytes: null,
+          is_admin_uploaded: isAdmin,
+          status: targetStatus,
+          target_exam: targetExam,
+          academic_year: academicYear,
+          professor_name: professorName,
+          author_name: authorName,
+          description,
+          is_featured: false,
+          external_platform: platform,
+          thumbnail_url: linkThumbnailUrl,
+        })
+        .select("id")
+        .single();
+
+      if (insertError) {
+        await sendOpsAlert(
+          `❌ خطأ 500 في إدخال رابط خارجي (POST /api/upload)\n**العنوان:** ${title.trim()}\n**السبب:** ${insertError.message}`
+        );
+        return Response.json({ error: insertError.message }, { status: 500 });
+      }
+
+      // Notify outside the critical response path so link submissions feel instant
+      after(async () => {
+        await notifyNewUpload(supabase, {
+          courseId,
+          title,
+          targetStatus,
+          kindLabel: "رابط خارجي",
+        });
+      });
+
+      return Response.json({
+        success: true,
+        resourceId: newResource.id,
         status: targetStatus,
-        target_exam: targetExam,
-        academic_year: academicYear,
-        professor_name: professorName,
-        author_name: authorName,
-        description,
-        is_featured: false,
-        external_platform: platform,
-        thumbnail_url: linkThumbnailUrl,
-      })
-      .select("id")
-      .single();
-
-    if (insertError) {
-      return Response.json({ error: insertError.message }, { status: 500 });
+      });
     }
-
-    return Response.json({
-      success: true,
-      resourceId: newResource.id,
-      status: targetStatus,
-    });
-  }
 
   // ── Stage 1B: Input Validation & Magic Byte Check (SYNC, <10ms) ───────────────
   if (!file || !courseId || !title || !type) {
@@ -528,6 +581,9 @@ export async function POST(req: Request) {
 
   if (insertError || !newResource) {
     console.error("[upload] DB insert failed:", insertError);
+    await sendOpsAlert(
+      `❌ خطأ 500 في إنشاء سجل PDF (POST /api/upload)\n**العنوان:** ${title.trim()}\n**السبب:** ${insertError?.message || "Unknown DB insert error"}`
+    );
     return Response.json(
       { error: "Database error: could not create resource record." },
       { status: 500 }
@@ -572,4 +628,16 @@ export async function POST(req: Request) {
     },
     { status: 202 } // 202 Accepted = "we received it, work is in progress"
   );
+  } catch (unexpectedErr) {
+    const errMsg =
+      unexpectedErr instanceof Error ? unexpectedErr.message : String(unexpectedErr);
+    console.error("[upload] Unexpected 500:", unexpectedErr);
+    await sendOpsAlert(
+      `🚨 خطأ 500 غير متوقع في POST /api/upload\n**السبب:** ${errMsg}`
+    );
+    return Response.json(
+      { error: "Unexpected server error while processing upload." },
+      { status: 500 }
+    );
+  }
 }

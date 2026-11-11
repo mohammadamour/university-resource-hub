@@ -7,6 +7,8 @@ import type {
   QuizSelectionMode,
   RecordAttemptPayload,
 } from "@/types/database";
+import { track } from "@/lib/analytics";
+import { getOrCreateGuestId } from "@/lib/guest-session";
 
 export interface NativeQuizProps {
   quizData: QuizData;
@@ -135,28 +137,6 @@ function sampleAndShuffle(
   };
 }
 
-/**
- * Returns or generates an anonymous client session UUID stored in localStorage.
- */
-function getOrCreateGuestId(): string {
-  if (typeof window === "undefined") return "guest_ssr";
-  const KEY = "molakhasat_guest_uuid";
-  let id = localStorage.getItem(KEY);
-  if (!id) {
-    id = `guest_${
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : Math.random().toString(36).slice(2, 11)
-    }`;
-    try {
-      localStorage.setItem(KEY, id);
-    } catch {
-      // localStorage may fail in private browsing mode
-    }
-  }
-  return id;
-}
-
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
 
 export default function NativeQuiz({
@@ -217,6 +197,26 @@ export default function NativeQuiz({
   // Diagnostics Timing & Beacon Safeguards
   const startTimeRef = useRef<number>(Date.now());
   const hasLoggedAttemptRef = useRef<boolean>(false);
+  const hasTrackedStartRef = useRef<boolean>(false);
+
+  const trackQuizStart = useCallback(
+    (questionCount: number, isRestart = false) => {
+      hasTrackedStartRef.current = true;
+      track({
+        eventType: "quiz_start",
+        resourceId,
+        courseId,
+        resourceTitle: sourceTitle,
+        metadata: {
+          question_count: questionCount,
+          difficulty_mode: selectedMode,
+          bank_size: bankSize,
+          is_restart: isRestart,
+        },
+      });
+    },
+    [resourceId, courseId, sourceTitle, selectedMode, bankSize]
+  );
 
   const activeQuestions = sessionData.questions;
   const totalQuestions = activeQuestions.length;
@@ -246,12 +246,19 @@ export default function NativeQuiz({
     setIsOpen(true);
     startTimeRef.current = Date.now();
     hasLoggedAttemptRef.current = false;
-  }, [bank, selectedCount, selectedMode]);
+
+    trackQuizStart(sampled.questions.length, false);
+  }, [bank, selectedCount, selectedMode, trackQuizStart]);
 
   // Option selection
   const handleSelectOption = useCallback(
     (index: number) => {
       if (isAnswered || !currentQuestion) return;
+
+      // Fallback for defaultOpen standalone quizzes that skip the launcher button
+      if (!hasTrackedStartRef.current) {
+        trackQuizStart(totalQuestions, false);
+      }
 
       const isCorrect = index === currentQuestion.correctIndex;
       setSelectedOption(index);
@@ -271,7 +278,7 @@ export default function NativeQuiz({
         },
       ]);
     },
-    [isAnswered, currentQuestion, currentIndex]
+    [isAnswered, currentQuestion, currentIndex, totalQuestions, trackQuizStart]
   );
 
   const handleNext = useCallback(() => {
@@ -296,7 +303,9 @@ export default function NativeQuiz({
     setShowReview(false);
     startTimeRef.current = Date.now();
     hasLoggedAttemptRef.current = false;
-  }, [bank, selectedCount, selectedMode]);
+
+    trackQuizStart(sampled.questions.length, true);
+  }, [bank, selectedCount, selectedMode, trackQuizStart]);
 
   const handleClose = useCallback(() => {
     setIsOpen(false);
@@ -381,10 +390,27 @@ export default function NativeQuiz({
     }).catch((err) => {
       console.warn("[quiz] Failed to log attempt telemetry:", err);
     });
+
+    // Track quiz_complete alongside the existing attempt record
+    // Metadata gives us score distribution for understanding how hard our quizzes are
+    track({
+      eventType: "quiz_complete",
+      resourceId,
+      courseId,
+      resourceTitle: sourceTitle,
+      metadata: {
+        score,
+        total_questions: activeQuestions.length,
+        score_percentage: scorePercentage,
+        duration_seconds: durationSeconds,
+        difficulty_mode: selectedMode,
+      },
+    });
   }, [
     isFinished,
     resourceId,
     courseId,
+    sourceTitle,
     activeQuestions.length,
     score,
     scorePercentage,

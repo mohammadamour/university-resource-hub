@@ -7,8 +7,10 @@ import {
   syncSavedCourseMeta,
   useBookmarks,
 } from "@/lib/bookmarks";
+import { track } from "@/lib/analytics";
 
 interface CoursePinButtonProps {
+  courseId?: string;
   courseSlug: string;
   courseTitle: string;
   courseCode?: string | null;
@@ -19,6 +21,7 @@ interface CoursePinButtonProps {
  * so students can save a course to their Header "محفوظاتي" drawer.
  */
 export default function CoursePinButton({
+  courseId,
   courseSlug,
   courseTitle,
   courseCode,
@@ -36,9 +39,22 @@ export default function CoursePinButton({
   return (
     <button
       type="button"
-      onClick={() =>
-        toggleSavedCourse(courseSlug, { title: courseTitle, courseCode })
-      }
+      onClick={() => {
+          const nowPinned = toggleSavedCourse(courseSlug, {
+            title: courseTitle,
+            courseCode,
+          });
+          // Track course pin/unpin — reveals which courses students care about most
+          track({
+            eventType: nowPinned ? "course_pin" : "course_unpin",
+            courseId,
+            courseSlug,
+            metadata: {
+              source: "course_header",
+              course_title: courseTitle,
+            },
+          });
+        }}
       aria-pressed={isPinned}
       title={isPinned ? "إزالة من مقرراتي المحفوظة" : "حفظ المادة في مقرراتي"}
       className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all active:scale-95 shadow-2xs cursor-pointer ${

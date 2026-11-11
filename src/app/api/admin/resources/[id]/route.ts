@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ResourceType, ResourceStatus } from "@/types/database";
+import { sendOpsAlert } from "@/lib/ops-alerts";
 
 interface RouteProps {
   params: Promise<{ id: string }>;
@@ -96,6 +97,7 @@ export async function DELETE(request: Request, props: RouteProps) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     console.error("[admin-crud] DELETE error:", err);
+    await sendOpsAlert(`🚨 خطأ 500 في DELETE /api/admin/resources/${id}: ${message}`);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -247,6 +249,7 @@ export async function PATCH(request: Request, props: RouteProps) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     console.error("[admin-crud] PATCH error:", err);
+    await sendOpsAlert(`🚨 خطأ 500 في PATCH /api/admin/resources/${id}: ${message}`);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import dns from "node:dns";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeTextForPostgres } from "@/lib/utils";
+import { sendOpsAlert } from "@/lib/ops-alerts";
 import {
   generateQuizWithGemini,
   expandQuizWithGemini,
@@ -194,11 +195,15 @@ export async function POST(
     });
   } catch (aiErr) {
     console.error(`[admin-quiz] Failed to process quiz for ${id}:`, aiErr);
+    const errMsg =
+      aiErr instanceof Error
+        ? aiErr.message
+        : "فشل توليد أو توسيع الكويز عبر الذكاء الاصطناعي.";
+    await sendOpsAlert(
+      `❌ فشل توليد كويز Gemini (POST /api/admin/resources/${id}/quiz)\n**المورد:** ${resource.title}\n**السبب:** ${errMsg}`
+    );
     return NextResponse.json(
-      {
-        error:
-          aiErr instanceof Error ? aiErr.message : "فشل توليد أو توسيع الكويز عبر الذكاء الاصطناعي.",
-      },
+      { error: errMsg },
       { status: 500 }
     );
   }
@@ -228,6 +233,9 @@ export async function DELETE(
     .eq("id", id);
 
   if (error) {
+    await sendOpsAlert(
+      `❌ خطأ 500 في حذف كويز (DELETE /api/admin/resources/${id}/quiz): ${error.message}`
+    );
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

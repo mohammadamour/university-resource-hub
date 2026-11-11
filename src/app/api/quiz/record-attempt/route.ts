@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createClient as createServerSupabase } from "@/lib/supabase/server";
 import type { RecordAttemptPayload } from "@/types/database";
+import { sendOpsAlert } from "@/lib/ops-alerts";
 
 /**
  * Service-role client to reliably write quiz sessions and answers
@@ -81,6 +82,9 @@ export async function POST(request: Request) {
 
     if (attemptError) {
       console.error("[quiz-telemetry] Failed to insert attempt:", attemptError);
+      await sendOpsAlert(
+        `🚨 خطأ 500 في تسجيل محاولة كويز (/api/quiz/record-attempt)\n**المورد:** ${body.resourceId}\n**السبب:** ${attemptError.message}`
+      );
       return NextResponse.json(
         { error: "Failed to persist quiz attempt" },
         { status: 500 }
@@ -119,6 +123,9 @@ export async function POST(request: Request) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     console.error("[quiz-telemetry] Unexpected error:", err);
+    await sendOpsAlert(
+      `🚨 خطأ 500 غير متوقع في /api/quiz/record-attempt: ${message}`
+    );
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

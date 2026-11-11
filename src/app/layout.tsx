@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { SITE_NAME, SITE_DESCRIPTION, SITE_URL } from "@/lib/constants";
 import "./globals.css";
 
@@ -28,7 +29,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
+        {/* Vercel Analytics: page views, referrers, country breakdown */}
         <Analytics />
+        {/* Speed Insights: real Web Vitals (LCP, CLS, FID) from actual student devices */}
+        <SpeedInsights />
       </body>
     </html>
   );

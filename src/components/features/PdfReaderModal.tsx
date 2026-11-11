@@ -10,9 +10,11 @@ import type {
 } from "pdfjs-dist/types/src/display/api";
 import type { Resource } from "@/types/database";
 import BookmarkIcon from "@/components/ui/BookmarkIcon";
+import { track } from "@/lib/analytics";
 
 interface PdfReaderModalProps {
   resource: Resource;
+  courseSlug?: string;
   isSaved: boolean;
   onToggleSave: () => void;
   onClose: () => void;
@@ -155,6 +157,7 @@ function PdfCanvasSurface({
  */
 export default function PdfReaderModal({
   resource,
+  courseSlug,
   isSaved,
   onToggleSave,
   onClose,
@@ -177,6 +180,17 @@ export default function PdfReaderModal({
 
   const zoomScale = ZOOM_STEPS[zoomIndex];
   const quizQuestionCount = resource.quiz_data?.questions?.length || 0;
+
+  const trackDownload = (source: string) => {
+    track({
+      eventType: "pdf_download",
+      resourceId: resource.id,
+      courseId: resource.course_id,
+      courseSlug,
+      resourceTitle: resource.title,
+      metadata: { source },
+    });
+  };
 
   // Lock background page scroll & bind Escape key cleanly
   useEffect(() => {
@@ -277,6 +291,15 @@ export default function PdfReaderModal({
           setErrorMsg(
             "تعذر عرض الملف مباشرة داخل المتصفح (قد يمنع المصدر تحميل الأجزاء عن بُعد)."
           );
+          // Track PDF load errors — helps us catch broken storage URLs or CORS issues quickly
+          track({
+            eventType: "pdf_reader_error",
+            resourceId: resource.id,
+            courseId: resource.course_id,
+            courseSlug,
+            resourceTitle: resource.title,
+            metadata: { error: String(err) },
+          });
         }
       }
     }
@@ -289,7 +312,7 @@ export default function PdfReaderModal({
         activeLoadingTask.destroy().catch(() => {});
       }
     };
-  }, [resource.storage_url]);
+  }, [resource.storage_url, resource.id, resource.course_id, resource.title, courseSlug]);
 
   // Track visible page once Page 1 has completed painting first
   useEffect(() => {
@@ -447,6 +470,7 @@ export default function PdfReaderModal({
             href={resource.storage_url}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => trackDownload("reader_header")}
             className="inline-flex h-10 sm:h-9 items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 text-xs font-semibold text-white hover:bg-accent hover:border-accent transition-colors"
             title="تحميل أو فتح الملف الأصلي"
           >
@@ -469,6 +493,7 @@ export default function PdfReaderModal({
               href={resource.storage_url}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => trackDownload("reader_error_fallback")}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-accent/90 transition-colors"
             >
               <span>⬇</span>

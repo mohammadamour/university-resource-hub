@@ -12,6 +12,7 @@ import {
   toggleSavedCourse,
   syncSavedCourseMeta,
 } from "@/lib/bookmarks";
+import { track } from "@/lib/analytics";
 
 function buildCourseBadges(course: CourseWithResources): CardBadge[] {
   const activeResources = (course.resources || []).filter(
@@ -373,12 +374,21 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                       courseCode={course.course_code}
                       badges={buildCourseBadges(course)}
                       isPinned={savedCourseSlugSet.has(course.slug)}
-                      onTogglePin={() =>
-                        toggleSavedCourse(course.slug, {
+                      onTogglePin={() => {
+                        const nowPinned = toggleSavedCourse(course.slug, {
                           title: course.title,
                           courseCode: course.course_code,
-                        })
-                      }
+                        });
+                        track({
+                          eventType: nowPinned ? "course_pin" : "course_unpin",
+                          courseId: course.id,
+                          courseSlug: course.slug,
+                          metadata: {
+                            source: "homepage_card",
+                            course_title: course.title,
+                          },
+                        });
+                      }}
                     />
                   ))}
                 </div>

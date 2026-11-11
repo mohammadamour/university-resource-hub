@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendOpsAlert } from "@/lib/ops-alerts";
 
 function verifyAdminAuth(request: Request): boolean {
   const adminSecret = request.headers.get("x-admin-secret");
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, thumbnailUrl: publicUrl });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Internal error";
+    await sendOpsAlert(`🚨 خطأ 500 في POST /api/admin/thumbnails: ${msg}`);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

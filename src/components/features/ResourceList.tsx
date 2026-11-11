@@ -7,6 +7,7 @@ import type { Resource } from "@/types/database";
 import NativeQuiz from "@/components/features/NativeQuiz";
 import BookmarkIcon from "@/components/ui/BookmarkIcon";
 import { toggleSavedResource, useBookmarks } from "@/lib/bookmarks";
+import { track } from "@/lib/analytics";
 
 // Code-split the pdf.js reader modal so initial course page JS pays 0 KB overhead
 const PdfReaderModal = dynamic(
@@ -186,12 +187,54 @@ export default function ResourceList({
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasTrackedViewRef = useRef(false);
 
   const { resources: savedResources } = useBookmarks();
   const savedResourceIdSet = useMemo(
     () => new Set(savedResources.map((r) => r.id)),
     [savedResources]
   );
+
+  // Track course page view once on mount (preserving ISR by reading URL params in effect)
+  useEffect(() => {
+    if (hasTrackedViewRef.current || typeof window === "undefined") return;
+    hasTrackedViewRef.current = true;
+
+    try {
+      const url = new URL(window.location.href);
+      const deepLinkedId =
+        url.searchParams.get("res") || url.searchParams.get("rid") || undefined;
+      const matched = deepLinkedId
+        ? resources.find((r) => r.id === deepLinkedId)
+        : undefined;
+
+      track({
+        eventType: "resource_view",
+        resourceId: matched?.id,
+        courseId,
+        courseSlug,
+        resourceTitle: matched?.title,
+        metadata: {
+          course_title: courseTitle || null,
+          resource_count: resources.length,
+          deep_linked_resource_id: deepLinkedId || null,
+          utm_source: url.searchParams.get("utm_source"),
+          utm_medium: url.searchParams.get("utm_medium"),
+          ref: url.searchParams.get("ref"),
+        },
+      });
+    } catch {
+      track({
+        eventType: "resource_view",
+        courseId,
+        courseSlug,
+        metadata: {
+          course_title: courseTitle || null,
+          resource_count: resources.length,
+        },
+      });
+    }
+  }, [courseId, courseSlug, courseTitle, resources]);
 
   useEffect(() => {
     return () => {
@@ -203,6 +246,31 @@ export default function ResourceList({
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToastMessage(msg);
     toastTimerRef.current = setTimeout(() => setToastMessage(null), durationMs);
+  };
+
+  const handleOpenPdfReader = (resource: Resource) => {
+    setActiveReaderResource(resource);
+    track({
+      eventType: "pdf_reader_open",
+      resourceId: resource.id,
+      courseId,
+      courseSlug,
+      resourceTitle: resource.title,
+    });
+  };
+
+  const handleResourceOutboundClick = (resource: Resource, source: string) => {
+    track({
+      eventType: resource.type === "link" ? "external_link_click" : "pdf_download",
+      resourceId: resource.id,
+      courseId,
+      courseSlug,
+      resourceTitle: resource.title,
+      metadata: {
+        source,
+        resource_type: resource.type,
+      },
+    });
   };
 
   const handleToggleSaveResource = (resource: Resource) => {
@@ -218,6 +286,15 @@ export default function ResourceList({
       targetExam: resource.target_exam,
       pageCount: resource.page_count,
       hasQuiz: Boolean(resource.quiz_data?.questions?.length),
+    });
+
+    // Track bookmark_add / bookmark_remove — helps us understand which resources students return to
+    track({
+      eventType: nowSaved ? "bookmark_add" : "bookmark_remove",
+      resourceId: resource.id,
+      courseId,
+      courseSlug,
+      resourceTitle: resource.title,
     });
 
     showToast(
@@ -304,6 +381,15 @@ export default function ResourceList({
     }
 
     showToast("تم فتح واتساب ونسخ الرابط للمشاركة! 📋", 3200);
+
+    // Track WhatsApp share — a high-value virality signal
+    track({
+      eventType: "whatsapp_share",
+      resourceId: resource.id,
+      courseId,
+      courseSlug,
+      resourceTitle: resource.title,
+    });
 
     // Open WhatsApp Web or Mobile App
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
@@ -494,7 +580,7 @@ export default function ResourceList({
           ) : isPdfReadable ? (
             <button
               type="button"
-              onClick={() => setActiveReaderResource(resource)}
+              onClick={() => handleOpenPdfReader(resource)}
               className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4 text-start cursor-pointer"
               title="قراءة الملف داخل الموقع"
             >
@@ -506,6 +592,7 @@ export default function ResourceList({
               href={resource.storage_url}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => handleResourceOutboundClick(resource, "card_body")}
               className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4 cursor-pointer"
             >
               <ResourceCover resource={resource} isOfficial={isOfficial} />
@@ -573,6 +660,7 @@ export default function ResourceList({
                 href={resource.storage_url}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => handleResourceOutboundClick(resource, "card_button")}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/80 text-foreground transition-all group-hover:bg-accent group-hover:text-white group-hover:scale-105 shadow-2xs"
                 title="تحميل / فتح الملف"
               >
@@ -672,7 +760,7 @@ export default function ResourceList({
         {isPdfReadable ? (
           <button
             type="button"
-            onClick={() => setActiveReaderResource(res)}
+            onClick={() => handleOpenPdfReader(res)}
             className="flex min-w-0 flex-1 items-center cursor-pointer"
             title="قراءة الملف داخل الموقع"
           >
@@ -703,6 +791,7 @@ export default function ResourceList({
               href={res.storage_url}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => handleResourceOutboundClick(res, "archive_button")}
               className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shrink-0"
             >
               <span>تحميل</span>
@@ -873,6 +962,7 @@ export default function ResourceList({
                           href={res.storage_url}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={() => handleResourceOutboundClick(res, "external_card")}
                           className="group flex flex-col justify-between rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:border-accent hover:shadow-md active:scale-[0.99]"
                         >
                           <div className="space-y-2">
@@ -970,6 +1060,7 @@ export default function ResourceList({
         <PdfReaderModal
           key={activeReaderResource.id}
           resource={activeReaderResource}
+          courseSlug={courseSlug}
           isSaved={savedResourceIdSet.has(activeReaderResource.id)}
           onToggleSave={() => handleToggleSaveResource(activeReaderResource)}
           onClose={() => setActiveReaderResource(null)}

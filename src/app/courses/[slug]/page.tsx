@@ -186,6 +186,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
 
           <div className="flex flex-wrap items-center gap-2 shrink-0 self-start">
             <CoursePinButton
+              courseId={course.id}
               courseSlug={course.slug}
               courseTitle={course.title}
               courseCode={course.course_code}

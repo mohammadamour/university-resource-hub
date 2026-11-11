@@ -10,6 +10,7 @@ import {
 } from "@/lib/bookmarks";
 import type { ResourceType } from "@/types/database";
 import BookmarkIcon from "@/components/ui/BookmarkIcon";
+import { track } from "@/lib/analytics";
 
 const emptySubscribe = () => () => {};
 
@@ -206,7 +207,17 @@ export function BookmarkDrawer({
                             </Link>
                             <button
                               type="button"
-                              onClick={() => toggleSavedCourse(slug)}
+                              onClick={() => {
+                                toggleSavedCourse(slug);
+                                track({
+                                  eventType: "course_unpin",
+                                  courseSlug: slug,
+                                  metadata: {
+                                    source: "drawer",
+                                    course_title: displayTitle,
+                                  },
+                                });
+                              }}
                               aria-label={`إلغاء حفظ ${displayTitle}`}
                               title="إلغاء الحفظ"
                               className="flex h-10 w-10 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg text-amber-500 hover:bg-secondary active:scale-95 transition-all cursor-pointer"
@@ -256,7 +267,16 @@ export function BookmarkDrawer({
                           </Link>
                           <button
                             type="button"
-                            onClick={() => removeSavedResource(res.id)}
+                            onClick={() => {
+                              removeSavedResource(res.id);
+                              track({
+                                eventType: "bookmark_remove",
+                                resourceId: res.id,
+                                courseSlug: res.courseSlug,
+                                resourceTitle: res.title,
+                                metadata: { source: "drawer" },
+                              });
+                            }}
                             aria-label={`إزالة ${res.title} من المحفوظات`}
                             title="إزالة من المحفوظات"
                             className="flex h-10 w-10 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg text-xs text-muted-foreground hover:bg-secondary hover:text-foreground active:scale-95 transition-all cursor-pointer"
