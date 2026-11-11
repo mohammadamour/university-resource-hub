@@ -418,6 +418,155 @@ ${formattedQuestions}
   const [generatingQuizId, setGeneratingQuizId] = useState<string | null>(null);
   const [expandingQuizId, setExpandingQuizId] = useState<string | null>(null);
 
+  // ─── JSON Import Drawer ───────────────────────────────────────────────────
+  // Which resource is currently open in the import drawer (null = closed)
+  const [importingResource, setImportingResource] = useState<AdminResourceItem | null>(null);
+  // Raw JSON text pasted by admin
+  const [importJson, setImportJson] = useState("");
+  // "replace" overwrites the whole bank; "append" deduplicates and merges
+  const [importMode, setImportMode] = useState<"replace" | "append">("replace");
+  // Live client-side parse result shown to admin before they hit Send
+  const [importPreview, setImportPreview] = useState<
+    { valid: true; count: number } | { valid: false; error: string } | null
+  >(null);
+  // Network / server state
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  /**
+   * Client-side "pre-flight" validator.
+   * Runs every time importJson changes so the admin sees instant feedback.
+   * Strips markdown fences, extracts the JSON, and counts valid-looking questions.
+   * This is intentionally lenient — the server does the strict validation.
+   */
+  const runImportPreview = (raw: string) => {
+    if (!raw.trim()) {
+      setImportPreview(null);
+      return;
+    }
+
+    try {
+      // Mirror the server-side fence-stripping and extraction logic
+      const stripped = raw
+        .trim()
+        .replace(/^```[a-zA-Z]*\s*/i, "")
+        .replace(/\s*```\s*$/, "")
+        .trim();
+
+      let extracted = stripped;
+      const arrayStart = stripped.indexOf("[");
+      const arrayEnd = stripped.lastIndexOf("]");
+      if (arrayStart !== -1 && arrayEnd > arrayStart) {
+        extracted = stripped.slice(arrayStart, arrayEnd + 1);
+      } else {
+        const objStart = stripped.indexOf("{");
+        const objEnd = stripped.lastIndexOf("}");
+        if (objStart !== -1 && objEnd > objStart) {
+          extracted = stripped.slice(objStart, objEnd + 1);
+        }
+      }
+
+      const parsed = JSON.parse(extracted);
+
+      // Count question-like objects
+      let candidates: unknown[] = [];
+      if (Array.isArray(parsed)) {
+        candidates = parsed;
+      } else if (typeof parsed === "object" && parsed !== null) {
+        const obj = parsed as Record<string, unknown>;
+        if (Array.isArray(obj.questions)) {
+          candidates = obj.questions;
+        } else {
+          for (const val of Object.values(obj)) {
+            if (Array.isArray(val) && val.length > 0) {
+              candidates = val;
+              break;
+            }
+          }
+        }
+      }
+
+      // Count entries that look like valid questions (lenient check)
+      const validCount = candidates.filter((c) => {
+        if (typeof c !== "object" || c === null) return false;
+        const q = c as Record<string, unknown>;
+        return (
+          typeof q.question === "string" &&
+          q.question.trim().length > 0 &&
+          Array.isArray(q.options) &&
+          q.options.length === 4
+        );
+      }).length;
+
+      if (validCount === 0) {
+        setImportPreview({ valid: false, error: "لم يتم اكتشاف أي أسئلة صالحة في الـ JSON." });
+      } else {
+        setImportPreview({ valid: true, count: validCount });
+      }
+    } catch (err) {
+      setImportPreview({
+        valid: false,
+        error: `JSON غير صالح: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  };
+
+  const openImportDrawer = (resource: AdminResourceItem) => {
+    setImportingResource(resource);
+    setImportJson("");
+    setImportMode("replace");
+    setImportPreview(null);
+    setImportError(null);
+  };
+
+  const handleImportSubmit = async () => {
+    if (!importingResource || !importJson.trim() || isImporting) return;
+
+    setIsImporting(true);
+    setImportError(null);
+
+    try {
+      const response = await fetch(
+        `/api/admin/resources/${importingResource.id}/quiz/import`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-secret": adminSecret,
+          },
+          body: JSON.stringify({ rawJson: importJson, mode: importMode }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "فشل استيراد بنك الأسئلة.");
+      }
+
+      // Update in-place so the table quiz badge reflects the new count immediately
+      setResources((prev) =>
+        prev.map((r) =>
+          r.id === importingResource.id ? { ...r, quiz_data: data.quizData } : r
+        )
+      );
+
+      // If the edit modal is open for this resource, patch it too
+      setEditingResource((current) =>
+        current && current.id === importingResource.id
+          ? { ...current, quiz_data: data.quizData }
+          : current
+      );
+
+      setImportingResource(null);
+      showNotification("success", data.message || `تم استيراد بنك الأسئلة بنجاح (${data.total} سؤال).`);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "حدث خطأ غير متوقع أثناء الاستيراد.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const handleGenerateQuiz = async (res: AdminResourceItem) => {
     if (generatingQuizId || expandingQuizId) return;
     setGeneratingQuizId(res.id);
@@ -1231,6 +1380,15 @@ ${formattedQuestions}
                             </div>
                           )}
 
+                          {/* JSON Question Bank Importer */}
+                          <button
+                            onClick={() => openImportDrawer(res)}
+                            className="rounded-lg border border-sky-500/30 bg-sky-500/10 p-2 text-xs font-medium text-sky-300 hover:bg-sky-500/20 transition-colors"
+                            title="استيراد بنك أسئلة من JSON (استبدال أو دمج)"
+                          >
+                            📥
+                          </button>
+
                           {res.storage_url && res.storage_url !== "__processing__" ? (
                             <a
                               href={res.storage_url}
@@ -1487,6 +1645,15 @@ ${formattedQuestions}
                     </button>
 
                     <button
+                      onClick={() => openImportDrawer(res)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-sky-500/20"
+                      title="استيراد بنك أسئلة JSON"
+                    >
+                      <span>📥</span>
+                      <span>استيراد JSON</span>
+                    </button>
+
+                    <button
                       onClick={() => openDeleteModal(res)}
                       className="inline-flex items-center gap-1 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/20"
                     >
@@ -1497,6 +1664,218 @@ ${formattedQuestions}
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── JSON Import Drawer Modal ─────────────────────────────────────── */}
+      {importingResource && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto"
+        >
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-sky-500/30 bg-card shadow-2xl overflow-hidden">
+
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border p-5 sm:p-6 shrink-0">
+              <div>
+                <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                  <span>📥</span>
+                  <span>استيراد بنك أسئلة (JSON)</span>
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-sm">
+                  {importingResource.title}
+                </p>
+              </div>
+              <button
+                onClick={() => setImportingResource(null)}
+                disabled={isImporting}
+                className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1.5 rounded-lg hover:bg-muted transition-colors"
+                title="إغلاق"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto p-5 sm:p-6 space-y-4">
+
+              {/* Error banner */}
+              {importError && (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs font-medium text-red-400">
+                  {importError}
+                </div>
+              )}
+
+              {/* Mode Selector */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-foreground">
+                  وضع الاستيراد
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setImportMode("replace")}
+                    className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-start transition-all ${
+                      importMode === "replace"
+                        ? "border-sky-500/60 bg-sky-500/15 text-sky-200"
+                        : "border-border bg-background text-muted-foreground hover:border-sky-500/30 hover:bg-sky-500/5"
+                    }`}
+                  >
+                    <span className="text-sm font-bold">🔄 استبدال البنك بالكامل</span>
+                    <span className="text-[11px] leading-relaxed opacity-80">
+                      يحذف بنك الأسئلة الحالي ويستبدله بالكامل بالأسئلة المستوردة.
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setImportMode("append")}
+                    className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-start transition-all ${
+                      importMode === "append"
+                        ? "border-sky-500/60 bg-sky-500/15 text-sky-200"
+                        : "border-border bg-background text-muted-foreground hover:border-sky-500/30 hover:bg-sky-500/5"
+                    }`}
+                  >
+                    <span className="text-sm font-bold">➕ دمج مع الأسئلة الحالية</span>
+                    <span className="text-[11px] leading-relaxed opacity-80">
+                      يضيف الأسئلة الجديدة بجانب الموجودة مع حذف المكررة تلقائياً.
+                    </span>
+                  </button>
+                </div>
+
+                {/* Existing bank info */}
+                {importingResource.quiz_data?.questions?.length ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    البنك الحالي:{" "}
+                    <strong className="text-foreground">
+                      {importingResource.quiz_data.questions.length} سؤال
+                    </strong>{" "}
+                    {importMode === "replace"
+                      ? "— سيتم حذفها واستبدالها."
+                      : "— ستُحتفظ بها وتضاف إليها الأسئلة الجديدة."}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    لا يوجد بنك أسئلة حالي لهذا المورد.
+                  </p>
+                )}
+              </div>
+
+              {/* JSON Paste Area */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  الصق بنك الأسئلة بصيغة JSON هنا{" "}
+                  <span className="text-destructive">*</span>
+                </label>
+                <textarea
+                  value={importJson}
+                  onChange={(e) => {
+                    setImportJson(e.target.value);
+                    runImportPreview(e.target.value);
+                    setImportError(null);
+                  }}
+                  rows={12}
+                  dir="ltr"
+                  placeholder={`الصق هنا مصفوفة الأسئلة بأي من الصيغتين المدعومتين:\n\n[\n  {\n    "question": "ما هو...",\n    "options": ["أ", "ب", "ج", "د"],\n    "correctIndex": 0,\n    "explanation": "لأن..."\n  }\n]\n\nأو بصيغة { "questions": [...] }\nيتم تجاهل أكواد Markdown (json...) تلقائياً.`}
+                  className="w-full rounded-xl border border-border bg-background/80 px-3.5 py-3 text-xs font-mono text-foreground focus:border-sky-500/70 focus:outline-none focus:ring-1 focus:ring-sky-500/50 resize-none placeholder:opacity-40 placeholder:text-[11px]"
+                />
+
+                {/* Live Validation Feedback */}
+                {importPreview && (
+                  <div
+                    className={`flex items-center gap-2 rounded-xl border p-3 text-xs font-medium ${
+                      importPreview.valid
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                        : "border-red-500/30 bg-red-500/10 text-red-400"
+                    }`}
+                  >
+                    {importPreview.valid ? (
+                      <>
+                        <span className="text-base">✓</span>
+                        <span>
+                          جاهز لاستيراد{" "}
+                          <strong>{importPreview.count}</strong> سؤالاً — سيتم التحقق النهائي من الصحة عبر الخادم.
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-base">✗</span>
+                        <span>{importPreview.error}</span>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Format guide */}
+                <details className="text-[11px] text-muted-foreground">
+                  <summary className="cursor-pointer hover:text-foreground transition-colors font-medium">
+                    📖 ما هي صيغ JSON المقبولة؟
+                  </summary>
+                  <div className="mt-2 rounded-xl border border-border bg-background/60 p-3 space-y-2 leading-relaxed">
+                    <p><strong className="text-foreground">الحقول المطلوبة في كل سؤال:</strong></p>
+                    <ul className="list-disc list-inside space-y-1 font-mono text-[10px]">
+                      <li><code>question</code>: نص السؤال (string)</li>
+                      <li><code>options</code>: مصفوفة من 4 خيارات مختلفة</li>
+                      <li><code>correctIndex</code>: رقم الإجابة الصحيحة (0, 1, 2, أو 3) — يقبل أيضاً 1-4 ويصحح تلقائياً</li>
+                      <li>أو <code>correctAnswer</code>: نص الإجابة الصحيحة بدلاً من الرقم</li>
+                    </ul>
+                    <p><strong className="text-foreground">الحقول الاختيارية:</strong></p>
+                    <ul className="list-disc list-inside space-y-1 font-mono text-[10px]">
+                      <li><code>explanation</code>: شرح الإجابة (يُولَّد تلقائياً إن غاب)</li>
+                      <li><code>difficulty</code>: &ldquo;easy&rdquo; | &ldquo;medium&rdquo; | &ldquo;hard&rdquo;</li>
+                      <li><code>topic</code>: موضوع السؤال</li>
+                    </ul>
+                  </div>
+                </details>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-between gap-3 border-t border-border p-4 sm:px-6 bg-card shrink-0">
+              <div className="text-[11px] text-muted-foreground">
+                {importPreview?.valid
+                  ? `سيُرسل ${importPreview.count} سؤال للتحقق النهائي`
+                  : "الصق الـ JSON أعلاه للمتابعة"}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setImportingResource(null)}
+                  disabled={isImporting}
+                  className="rounded-xl border border-border bg-secondary px-4 py-2 text-xs font-semibold text-foreground hover:bg-muted"
+                >
+                  إلغاء
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleImportSubmit}
+                  disabled={
+                    isImporting ||
+                    !importJson.trim() ||
+                    importPreview?.valid === false
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-sky-500 disabled:opacity-50 transition-colors"
+                >
+                  {isImporting ? (
+                    <>
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      <span>جارٍ الاستيراد...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>📥</span>
+                      <span>
+                        {importMode === "replace" ? "استبدال البنك" : "دمج الأسئلة"}
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
