@@ -46,7 +46,7 @@ export default function Card({
         href={href}
         className="flex flex-1 flex-col justify-between gap-2 p-3.5 sm:p-5 rounded-2xl"
       >
-        <div className={onTogglePin ? "pe-7 sm:pe-8" : undefined}>
+        <div className={onTogglePin ? "pe-10 sm:pe-9" : undefined}>
           {/* Top row: course code + single legacy badge if present */}
           {(courseCode || badge) && (
             <div className="flex items-center justify-between mb-1.5">
@@ -108,7 +108,7 @@ export default function Card({
           aria-pressed={isPinned}
           aria-label={isPinned ? `إزالة ${title} من مقرراتي المحفوظة` : `حفظ ${title} في مقرراتي`}
           title={isPinned ? "إزالة من مقرراتي المحفوظة" : "حفظ في مقرراتي"}
-          className={`absolute top-2.5 end-2.5 sm:top-3.5 sm:end-3.5 z-10 flex h-7 w-7 items-center justify-center rounded-lg border transition-all cursor-pointer active:scale-90 ${
+          className={`absolute top-2 end-2 sm:top-3 sm:end-3 z-10 flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-xl border transition-all cursor-pointer active:scale-90 ${
             isPinned
               ? "border-amber-500/40 bg-amber-500/15 text-amber-500 hover:bg-amber-500/25"
               : "border-transparent bg-secondary/70 text-muted-foreground/80 opacity-85 hover:opacity-100 hover:border-border hover:bg-secondary hover:text-foreground"

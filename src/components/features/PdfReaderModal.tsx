@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import type {
   OnProgressParameters,
   PDFDocumentLoadingTask,
@@ -26,13 +27,19 @@ interface PdfCanvasSurfaceProps {
   pdf: PDFDocumentProxy;
   pageNum: number;
   targetWidth: number;
-  onRendered?: (pageAspectRatio: number) => void;
+  onRendered?: (pageNum: number, pageAspectRatio: number) => void;
 }
 
 /**
- * Isolated canvas surface that mounts ONLY when a page enters the active +/-2 window.
- * Unmounting cancels any in-flight pdf.js worker render and zeros canvas dimensions
- * so browser GPU/bitmap memory is immediately reclaimed as the student scrolls away.
+ * Isolated canvas surface mounted ONLY while a page sits inside the +/-2 active window.
+ *
+ * Key invariants:
+ * 1. Stores `onRendered` in a ref so parent state changes (visiblePage, progress, etc.)
+ *    NEVER cancel/wipe mounted canvases during scroll.
+ * 2. Forces `dir="ltr"`, `ctx.direction = "ltr"`, and `ctx.textAlign = "left"` — otherwise
+ *    inheriting `dir="rtl"` from `<html dir="rtl">` causes Canvas2D `fillText()` to right-align
+ *    each glyph, scrambling spacing and ligatures across the entire page.
+ * 3. Reclaims GPU bitmap only on actual unmount (keeps old frame visible while zooming).
  */
 function PdfCanvasSurface({
   pdf,
@@ -41,7 +48,24 @@ function PdfCanvasSurface({
   onRendered,
 }: PdfCanvasSurfaceProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const onRenderedRef = useRef(onRendered);
+
+  useEffect(() => {
+    onRenderedRef.current = onRendered;
+  }, [onRendered]);
+
   const [hasPainted, setHasPainted] = useState(false);
+
+  // Release GPU bitmap strictly when evicted from the +/-2 page window or unmounted
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    return () => {
+      if (canvas) {
+        canvas.width = 0;
+        canvas.height = 0;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -56,7 +80,10 @@ function PdfCanvasSurface({
         if (cancelled || !canvas) return;
 
         const baseViewport = page.getViewport({ scale: 1 });
-        const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+        const rawDpr = window.devicePixelRatio || 1;
+        // Scale down DPR slightly on heavy zoom to keep mobile GPU bitmaps fast and under budget
+        const dpr =
+          targetWidth > 900 ? Math.min(rawDpr, 1.5) : Math.min(rawDpr, MAX_DPR);
         const cssScale = targetWidth / baseViewport.width;
         const viewport = page.getViewport({ scale: cssScale * dpr });
 
@@ -68,6 +95,10 @@ function PdfCanvasSurface({
         canvas.style.width = `${Math.floor(targetWidth)}px`;
         canvas.style.height = `${Math.floor(viewport.height / dpr)}px`;
 
+        // Explicitly neutralize RTL CSS inheritance inside Canvas2D before pdf.js draws glyphs
+        ctx.direction = "ltr";
+        ctx.textAlign = "left";
+
         renderTask = page.render({
           canvasContext: ctx,
           viewport,
@@ -78,7 +109,7 @@ function PdfCanvasSurface({
         if (cancelled) return;
 
         setHasPainted(true);
-        onRendered?.(baseViewport.width / baseViewport.height);
+        onRenderedRef.current?.(pageNum, baseViewport.width / baseViewport.height);
       } catch (err) {
         const name = (err as { name?: string })?.name;
         if (name !== "RenderingCancelledException" && !cancelled) {
@@ -98,16 +129,14 @@ function PdfCanvasSurface({
           // Safe cleanup
         }
       }
-      // Explicitly release canvas backing bitmap immediately on window eviction
-      canvas.width = 0;
-      canvas.height = 0;
     };
-  }, [pdf, pageNum, targetWidth, onRendered]);
+  }, [pdf, pageNum, targetWidth]);
 
   return (
     <canvas
       ref={canvasRef}
-      className={`block w-full h-auto bg-white transition-opacity duration-200 ${
+      dir="ltr"
+      className={`block bg-white transition-opacity duration-150 ${
         hasPainted ? "opacity-100" : "opacity-0"
       }`}
     />
@@ -115,14 +144,14 @@ function PdfCanvasSurface({
 }
 
 /**
- * Lazy-loaded, progressive in-app PDF reader modal.
+ * Lazy-loaded, progressive in-app PDF reader modal (mobile-first).
  *
  * Performance & Campus Bandwidth Mitigations:
  * 1. Code-split via next/dynamic + dynamic pdfjs-dist import (0 KB initial SSR bundle impact).
- * 2. Range-chunk loading (disableAutoFetch + disableStream + 64KB chunks) so skimming early pages
- *    does not download an entire 10MB file upfront.
+ * 2. Range-chunk streaming (`disableAutoFetch: true` + 64KB chunks with streaming enabled).
  * 3. Renders Page 1 strictly first before enabling neighbor page rendering.
  * 4. Virtualized +/-2 page window via IntersectionObserver with explicit canvas memory release.
+ * 5. Portaled to document.body at z-[80] cleanly above Header and BookmarkDrawer.
  */
 export default function PdfReaderModal({
   resource,
@@ -140,9 +169,11 @@ export default function PdfReaderModal({
   const [visiblePage, setVisiblePage] = useState<number>(1);
   const [firstPageReady, setFirstPageReady] = useState<boolean>(false);
   const [zoomIndex, setZoomIndex] = useState<number>(0);
-  const [containerWidth, setContainerWidth] = useState<number>(640);
+  const [containerWidth, setContainerWidth] = useState<number>(360);
   const [loadProgress, setLoadProgress] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const defaultRatioRef = useRef<number>(1 / 1.414);
 
   const zoomScale = ZOOM_STEPS[zoomIndex];
   const quizQuestionCount = resource.quiz_data?.questions?.length || 0;
@@ -163,13 +194,12 @@ export default function PdfReaderModal({
     };
   }, [onClose]);
 
-  // Measure available reader width for sharp CSS + DPR sizing
+  // Measure available reader width for crisp mobile-first & desktop sizing
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
     const updateWidth = () => {
-      // Reserve comfortable horizontal padding on desktop (max 820px document column)
       const horizontalPadding = window.innerWidth >= 640 ? 48 : 16;
       const measured = Math.max(
         260,
@@ -187,6 +217,8 @@ export default function PdfReaderModal({
   // Load PDF document lazily using HTTP range chunks (Page 1 bytes prioritized)
   useEffect(() => {
     let cancelled = false;
+    let docReady = false;
+    let lastReportedPct = -1;
     let activeLoadingTask: PDFDocumentLoadingTask | null = null;
 
     async function initPdf() {
@@ -194,26 +226,28 @@ export default function PdfReaderModal({
         const pdfjsLib = await import("pdfjs-dist");
         pdfjsLib.GlobalWorkerOptions.workerSrc = "/workers/pdf.worker.min.mjs";
 
+        // CDN base matched dynamically to installed pdfjs-dist version
+        const assetBase = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}`;
+
         const loadingTask = pdfjsLib.getDocument({
           url: resource.storage_url,
-          // CID font maps required for correct rendering of embedded fonts in textbooks.
-          // Without these, pdfjs falls back to broken substitution fonts → garbled text with
-          // extra letter spacing. Using unpkg CDN avoids bloating the git repo (cmaps ~2MB).
-          cMapUrl: "https://unpkg.com/pdfjs-dist@6.4.299/cmaps/",
+          cMapUrl: `${assetBase}/cmaps/`,
           cMapPacked: true,
-          standardFontDataUrl:
-            "https://unpkg.com/pdfjs-dist@6.4.299/standard_fonts/",
-          rangeChunkSize: 65536, // 64 KB HTTP range chunks — only fetch what's needed
-          // disableAutoFetch: suppress pre-fetching the whole file eagerly on slow campus networks.
-          // disableStream must stay false (the default) — disabling streaming forces pdfjs to
-          // download the entire PDF before displaying anything, which is the opposite of what we want.
+          standardFontDataUrl: `${assetBase}/standard_fonts/`,
+          iccUrl: `${assetBase}/iccs/`,
+          wasmUrl: `${assetBase}/wasm/`,
+          rangeChunkSize: 65536, // 64 KB HTTP range chunks
+          // Suppress eager full-file fetch while keeping progressive chunk streaming enabled
           disableAutoFetch: true,
         });
 
         activeLoadingTask = loadingTask;
         loadingTask.onProgress = ({ loaded, total }: OnProgressParameters) => {
-          if (!cancelled && total > 0) {
-            setLoadProgress(Math.min(100, Math.round((loaded / total) * 100)));
+          if (cancelled || docReady || total <= 0) return;
+          const pct = Math.min(100, Math.round((loaded / total) * 100));
+          if (pct !== lastReportedPct) {
+            lastReportedPct = pct;
+            setLoadProgress(pct);
           }
         };
 
@@ -222,6 +256,7 @@ export default function PdfReaderModal({
           await loadingTask.destroy();
           return;
         }
+        docReady = true;
 
         // Fetch Page 1 geometry before exposing the page list so skeletons match true aspect ratio
         const p1 = await doc.getPage(1);
@@ -229,7 +264,9 @@ export default function PdfReaderModal({
 
         const vp = p1.getViewport({ scale: 1 });
         if (vp.width > 0 && vp.height > 0) {
-          setDefaultAspectRatio(vp.width / vp.height);
+          const ratio = vp.width / vp.height;
+          defaultRatioRef.current = ratio;
+          setDefaultAspectRatio(ratio);
         }
 
         setNumPages(doc.numPages);
@@ -298,21 +335,19 @@ export default function PdfReaderModal({
     return () => observer.disconnect();
   }, [pdfDoc, firstPageReady, numPages]);
 
-  const handlePageRendered = useCallback(
-    (pageNum: number, ratio: number) => {
-      if (pageNum === 1) {
-        setFirstPageReady(true);
-      }
-      if (Number.isFinite(ratio) && ratio > 0) {
-        setPageRatios((prev) =>
-          Math.abs((prev[pageNum] || defaultAspectRatio) - ratio) > 0.02
-            ? { ...prev, [pageNum]: ratio }
-            : prev
-        );
-      }
-    },
-    [defaultAspectRatio]
-  );
+  const handlePageRendered = useCallback((pageNum: number, ratio: number) => {
+    if (pageNum === 1) {
+      setFirstPageReady(true);
+    }
+    if (Number.isFinite(ratio) && ratio > 0) {
+      setPageRatios((prev) => {
+        const baseline = prev[pageNum] ?? defaultRatioRef.current;
+        return Math.abs(baseline - ratio) > 0.02
+          ? { ...prev, [pageNum]: ratio }
+          : prev;
+      });
+    }
+  }, []);
 
   const scrollToPage = (targetPage: number) => {
     const clamped = Math.max(1, Math.min(numPages || 1, targetPage));
@@ -329,22 +364,22 @@ export default function PdfReaderModal({
   const pagesArray =
     numPages > 0 ? Array.from({ length: numPages }, (_, i) => i + 1) : [];
 
-  return (
+  const modalContent = (
     <div
       dir="rtl"
       role="dialog"
       aria-modal="true"
       aria-label={`قارئ الملف: ${resource.title}`}
-      className="fixed inset-0 z-50 flex flex-col bg-slate-950/95 text-slate-100 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-[80] flex h-dvh flex-col bg-slate-950/95 text-slate-100 backdrop-blur-sm animate-in fade-in duration-150"
     >
-      {/* ─── Sticky Top Bar ───────────────────────────────────────────────── */}
-      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-slate-900/95 px-3 py-2.5 sm:px-5">
+      {/* Sticky Top Bar */}
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-slate-900/95 px-3 py-2 sm:px-5">
         <div className="flex min-w-0 items-center gap-2.5">
           <button
             type="button"
             onClick={onClose}
             aria-label="إغلاق القارئ"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-sm font-bold text-slate-200 hover:bg-white/15 transition-colors cursor-pointer"
+            className="flex h-10 w-10 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-sm font-bold text-slate-200 hover:bg-white/15 active:scale-95 transition-all cursor-pointer"
           >
             ✕
           </button>
@@ -365,7 +400,7 @@ export default function PdfReaderModal({
           </div>
         </div>
 
-        {/* Actions: Zoom + Save + Direct Download */}
+        {/* Actions: Zoom (Desktop) + Save + Direct Download */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {pdfDoc && (
             <div className="hidden sm:flex items-center rounded-xl border border-white/15 bg-white/5 p-0.5 text-[11px] font-mono">
@@ -398,7 +433,8 @@ export default function PdfReaderModal({
             onClick={onToggleSave}
             aria-pressed={isSaved}
             title={isSaved ? "إزالة من مواردي المحفوظة" : "حفظ في مواردي"}
-            className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-colors cursor-pointer ${
+            aria-label={isSaved ? "إزالة من مواردي المحفوظة" : "حفظ في مواردي"}
+            className={`flex h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-xl border transition-all active:scale-95 cursor-pointer ${
               isSaved
                 ? "border-amber-400/40 bg-amber-400/15 text-amber-300"
                 : "border-white/15 bg-white/5 text-slate-300 hover:bg-white/15 hover:text-white"
@@ -411,7 +447,7 @@ export default function PdfReaderModal({
             href={resource.storage_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-xl border border-white/15 bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-accent hover:border-accent transition-colors"
+            className="inline-flex h-10 sm:h-9 items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 text-xs font-semibold text-white hover:bg-accent hover:border-accent transition-colors"
             title="تحميل أو فتح الملف الأصلي"
           >
             <span>⬇</span>
@@ -420,10 +456,10 @@ export default function PdfReaderModal({
         </div>
       </header>
 
-      {/* ─── Scrollable Canvas Viewport ────────────────────────────────────── */}
+      {/* Scrollable Canvas Viewport */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-auto px-2 py-4 sm:px-6 sm:py-6"
+        className="flex-1 overflow-auto overscroll-contain px-2 py-3 sm:px-6 sm:py-6"
       >
         {errorMsg ? (
           <div className="mx-auto my-12 max-w-md rounded-2xl border border-white/15 bg-slate-900 p-6 text-center space-y-4">
@@ -440,7 +476,7 @@ export default function PdfReaderModal({
             </a>
           </div>
         ) : !pdfDoc ? (
-          <div className="mx-auto max-w-xl space-y-3 py-10 text-center">
+          <div className="mx-auto max-w-xl space-y-3 py-8 text-center">
             <div
               className="mx-auto w-full rounded-2xl border border-white/10 bg-slate-900/90 flex flex-col items-center justify-center gap-3 animate-pulse"
               style={{
@@ -455,13 +491,18 @@ export default function PdfReaderModal({
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-3 sm:gap-4">
+          /* LTR wrapper + w-max min-w-full lets zoomed pages scroll horizontally to both edges without Flexbox clipping */
+          <div
+            dir="ltr"
+            className="mx-auto flex w-max min-w-full flex-col items-center gap-3 sm:gap-4"
+          >
             {pagesArray.map((pageNum) => {
-              // Strictly render Page 1 alone first so neighbors don't starve initial paint
+              // Strictly render Page 1 alone first so neighbor renders never starve initial paint
               const shouldRender =
                 pageNum === 1 && !firstPageReady
                   ? true
-                  : firstPageReady && Math.abs(pageNum - visiblePage) <= PAGE_WINDOW_RADIUS;
+                  : firstPageReady &&
+                    Math.abs(pageNum - visiblePage) <= PAGE_WINDOW_RADIUS;
               const ratio = pageRatios[pageNum] || defaultAspectRatio;
 
               return (
@@ -475,7 +516,10 @@ export default function PdfReaderModal({
                   className="relative shrink-0 overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-lg"
                 >
                   {/* Lightweight placeholder shown before page renders or after eviction */}
-                  <div className="absolute inset-0 flex items-center justify-center text-xs font-mono text-slate-500 select-none">
+                  <div
+                    dir="rtl"
+                    className="absolute inset-0 flex items-center justify-center text-xs font-mono text-slate-500 select-none"
+                  >
                     صفحة {pageNum} / {numPages}
                   </div>
 
@@ -485,9 +529,7 @@ export default function PdfReaderModal({
                         pdf={pdfDoc}
                         pageNum={pageNum}
                         targetWidth={targetRenderWidth}
-                        onRendered={(measuredRatio) =>
-                          handlePageRendered(pageNum, measuredRatio)
-                        }
+                        onRendered={handlePageRendered}
                       />
                     </div>
                   )}
@@ -498,41 +540,43 @@ export default function PdfReaderModal({
         )}
       </div>
 
-      {/* ─── Sticky Bottom Action Bar (Page Navigation + Docked Quiz CTA) ───── */}
-      <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-white/10 bg-slate-900/95 px-3 py-2.5 sm:px-5">
-        {/* Page Navigation & Mobile Zoom */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <button
-            type="button"
-            onClick={() => scrollToPage(visiblePage - 1)}
-            disabled={!pdfDoc || visiblePage <= 1}
-            aria-label="الصفحة السابقة"
-            className="rounded-xl border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/15 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-          >
-            ▲ السابقة
-          </button>
+      {/* Sticky Bottom Action Bar (Page Navigation + Mobile Zoom + Docked Quiz CTA) */}
+      <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-white/10 bg-slate-900/95 px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] sm:px-5">
+        <div className="flex flex-1 sm:flex-initial items-center justify-between sm:justify-start gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => scrollToPage(visiblePage - 1)}
+              disabled={!pdfDoc || visiblePage <= 1}
+              aria-label="الصفحة السابقة"
+              className="min-h-9 rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/15 active:scale-95 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed transition-all"
+            >
+              ▲ السابقة
+            </button>
 
-          <span className="px-1.5 text-xs font-mono text-slate-300" dir="ltr">
-            {pdfDoc ? `${visiblePage} / ${numPages}` : "—"}
-          </span>
+            <span className="px-1.5 text-xs font-mono text-slate-300" dir="ltr">
+              {pdfDoc ? `${visiblePage} / ${numPages}` : "—"}
+            </span>
 
-          <button
-            type="button"
-            onClick={() => scrollToPage(visiblePage + 1)}
-            disabled={!pdfDoc || visiblePage >= numPages}
-            aria-label="الصفحة التالية"
-            className="rounded-xl border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/15 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-          >
-            التالية ▼
-          </button>
+            <button
+              type="button"
+              onClick={() => scrollToPage(visiblePage + 1)}
+              disabled={!pdfDoc || visiblePage >= numPages}
+              aria-label="الصفحة التالية"
+              className="min-h-9 rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/15 active:scale-95 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed transition-all"
+            >
+              التالية ▼
+            </button>
+          </div>
 
           {/* Compact mobile zoom toggle */}
           {pdfDoc && (
             <button
               type="button"
               onClick={() => setZoomIndex((z) => (z + 1) % ZOOM_STEPS.length)}
-              className="sm:hidden rounded-xl border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-mono text-slate-200 cursor-pointer"
+              className="sm:hidden min-h-9 rounded-xl border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-mono text-slate-200 active:scale-95 transition-all cursor-pointer"
               title="تغيير التكبير"
+              aria-label={`التكبير الحالي ${Math.round(zoomScale * 100)} بالمئة`}
             >
               🔍 {Math.round(zoomScale * 100)}%
             </button>
@@ -544,7 +588,7 @@ export default function PdfReaderModal({
           <button
             type="button"
             onClick={() => onStartQuiz(resource.id)}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-slate-950 shadow-sm hover:bg-emerald-400 active:scale-95 transition-all cursor-pointer"
+            className="inline-flex w-full sm:w-auto min-h-10 items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 shadow-sm hover:bg-emerald-400 active:scale-95 transition-all cursor-pointer"
           >
             <span>✨</span>
             <span>اختبر فهمك ({quizQuestionCount} سؤال)</span>
@@ -553,4 +597,7 @@ export default function PdfReaderModal({
       </footer>
     </div>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(modalContent, document.body);
 }

@@ -3,6 +3,11 @@
 import { useSyncExternalStore } from "react";
 import type { ResourceType } from "@/types/database";
 
+export interface SavedCourseMeta {
+  title: string;
+  courseCode?: string | null;
+}
+
 export interface SavedResourceSnapshot {
   id: string;
   title: string;
@@ -17,6 +22,7 @@ export interface SavedResourceSnapshot {
 
 export interface BookmarksState {
   courses: string[]; // Array of course slugs (most recently pinned first)
+  courseMeta: Record<string, SavedCourseMeta>; // Cached Arabic titles + codes keyed by slug
   resources: SavedResourceSnapshot[];
 }
 
@@ -27,6 +33,7 @@ const MAX_SAVED_ITEMS = 40;
 // Constant fallback reference required by useSyncExternalStore for SSR & unchanged reads
 const EMPTY_BOOKMARKS: BookmarksState = {
   courses: [],
+  courseMeta: {},
   resources: [],
 };
 
@@ -43,6 +50,25 @@ function normalizeSnapshot(parsed: unknown): BookmarksState {
       ).slice(0, MAX_SAVED_ITEMS)
     : [];
 
+  const courseSlugSet = new Set(courses);
+  const courseMeta: Record<string, SavedCourseMeta> = {};
+  if (obj.courseMeta && typeof obj.courseMeta === "object") {
+    for (const [slug, meta] of Object.entries(obj.courseMeta)) {
+      if (
+        courseSlugSet.has(slug) &&
+        meta &&
+        typeof meta === "object" &&
+        typeof meta.title === "string" &&
+        meta.title.trim().length > 0
+      ) {
+        courseMeta[slug] = {
+          title: meta.title,
+          courseCode: typeof meta.courseCode === "string" ? meta.courseCode : null,
+        };
+      }
+    }
+  }
+
   const resources = Array.isArray(obj.resources)
     ? obj.resources
         .filter(
@@ -58,7 +84,7 @@ function normalizeSnapshot(parsed: unknown): BookmarksState {
         .slice(0, MAX_SAVED_ITEMS)
     : [];
 
-  return { courses, resources };
+  return { courses, courseMeta, resources };
 }
 
 function getBookmarksSnapshot(): BookmarksState {
@@ -133,21 +159,68 @@ export function useBookmarks(): BookmarksState {
 }
 
 /**
- * Pins or unpins a course slug, returning its new saved state.
+ * Pins or unpins a course slug (caching its Arabic title & code for display in BookmarkDrawer),
+ * returning its new saved state.
  */
-export function toggleSavedCourse(courseSlug: string): boolean {
+export function toggleSavedCourse(
+  courseSlug: string,
+  meta?: SavedCourseMeta
+): boolean {
   const current = getBookmarksSnapshot();
   const exists = current.courses.includes(courseSlug);
   const nextCourses = exists
     ? current.courses.filter((slug) => slug !== courseSlug)
     : [courseSlug, ...current.courses].slice(0, MAX_SAVED_ITEMS);
 
+  const nextMeta = { ...current.courseMeta };
+  if (exists) {
+    delete nextMeta[courseSlug];
+  } else if (meta?.title) {
+    nextMeta[courseSlug] = {
+      title: meta.title,
+      courseCode: meta.courseCode ?? null,
+    };
+  }
+
   writeBookmarks({
     ...current,
     courses: nextCourses,
+    courseMeta: nextMeta,
   });
 
   return !exists;
+}
+
+/**
+ * Backfills or refreshes cached Arabic course titles/codes for already-pinned slugs
+ * without triggering unnecessary writes when everything is already up to date.
+ */
+export function syncSavedCourseMeta(
+  catalogCourses: Array<{ slug: string; title: string; courseCode?: string | null }>
+): void {
+  const current = getBookmarksSnapshot();
+  if (current.courses.length === 0 || catalogCourses.length === 0) return;
+
+  const pinnedSet = new Set(current.courses);
+  let changed = false;
+  const nextMeta = { ...current.courseMeta };
+
+  for (const item of catalogCourses) {
+    if (!pinnedSet.has(item.slug) || !item.title) continue;
+    const prev = nextMeta[item.slug];
+    const nextCode = item.courseCode ?? null;
+    if (!prev || prev.title !== item.title || (prev.courseCode ?? null) !== nextCode) {
+      nextMeta[item.slug] = { title: item.title, courseCode: nextCode };
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    writeBookmarks({
+      ...current,
+      courseMeta: nextMeta,
+    });
+  }
 }
 
 /**
@@ -182,4 +255,3 @@ export function removeSavedResource(resourceId: string): void {
     resources: current.resources.filter((r) => r.id !== resourceId),
   });
 }
-

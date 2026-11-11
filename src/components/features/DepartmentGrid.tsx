@@ -1,13 +1,17 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type {
   DepartmentWithCourses,
   CourseWithResources,
 } from "@/types/database";
 import Card, { CardBadge } from "@/components/ui/Card";
-import { useBookmarks, toggleSavedCourse } from "@/lib/bookmarks";
+import {
+  useBookmarks,
+  toggleSavedCourse,
+  syncSavedCourseMeta,
+} from "@/lib/bookmarks";
 
 function buildCourseBadges(course: CourseWithResources): CardBadge[] {
   const activeResources = (course.resources || []).filter(
@@ -144,13 +148,26 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
 
   // Reactive localStorage bookmarks (SSR-safe via useSyncExternalStore).
   // Only the slug set is needed here — savedResources and savedCourses lists
-  // are now rendered in the BookmarkDrawer (Header), not on the homepage.
+  // are rendered in BookmarkDrawer (Header), not on the homepage.
   const { courses: savedCourseSlugs } = useBookmarks();
 
   const savedCourseSlugSet = useMemo(
     () => new Set(savedCourseSlugs),
     [savedCourseSlugs]
   );
+
+  // Backfill Arabic titles & codes for any pinned slugs saved before metadata caching
+  useEffect(() => {
+    if (savedCourseSlugs.length === 0) return;
+    const flatCatalog = visibleDepartments.flatMap((dept) =>
+      (dept.courses || []).map((course) => ({
+        slug: course.slug,
+        title: course.title,
+        courseCode: course.course_code,
+      }))
+    );
+    syncSavedCourseMeta(flatCatalog);
+  }, [savedCourseSlugs, visibleDepartments]);
 
   // Initially null: no filter applied on first visit
   const [activeDeptId, setActiveDeptId] = useState<string | null>(null);
@@ -356,7 +373,12 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                       courseCode={course.course_code}
                       badges={buildCourseBadges(course)}
                       isPinned={savedCourseSlugSet.has(course.slug)}
-                      onTogglePin={() => toggleSavedCourse(course.slug)}
+                      onTogglePin={() =>
+                        toggleSavedCourse(course.slug, {
+                          title: course.title,
+                          courseCode: course.course_code,
+                        })
+                      }
                     />
                   ))}
                 </div>

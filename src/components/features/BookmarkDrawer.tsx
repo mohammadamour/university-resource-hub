@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   useBookmarks,
@@ -9,6 +10,19 @@ import {
 } from "@/lib/bookmarks";
 import type { ResourceType } from "@/types/database";
 import BookmarkIcon from "@/components/ui/BookmarkIcon";
+
+const emptySubscribe = () => () => {};
+
+/**
+ * SSR-safe hydration flag without triggering React 19 set-state-in-effect warnings.
+ */
+function useIsHydrated(): boolean {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+}
 
 function getResourceTypeIcon(type: ResourceType): string {
   switch (type) {
@@ -27,12 +41,20 @@ function getResourceTypeIcon(type: ResourceType): string {
   }
 }
 
+function formatFallbackSlug(slug: string): string {
+  return slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 /**
- * BookmarkDrawer — slide-over panel (from inline-end / right in RTL) that lists
- * the student's pinned courses and saved resources from localStorage.
+ * BookmarkDrawer — slide-over panel listing pinned courses and saved resources.
  *
- * Renders as a fixed full-screen overlay on mobile; a narrower side panel on sm+.
- * Body scroll is locked while open. Escape key and backdrop click both close it.
+ * Architectural notes:
+ * - Must render into document.body via createPortal because Header.tsx uses
+ *   `backdrop-blur-sm` (`backdrop-filter`), which CSS turns into a containing block
+ *   for `position: fixed` children (trapping non-portaled drawers inside the 64px header).
+ * - Anchored on the physical left edge (`left-0`, matching the RTL inline-end navbar
+ *   trigger) and shifted offscreen with `-translate-x-full` + `invisible` when closed.
+ *   Note: Using `translate-x-full` (+100%) on a `left-0` drawer slides it INTO the screen!
  */
 export function BookmarkDrawer({
   isOpen,
@@ -41,10 +63,14 @@ export function BookmarkDrawer({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const { courses: savedCourseSlugs, resources: savedResources } =
-    useBookmarks();
+  const isHydrated = useIsHydrated();
+  const {
+    courses: savedCourseSlugs,
+    courseMeta,
+    resources: savedResources,
+  } = useBookmarks();
 
-  // Lock background scroll while drawer is open (mobile critical — prevents content shift)
+  // Lock background scroll while drawer is open (mobile critical — prevents background scroll bleed)
   useEffect(() => {
     if (!isOpen) return;
     const prev = document.body.style.overflow;
@@ -64,40 +90,44 @@ export function BookmarkDrawer({
     return () => window.removeEventListener("keydown", handleKey);
   }, [isOpen, onClose]);
 
+  if (!isHydrated) return null;
+
   const totalCount = savedCourseSlugs.length + savedResources.length;
   const isEmpty = totalCount === 0;
 
-  return (
+  return createPortal(
     <>
-      {/* ── Backdrop ──────────────────────────────────────────────────────────
-          Fades in when drawer opens. Click closes the drawer. */}
+      {/* Backdrop — higher z-index than sticky z-50 Header */}
       <div
         aria-hidden="true"
         onClick={onClose}
-        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${
-          isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        className={`fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs transition-[opacity,visibility] duration-300 ${
+          isOpen
+            ? "visible opacity-100 pointer-events-auto"
+            : "invisible opacity-0 pointer-events-none"
         }`}
       />
 
-      {/* ── Drawer Panel ──────────────────────────────────────────────────────
-          Slides in from inline-end (right edge in RTL). Full-width on mobile,
-          capped at sm:max-w-sm on larger screens. */}
-      <div
+      {/* Drawer Panel — slides cleanly from physical left edge (end-0 in RTL) */}
+      <aside
         role="dialog"
         aria-modal="true"
+        aria-hidden={!isOpen}
         aria-label="محفوظاتي"
         dir="rtl"
-        className={`fixed inset-y-0 end-0 z-50 flex w-full flex-col bg-card shadow-2xl transition-transform duration-300 ease-in-out sm:max-w-sm ${
-          isOpen ? "translate-x-0" : "translate-x-full"
+        className={`fixed inset-y-0 left-0 z-[70] flex h-dvh w-[90vw] max-w-sm flex-col border-r border-border bg-card shadow-2xl transition-[transform,visibility] duration-300 ease-out ${
+          isOpen
+            ? "visible translate-x-0 pointer-events-auto"
+            : "invisible -translate-x-full pointer-events-none"
         }`}
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3.5">
           <div className="flex items-center gap-2">
-            <span className="text-xl">🔖</span>
+            <BookmarkIcon filled className="h-5 w-5 text-amber-500" />
             <h2 className="text-base font-bold text-foreground">محفوظاتي</h2>
             {totalCount > 0 && (
-              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-mono font-semibold text-amber-600 dark:text-amber-400">
+              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-mono font-semibold text-amber-500">
                 {totalCount}
               </span>
             )}
@@ -106,82 +136,98 @@ export function BookmarkDrawer({
             type="button"
             onClick={onClose}
             aria-label="إغلاق المحفوظات"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer"
+            className="flex h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-border bg-secondary/40 text-sm font-bold text-muted-foreground hover:bg-secondary hover:text-foreground active:scale-95 transition-all cursor-pointer"
           >
             ✕
           </button>
         </div>
 
         {/* Body — scrollable */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-6">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] space-y-6">
           {isEmpty ? (
-            /* ── Empty State ──────────────────────────────────────────────── */
             <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-              <div className="text-5xl">📌</div>
-              <div className="space-y-1.5">
-                <p className="text-sm font-semibold text-foreground">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-secondary/40 text-3xl">
+                🔖
+              </div>
+              <div className="space-y-2">
+                <p className="text-base font-bold text-foreground">
                   لا توجد محفوظات بعد
                 </p>
-                <p className="text-xs text-muted-foreground leading-relaxed max-w-[220px]">
-                  اضغط على 🔖 بجانب أي ملخص أو مادة لحفظه هنا للوصول السريع
+                <p className="mx-auto max-w-[240px] text-xs leading-relaxed text-muted-foreground">
+                  اضغط على أيقونة الحفظ بجانب أي مقرر أو ملخص لإضافته هنا والوصول إليه بسرعة
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="mt-1 rounded-xl border border-border bg-secondary/60 px-4 py-2 text-xs font-semibold text-foreground hover:bg-secondary transition-colors cursor-pointer"
+              >
+                تصفح المواد
+              </button>
             </div>
           ) : (
             <>
-              {/* ── Pinned Courses ──────────────────────────────────────── */}
+              {/* Pinned Courses */}
               {savedCourseSlugs.length > 0 && (
                 <section className="space-y-2.5">
-                  <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                  <h3 className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
                     <span>📌</span>
                     <span>مقرراتي المحفوظة</span>
-                    <span className="rounded-full bg-secondary px-1.5 py-0.5 font-mono text-[10px] normal-case tracking-normal">
+                    <span className="rounded-full bg-secondary px-1.5 py-0.5 font-mono text-[10px]">
                       {savedCourseSlugs.length}
                     </span>
                   </h3>
 
                   <ul className="space-y-2">
-                    {savedCourseSlugs.map((slug) => (
-                      <li key={slug}>
-                        <div className="group flex items-center gap-2 rounded-xl border border-border bg-secondary/30 px-3 py-2.5 hover:border-accent/50 hover:bg-secondary/60 transition-colors">
-                          <Link
-                            href={`/courses/${slug}`}
-                            onClick={onClose}
-                            className="flex min-w-0 flex-1 items-center gap-2"
-                          >
-                            <span className="text-base">💻</span>
-                            <span className="truncate text-sm font-semibold text-foreground group-hover:text-accent">
-                              {/* Slug displayed directly — real title would need a lookup;
-                                  for now it's readable enough and avoids a DB query. */}
-                              {slug
-                                .replace(/-/g, " ")
-                                .replace(/\b\w/g, (c) => c.toUpperCase())}
-                            </span>
-                          </Link>
-                          {/* Unpin button */}
-                          <button
-                            type="button"
-                            onClick={() => toggleSavedCourse(slug)}
-                            aria-label={`إلغاء حفظ ${slug}`}
-                            title="إلغاء الحفظ"
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer"
-                          >
-                            <BookmarkIcon filled className="h-4 w-4 text-amber-500" />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
+                    {savedCourseSlugs.map((slug) => {
+                      const meta = courseMeta[slug];
+                      const displayTitle =
+                        meta?.title || formatFallbackSlug(slug);
+
+                      return (
+                        <li key={slug}>
+                          <div className="group flex items-center gap-2 rounded-xl border border-border bg-secondary/30 ps-3 pe-1.5 py-2 hover:border-accent/50 hover:bg-secondary/60 transition-colors">
+                            <Link
+                              href={`/courses/${slug}`}
+                              onClick={onClose}
+                              className="flex min-w-0 flex-1 items-center gap-2.5 py-0.5"
+                            >
+                              <span className="shrink-0 text-base">📚</span>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-foreground group-hover:text-accent">
+                                  {displayTitle}
+                                </p>
+                                {meta?.courseCode && (
+                                  <p className="font-mono text-[10px] text-muted-foreground">
+                                    {meta.courseCode}
+                                  </p>
+                                )}
+                              </div>
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => toggleSavedCourse(slug)}
+                              aria-label={`إلغاء حفظ ${displayTitle}`}
+                              title="إلغاء الحفظ"
+                              className="flex h-10 w-10 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg text-amber-500 hover:bg-secondary active:scale-95 transition-all cursor-pointer"
+                            >
+                              <BookmarkIcon filled className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </section>
               )}
 
-              {/* ── Saved Resources ─────────────────────────────────────── */}
+              {/* Saved Resources */}
               {savedResources.length > 0 && (
                 <section className="space-y-2.5">
-                  <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                  <h3 className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
                     <span>🔖</span>
-                    <span>ملخصاتي المحفوظة</span>
-                    <span className="rounded-full bg-secondary px-1.5 py-0.5 font-mono text-[10px] normal-case tracking-normal">
+                    <span>مواردي المحفوظة</span>
+                    <span className="rounded-full bg-secondary px-1.5 py-0.5 font-mono text-[10px]">
                       {savedResources.length}
                     </span>
                   </h3>
@@ -189,11 +235,11 @@ export function BookmarkDrawer({
                   <ul className="space-y-2">
                     {savedResources.map((res) => (
                       <li key={res.id}>
-                        <div className="group flex items-center gap-2 rounded-xl border border-border bg-secondary/30 px-3 py-2.5 hover:border-accent/50 hover:bg-secondary/60 transition-colors">
+                        <div className="group flex items-center gap-2 rounded-xl border border-border bg-secondary/30 ps-3 pe-1.5 py-2 hover:border-accent/50 hover:bg-secondary/60 transition-colors">
                           <Link
                             href={`/courses/${res.courseSlug}?res=${encodeURIComponent(res.id)}#res-${res.id}`}
                             onClick={onClose}
-                            className="flex min-w-0 flex-1 items-center gap-2.5"
+                            className="flex min-w-0 flex-1 items-center gap-2.5 py-0.5"
                           >
                             <span className="shrink-0 text-base">
                               {getResourceTypeIcon(res.type)}
@@ -208,13 +254,12 @@ export function BookmarkDrawer({
                               </p>
                             </div>
                           </Link>
-                          {/* Remove button */}
                           <button
                             type="button"
                             onClick={() => removeSavedResource(res.id)}
                             aria-label={`إزالة ${res.title} من المحفوظات`}
                             title="إزالة من المحفوظات"
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer"
+                            className="flex h-10 w-10 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg text-xs text-muted-foreground hover:bg-secondary hover:text-foreground active:scale-95 transition-all cursor-pointer"
                           >
                             ✕
                           </button>
@@ -227,25 +272,20 @@ export function BookmarkDrawer({
             </>
           )}
         </div>
-      </div>
-    </>
+      </aside>
+    </>,
+    document.body
   );
 }
 
 /**
- * BookmarkDrawerButton — the trigger that lives in the site Header nav.
- *
- * Keeps Header.tsx as a Server Component by isolating all client-side state
- * (drawer open/close, bookmark count badge) into this tiny client leaf.
+ * BookmarkDrawerButton — navbar trigger rendered inside Header.tsx.
+ * Keeps Header.tsx a Server Component by isolating client state & portal here.
  */
 export function BookmarkDrawerButton() {
   const [isOpen, setIsOpen] = useState(false);
+  const isHydrated = useIsHydrated();
   const { courses, resources } = useBookmarks();
-
-  // Avoid hydration mismatch: don't render count badge on the server.
-  // It flashes in after mount, which is fine for a cosmetic badge.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
 
   const totalCount = courses.length + resources.length;
   const handleClose = useCallback(() => setIsOpen(false), []);
@@ -255,17 +295,17 @@ export function BookmarkDrawerButton() {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        aria-label="المحفوظات"
+        aria-label="محفوظاتي"
+        aria-expanded={isOpen}
         title="محفوظاتي"
         className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-xs transition-all hover:border-accent/60 hover:text-accent active:scale-95 cursor-pointer"
       >
-        <BookmarkIcon filled={mounted && totalCount > 0} className="h-5 w-5" />
+        <BookmarkIcon filled={isHydrated && totalCount > 0} className="h-5 w-5" />
 
-        {/* Badge — only shown after hydration and when at least one item is saved */}
-        {mounted && totalCount > 0 && (
+        {isHydrated && totalCount > 0 && (
           <span
             aria-hidden="true"
-            className="absolute -top-1 -end-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white"
+            className="absolute -top-1 -end-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 font-mono text-[9px] font-bold text-white shadow-xs"
           >
             {totalCount > 9 ? "9+" : totalCount}
           </span>
@@ -276,4 +316,3 @@ export function BookmarkDrawerButton() {
     </>
   );
 }
-

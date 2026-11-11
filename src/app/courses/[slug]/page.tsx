@@ -185,7 +185,11 @@ export default async function CoursePage({ params }: CoursePageProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0 self-start">
-            <CoursePinButton courseSlug={course.slug} />
+            <CoursePinButton
+              courseSlug={course.slug}
+              courseTitle={course.title}
+              courseCode={course.course_code}
+            />
             <Link
               href={`/upload?courseId=${encodeURIComponent(course.id)}`}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-primary/20 bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95 shadow-2xs"

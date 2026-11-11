@@ -206,14 +206,14 @@ export default function ResourceList({
   };
 
   const handleToggleSaveResource = (resource: Resource) => {
-    const slug = courseSlug || courseId || "";
-    if (!slug) return;
+    // Require a valid course slug so drawer deep-links resolve properly (/courses/[slug])
+    if (!courseSlug) return;
 
     const nowSaved = toggleSavedResource({
       id: resource.id,
       title: resource.title,
-      courseSlug: slug,
-      courseTitle: courseTitle || slug,
+      courseSlug,
+      courseTitle: courseTitle || courseSlug,
       type: resource.type,
       targetExam: resource.target_exam,
       pageCount: resource.page_count,
@@ -689,7 +689,7 @@ export default function ResourceList({
             aria-pressed={isSaved}
             title={isSaved ? "إزالة من المحفوظات" : "حفظ المورد"}
             aria-label={isSaved ? "إزالة من المحفوظات" : "حفظ المورد"}
-            className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-colors cursor-pointer ${
+            className={`flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-xl border transition-colors cursor-pointer ${
               isSaved
                 ? "border-amber-500/40 bg-amber-500/15 text-amber-500"
                 : "border-border bg-card text-muted-foreground hover:text-foreground"
