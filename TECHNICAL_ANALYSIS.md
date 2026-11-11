@@ -692,40 +692,43 @@ npm run seed:quizzes
 
 ### 5.2 The Master AI Prompt
 
-Always use this prompt in Gemini / Claude / ChatGPT to generate 100% compliant quiz JSON:
+Always use this standardized prompt in Claude / ChatGPT / Gemini to generate 100% compliant quiz JSON (synchronized with [`Content_Upload_SOP.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/Content_Upload_SOP.md) and [`src/quiz_seeds/README.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/quiz_seeds/README.md)):
+
+- **Language Loyalty:** Match the source material's language (English for IT/Science/Math, with brief Arabic parentheses glosses only for tough terms; Arabic for Humanities/General Requirements). [`NativeQuiz.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/NativeQuiz.tsx) applies `dir="auto"` on questions, options, and explanations so both English and Arabic render natively.
+- **Personalization Metadata:** Every question tracks `chapter`, `topic`, `difficulty`, and `tags` inside `quiz_data` JSONB (preserved by [`import/route.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/admin/resources/%5Bid%5D/quiz/import/route.ts)) to power future chapter filtering and mistake remediation without UI clutter today.
 
 ```text
-أنت مصمم كويزات تعليمية لطلاب الجامعة.
-بناءً على المادة العلمية المرفقة، قم بتوليد كويز اختيار من متعدد بصيغة JSON صارمة فقط دون أي مقدمات أو علامات markdown (NO markdown fences, pure JSON).
+Generate [15] multiple-choice questions strictly from the attached material. Return valid JSON only (no markdown fences, no intro text).
 
-القواعد:
-1. عدد الأسئلة: 10 أسئلة (أو حدد العدد المطلوب).
-2. كل سؤال يحتوي على 4 خيارات فقط (A, B, C, D).
-3. رقم الإجابة الصحيحة correctIndex يبدأ من 0 (0 = الخيار الأول، 1 = الثاني، 2 = الثالث، 3 = الرابع).
-4. الشرح explanation باللغة العربية يوضح مفهوم الإجابة وسبب صحتها.
-5. توزيع الصعوبة: 40% سهل، 40% متوسط، 20% متقدم/استنتاجي.
-6. لا تكرر الخيارات أو الأسئلة.
+Rules:
+- Language loyalty: Match the source material's language (English for IT/Science/Math; Arabic for Arabic courses). For English materials, keep exam phrasing in English and optionally add a short Arabic translation in parentheses only for tough terms, e.g. `volatile (متطاير)`.
+- `options`: Exactly 4 unique choices. No "All/None of the above", no letter prefixes (A, B, C, D).
+- `correctIndex`: 0-based integer (0–3), distributed evenly across 0, 1, 2, 3.
+- `difficulty`: ~35% "easy", 40% "medium", 25% "hard".
+- Formatting: Plain text + Unicode math (∀, ¬, ∧, ∨, →, ≤, ≥, ≠, x², √). Never use LaTeX ($...$).
 
-الهيكل المطلوب بدقة:
+JSON template:
 {
   "version": 1,
-  "generatedAt": "2026-10-14T00:00:00.000Z",
-  "sourceTitle": "تفاضل وتكامل 1 | كويز تجريبي على النهايات والاتصال",
-  "courseSlug": "calculus-1",
+  "sourceTitle": "[Course / Resource Title]",
   "questions": [
     {
-      "question": "نص السؤال هنا؟",
-      "options": ["خيار 1", "خيار 2", "خيار 3", "خيار 4"],
-      "correctIndex": 0,
-      "explanation": "الشرح التوضيحي هنا...",
-      "difficulty": "medium",
-      "topic": "النهايات"
+      "chapter": "Ch 1: Information Technology, the Internet, and You",
+      "topic": "Software Purpose",
+      "difficulty": "easy",
+      "tags": ["definition"],
+      "question": "What is the purpose of software?",
+      "options": [
+        "To store data permanently",
+        "To connect computers to the Internet",
+        "To convert data into information",
+        "To display information on a monitor"
+      ],
+      "correctIndex": 2,
+      "explanation": "Software processes raw data into useful information."
     }
   ]
 }
-
-المادة العلمية:
-[الصق نص المحاضرة أو الملخص هنا]
 ```
 
 ---

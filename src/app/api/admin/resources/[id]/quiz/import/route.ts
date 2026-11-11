@@ -35,18 +35,23 @@ function stripMarkdownFences(raw: string): string {
  *   - JSON wrapped inside conversational preamble or markdown
  */
 function extractJsonPayload(text: string): string {
-  // Try array first (most likely format for a question bank)
-  const arrayStart = text.indexOf("[");
-  const arrayEnd = text.lastIndexOf("]");
-  if (arrayStart !== -1 && arrayEnd > arrayStart) {
-    return text.slice(arrayStart, arrayEnd + 1);
+  try {
+    JSON.parse(text);
+    return text;
+  } catch {
+    // Strip surrounding prose by slicing from the outermost `{` or `[`
   }
 
-  // Fallback: try object (might have { questions: [...] } wrapper)
   const objStart = text.indexOf("{");
   const objEnd = text.lastIndexOf("}");
-  if (objStart !== -1 && objEnd > objStart) {
+  const arrayStart = text.indexOf("[");
+  const arrayEnd = text.lastIndexOf("]");
+
+  if (objStart !== -1 && objEnd > objStart && (arrayStart === -1 || objStart < arrayStart)) {
     return text.slice(objStart, objEnd + 1);
+  }
+  if (arrayStart !== -1 && arrayEnd > arrayStart) {
+    return text.slice(arrayStart, arrayEnd + 1);
   }
 
   return text;
@@ -105,27 +110,29 @@ function sanitizeQuestion(
     return null;
   }
 
-  // ── Resolve correctIndex ────────────────────────────────────────────────
+  // ── Resolve correctIndex (accepts camelCase `correctIndex` or snake_case `correct_index`)
+  const rawCorrectIdx =
+    typeof q.correctIndex === "number"
+      ? q.correctIndex
+      : typeof q.correct_index === "number"
+      ? q.correct_index
+      : undefined;
+
   let correctIndex: number;
 
-  if (typeof q.correctIndex === "number") {
-    // Handle 1-indexed input (correctIndex: 1,2,3,4) — auto-correct to 0-3
-    if (q.correctIndex >= 1 && q.correctIndex <= 4) {
-      // Heuristic: if ALL correctIndex values in the batch are ≥ 1 they might be 1-indexed.
-      // We try 0-indexed first. If 0-indexed gives out-of-range, shift to 1-indexed.
-      if (q.correctIndex === 0 || (q.correctIndex >= 0 && q.correctIndex <= 3)) {
-        correctIndex = q.correctIndex as number;
-      } else {
-        // Must be 1-indexed — shift down by 1
-        correctIndex = (q.correctIndex as number) - 1;
-      }
+  if (typeof rawCorrectIdx === "number") {
+    // Handle 1-indexed input (1..4) — auto-correct to 0..3
+    if (rawCorrectIdx === 0 || (rawCorrectIdx >= 0 && rawCorrectIdx <= 3)) {
+      correctIndex = rawCorrectIdx;
+    } else if (rawCorrectIdx === 4) {
+      correctIndex = 3;
     } else {
-      correctIndex = q.correctIndex as number;
+      correctIndex = rawCorrectIdx;
     }
 
     if (correctIndex < 0 || correctIndex > 3) {
       console.warn(
-        `[quiz-import] Q#${index + 1} rejected: correctIndex ${q.correctIndex} is out of range [0–3] even after 1-index correction.`
+        `[quiz-import] Q#${index + 1} rejected: correctIndex ${rawCorrectIdx} is out of range [0–3].`
       );
       return null;
     }
@@ -160,10 +167,20 @@ function sanitizeQuestion(
   if (q.difficulty === "easy" || q.difficulty === "medium" || q.difficulty === "hard") {
     difficulty = q.difficulty;
   }
-  const topic =
-    typeof q.topic === "string" && q.topic.trim()
-      ? q.topic.trim()
+  const chapter =
+    typeof q.chapter === "string"
+      ? sanitizeTextForPostgres(q.chapter) || undefined
       : undefined;
+  const topic =
+    typeof q.topic === "string"
+      ? sanitizeTextForPostgres(q.topic) || undefined
+      : undefined;
+  const tags = Array.isArray(q.tags)
+    ? q.tags
+        .map((t) => sanitizeTextForPostgres(typeof t === "string" ? t : String(t ?? "")))
+        .filter((t): t is string => Boolean(t))
+        .slice(0, 6)
+    : undefined;
 
   return {
     question: questionText,
@@ -171,7 +188,9 @@ function sanitizeQuestion(
     correctIndex,
     explanation: sanitizeTextForPostgres(explanation),
     difficulty,
+    ...(chapter ? { chapter } : {}),
     ...(topic ? { topic } : {}),
+    ...(tags && tags.length > 0 ? { tags } : {}),
   };
 }
 

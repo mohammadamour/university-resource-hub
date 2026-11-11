@@ -6,43 +6,40 @@
 
 ## 📋 1. البرومبت المعتمد لنسخه إلى الذكاء الاصطناعي (Master Prompt)
 
-انسخ النص التالي كاملاً وألصقه في محادثتك مع الذكاء الاصطناعي، وضع المادة العلمية مكان `[ضع محتوى الملخص أو الشرح هنا]`:
+انسخ البرومبت الموحد التالي وألصقه في محادثتك مع Claude أو ChatGPT أو Gemini مع إرفاق السلايدات أو الملخص (مطابق لمعيار [`Content_Upload_SOP.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/Content_Upload_SOP.md)):
 
 ```text
-أنت مصمم كويزات تعليمية لطلاب الجامعة.
-بناءً على المادة العلمية التالية، أريدك أن تولد كويزاً اختيار من متعدد بصيغة JSON صارمة.
+Generate [15] multiple-choice questions strictly from the attached material. Return valid JSON only (no markdown fences, no intro text).
 
-القواعد:
-1. عدد الأسئلة: 10 أسئلة (أو حسب المطلوب).
-2. كل سؤال يجب أن يحتوي على 4 خيارات فقط (A, B, C, D).
-3. رقم الإجابة الصحيحة correctIndex يبدأ من 0 (0 = الخيار الأول، 1 = الثاني، 2 = الثالث، 3 = الرابع).
-4. الشرح explanation يجب أن يكون باللغة العربية يوضح سبب صحة الإجابة.
-5. توزيع الصعوبة: 40% سهل، 40% متوسط، 20% صعب يتطلب فهماً واستنتاجاً.
-6. لا تكرر الخيارات أو الأسئلة.
-7. الإخراج يجب أن يكون JSON صالحاً تماماً بدون أي علامات markdown أو كود خارجي.
+Rules:
+- Language loyalty: Match the source material's language (English for IT/Science/Math; Arabic for Arabic courses). For English materials, keep exam phrasing in English and optionally add a short Arabic translation in parentheses only for tough terms, e.g. `volatile (متطاير)`.
+- `options`: Exactly 4 unique choices. No "All/None of the above", no letter prefixes (A, B, C, D).
+- `correctIndex`: 0-based integer (0–3), distributed evenly across 0, 1, 2, 3.
+- `difficulty`: ~35% "easy", 40% "medium", 25% "hard".
+- Formatting: Plain text + Unicode math (∀, ¬, ∧, ∨, →, ≤, ≥, ≠, x², √). Never use LaTeX ($...$).
 
-الشكل المطلوب بدقة:
+JSON template:
 {
   "version": 1,
-  "generatedAt": "2026-10-14T00:00:00.000Z",
-  "sourceTitle": "عنوان المادة أو المورد المطابق في الموقع",
+  "sourceTitle": "[Course / Resource Title]",
   "questions": [
     {
-      "question": "نص السؤال هنا؟",
+      "chapter": "Ch 1: Information Technology, the Internet, and You",
+      "topic": "Software Purpose",
+      "difficulty": "easy",
+      "tags": ["definition"],
+      "question": "What is the purpose of software?",
       "options": [
-        "الخيار الأول",
-        "الخيار الثاني",
-        "الخيار الثالث",
-        "الخيار الرابع"
+        "To store data permanently",
+        "To connect computers to the Internet",
+        "To convert data into information",
+        "To display information on a monitor"
       ],
-      "correctIndex": 0,
-      "explanation": "شرح سبب صحة الإجابة هنا..."
+      "correctIndex": 2,
+      "explanation": "Software processes raw data into useful information."
     }
   ]
 }
-
-المادة العلمية:
-[ضع محتوى الملخص أو الشرح هنا]
 ```
 
 ---

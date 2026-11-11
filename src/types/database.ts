@@ -71,6 +71,7 @@ export interface QuizQuestion {
   explanation: string; // Explanation of the correct answer
   // Optional metadata for adaptive testing and diagnostic categorization
   difficulty?: "easy" | "medium" | "hard";
+  chapter?: string;
   topic?: string;
   subtopic?: string;
   tags?: string[];

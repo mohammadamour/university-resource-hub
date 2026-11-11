@@ -91,3 +91,43 @@ Please audit this batch for accuracy and fairness:
 ---
 [PASTE QUESTIONS / EXPORTED JSON HERE]
 ```
+
+---
+
+## 🎯 5. Standardized AI Quiz Generation Prompt
+
+> Use this standardized prompt with **Claude, ChatGPT, or Gemini** when generating quiz banks from lecture slides, summaries, or past exams. Paste the resulting JSON directly into the **Admin Import Drawer (`📥`)** or save it in [`src/quiz_seeds/`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/quiz_seeds/).
+
+```text
+Generate [15] multiple-choice questions strictly from the attached material. Return valid JSON only (no markdown fences, no intro text).
+
+Rules:
+- Language loyalty: Match the source material's language (English for IT/Science/Math; Arabic for Arabic courses). For English materials, keep exam phrasing in English and optionally add a short Arabic translation in parentheses only for tough terms, e.g. `volatile (متطاير)`.
+- `options`: Exactly 4 unique choices. No "All/None of the above", no letter prefixes (A, B, C, D).
+- `correctIndex`: 0-based integer (0–3), distributed evenly across 0, 1, 2, 3.
+- `difficulty`: ~35% "easy", 40% "medium", 25% "hard".
+- Formatting: Plain text + Unicode math (∀, ¬, ∧, ∨, →, ≤, ≥, ≠, x², √). Never use LaTeX ($...$).
+
+JSON template:
+{
+  "version": 1,
+  "sourceTitle": "[Course / Resource Title]",
+  "questions": [
+    {
+      "chapter": "Ch 1: Information Technology, the Internet, and You",
+      "topic": "Software Purpose",
+      "difficulty": "easy",
+      "tags": ["definition"],
+      "question": "What is the purpose of software?",
+      "options": [
+        "To store data permanently",
+        "To connect computers to the Internet",
+        "To convert data into information",
+        "To display information on a monitor"
+      ],
+      "correctIndex": 2,
+      "explanation": "Software processes raw data into useful information."
+    }
+  ]
+}
+```

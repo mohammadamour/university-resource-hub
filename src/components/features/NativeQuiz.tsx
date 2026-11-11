@@ -757,7 +757,7 @@ export default function NativeQuiz({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-1">
-                        <span className="font-semibold text-foreground block">
+                        <span dir="auto" className="font-semibold text-foreground block">
                           {qIdx + 1}. {q.question}
                         </span>
                         {q.topic && (
@@ -794,7 +794,7 @@ export default function NativeQuiz({
                             }`}
                           >
                             <span>
-                              {OPTION_LETTERS[optIdx]}) {opt}
+                              {OPTION_LETTERS[optIdx]}) <span dir="auto">{opt}</span>
                             </span>
                             {isRightAnswer && <span>(الإجابة الصحيحة)</span>}
                             {isSelected && !isRightAnswer && <span>(إجابتك)</span>}
@@ -805,7 +805,7 @@ export default function NativeQuiz({
 
                     {q.explanation && (
                       <p className="mt-2.5 rounded-lg bg-background/80 p-2 text-xs text-muted-foreground border border-border/50">
-                        💡 <strong>التوضيح:</strong> {q.explanation}
+                        💡 <strong>التوضيح:</strong> <span dir="auto">{q.explanation}</span>
                       </p>
                     )}
                   </div>
@@ -879,7 +879,7 @@ export default function NativeQuiz({
 
       {/* Question Text */}
       <div className="py-5">
-        <h3 className="text-base sm:text-lg font-bold leading-relaxed text-foreground">
+        <h3 dir="auto" className="text-base sm:text-lg font-bold leading-relaxed text-foreground">
           {currentQuestion?.question}
         </h3>
       </div>
@@ -925,7 +925,7 @@ export default function NativeQuiz({
                 >
                   {OPTION_LETTERS[idx]}
                 </span>
-                <span className="leading-normal">{option}</span>
+                <span dir="auto" className="leading-normal">{option}</span>
               </div>
 
               {/* Status Icons */}
@@ -952,7 +952,7 @@ export default function NativeQuiz({
               <span className="block text-xs font-bold text-foreground">
                 توضيح الإجابة:
               </span>
-              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+              <p dir="auto" className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
                 {currentQuestion.explanation}
               </p>
             </div>

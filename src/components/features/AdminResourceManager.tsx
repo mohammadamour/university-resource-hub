@@ -454,15 +454,17 @@ ${formattedQuestions}
         .trim();
 
       let extracted = stripped;
-      const arrayStart = stripped.indexOf("[");
-      const arrayEnd = stripped.lastIndexOf("]");
-      if (arrayStart !== -1 && arrayEnd > arrayStart) {
-        extracted = stripped.slice(arrayStart, arrayEnd + 1);
-      } else {
+      try {
+        JSON.parse(stripped);
+      } catch {
         const objStart = stripped.indexOf("{");
         const objEnd = stripped.lastIndexOf("}");
-        if (objStart !== -1 && objEnd > objStart) {
+        const arrayStart = stripped.indexOf("[");
+        const arrayEnd = stripped.lastIndexOf("]");
+        if (objStart !== -1 && objEnd > objStart && (arrayStart === -1 || objStart < arrayStart)) {
           extracted = stripped.slice(objStart, objEnd + 1);
+        } else if (arrayStart !== -1 && arrayEnd > arrayStart) {
+          extracted = stripped.slice(arrayStart, arrayEnd + 1);
         }
       }
 
