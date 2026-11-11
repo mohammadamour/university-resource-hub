@@ -53,6 +53,7 @@
    - [9.2 Phase 2: Immediate Sprint Priorities (Launch Readiness)](#92-phase-2-immediate-sprint-priorities-launch-readiness)
    - [9.3 Phase 3: Student Experience & Personalization](#93-phase-3-student-experience--personalization)
    - [9.4 Phase 4: Multi-University Scaling & Advanced Admin](#94-phase-4-multi-university-scaling--advanced-admin)
+   - [9.5 Consolidated Active Priority Queue (Deduplicated Backlog)](#95-consolidated-active-priority-queue-deduplicated-backlog)
 10. [Pre-Launch Hardening, Risk Registry & Technical Audit (Claude Architecture Review)](#10-pre-launch-hardening-risk-registry--technical-audit-claude-architecture-review)
     - [10.1 Immediate Pre-Launch Action Items (P0 / P1)](#101-immediate-pre-launch-action-items-p0--p1)
     - [10.2 Mid-Term Architectural Backlog (Phase 3 / Post-Launch)](#102-mid-term-architectural-backlog-phase-3--post-launch)
@@ -1030,6 +1031,23 @@ This living backlog serves as the authoritative North Star for future developmen
 
 ---
 
+### 9.5 Consolidated Active Priority Queue (Deduplicated Backlog)
+*Synthesized Nov 11, 2026 after pruning shipped sprints (`sprint_plan.md`, Phase 0/1/4) and obsolete plans (Sentry -> Vercel Speed Insights + `analytics_events` + Discord ops alerts).*
+
+- **Tier 1 (P0 Security & Schema Hardening — Priority with Active Campus Traffic):**
+  1. Replace `===` admin secret checks with `crypto.timingSafeEqual` (`C-02`), fix `/r/[id]` `.or()` filter injection (`H-03`), remove duplicate `filePath`/`publicUrl` in `/api/upload` (`H-04`), enforce offset-0 `%PDF-` bytes (`M-02`), and sync doc model refs (`gemini-3.5-flash`) + `.env.example` (`ADMIN_SECRET`, `GEMINI_API_KEYS`).
+  2. Sync ghost columns (`is_featured`, `display_order`, `external_platform`, `thumbnail_url`, `midterm_exam_date`, `final_exam_date`) into SQL migration `schema_sync.sql` (`H-01`) + tighten `quiz_attempts` RLS `INSERT` policy.
+  3. Add IP rate limiting on `/api/upload`, `/api/quiz/record-attempt`, and `/api/events` (`C-03`).
+  4. Migrate admin auth from URL `?key=` to an HttpOnly cookie session (`C-01` / `M-03`).
+  5. Add Vitest unit guardrails (admin auth, `sanitizeTextForPostgres`, quiz shuffle invariant, offset-0 PDF validation).
+- **Tier 2 (Viral Growth Quick Wins):**
+  1. Dynamic course `openGraph` tags in `src/app/courses/[slug]/page.tsx` for rich WhatsApp link previews.
+  2. "Share My Score" WhatsApp Challenge button on `NativeQuiz.tsx` high-score results.
+- **Tier 3 (Discrete Math Group Project):**
+  1. Build deterministic TypeScript tokenizer, Shunting-yard parser, and interactive truth-table/equivalence UI (`Phase 5` in `src/lib/academic-tools/discrete-math/`). *Note: Defer custom `/admin/contribute` portal (`Phase 6`) until volunteer count justifies the auth surface; keep Git/Vercel/Supabase keys isolated to the lead dev.*
+
+---
+
 ## 10. Pre-Launch Hardening, Risk Registry & Technical Audit (Claude Architecture Review)
 
 > **Context:** An independent architectural audit conducted in October 2026 identified key operational, security, and scaling risks. Each item below has been verified against the active codebase and slotted into our immediate pre-launch sprint or Phase 3 roadmap.
@@ -1062,7 +1080,7 @@ This living backlog serves as the authoritative North Star for future developmen
      3. `correctIndex` is an integer strictly within `[0..3]`.
      4. Question stem and explanation are non-empty strings.
      5. Malformed questions are dropped with descriptive console warnings (`[gemini-quiz] Dropping question #...: reason`) without crashing the valid batch.
-   - **Next Action (Curator 1-Click Audit Modal):** Build an admin inspect modal in [`AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx) with a "📋 Copy for AI Review" button to spot-check semantic truth against Claude/ChatGPT before publishing.
+   - **Completed (Curator Audit Modal):** Built inside the Edit Resource modal in [`AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx) with answer-key inspection, raw JSON export, and 1-click "Copy Verification Prompt for AI" (alongside JSON quiz importer in Phase 1).
 
 5. **Shortlink (`/r/:id`) Deletion Fallback:**
    - **Risk:** The permanent watermarked shortlink `molakhasat.me/r/:id` is stamped onto hundreds of distributed PDFs. If a resource is deleted or replaced, students tapping the watermark encounter a dead 404.
