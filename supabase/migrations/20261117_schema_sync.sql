@@ -22,6 +22,14 @@ ON resources(course_id, is_featured, display_order);
 -- /api/quiz/record-attempt inserts rows using the server-side SUPABASE_SERVICE_ROLE_KEY,
 -- which bypasses RLS automatically. Dropping the permissive public INSERT policies stops
 -- direct abuse via the public browser ANON_KEY without affecting student quiz tracking.
-DROP POLICY IF EXISTS "Allow public insert of quiz attempts" ON quiz_attempts;
-DROP POLICY IF EXISTS "Allow public insert of quiz attempt answers" ON quiz_attempt_answers;
+DO $$
+BEGIN
+  IF to_regclass('public.quiz_attempts') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Allow public insert of quiz attempts" ON quiz_attempts;
+  END IF;
+
+  IF to_regclass('public.quiz_attempt_answers') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Allow public insert of quiz attempt answers" ON quiz_attempt_answers;
+  END IF;
+END $$;
 
