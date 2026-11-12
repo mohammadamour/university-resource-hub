@@ -99,7 +99,30 @@ Whenever you detect an architectural decision or assumption that creates a scali
 
 ---
 
-## 🔄 4. Chat Session Handoff Protocol
+## 📊 4. Analytics, Telemetry & Proactive Check-In Workflow
+
+Because the user wants to monitor real student behavior, catch silent device bugs early, and keep a close pulse on campus growth without adding bloated third-party SDKs, future AI agents MUST actively participate in telemetry reviews:
+
+### Where Data Lives (3 Sources)
+1. **Supabase (`analytics_events` & `quiz_attempts`):**
+   - Run the saved diagnostic queries in [`TECHNICAL_ANALYSIS.md` (§10.2 #8)](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/TECHNICAL_ANALYSIS.md) inside **Supabase Dashboard -> SQL Editor**.
+   - Covers: readable live feed, session length (`session_end`), zero-action bounce rate, actions per session, returning-visitor frequency (`visit_number` / repeat days), top read/downloaded/WhatsApp-shared resources, quiz funnel (`quiz_attempts`), and real device errors (`pdf_reader_error`).
+2. **Vercel Dashboard (`Analytics` & `Speed Insights`):**
+   - Captures overall unique visitors, page views, bounce rate, referrer breakdown, and Jordanian mobile Core Web Vitals (LCP/INP/CLS).
+3. **Discord Webhook (`DISCORD_WEBHOOK_URL`):**
+   - Real-time notifications for new student/admin uploads and unexpected HTTP `500` API errors.
+
+### Proactive Reminder Rule for Agents
+- Whenever a new batch of campus visits lands, right after deploying a production feature/fix, or when the user checks in about growth/bugs:
+  - **Proactively remind the user** to open **Supabase -> SQL Editor** (plus Vercel Analytics / Discord if relevant), run the saved queries from [`TECHNICAL_ANALYSIS.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/TECHNICAL_ANALYSIS.md), and paste the CSV/results back into chat so you can interpret patterns, spot device-specific errors (`pdf_reader_error`), and prioritize fixes.
+- **Founder Test Traffic Exclusion:**
+  - `src/lib/analytics.ts` automatically ignores `localhost` and sets `localStorage.setItem("molakhasat_ignore_analytics", "1")` whenever `/admin/*` or `/upload?key=...` is opened, so the founder's PC/phone doesn't pollute student metrics. For historical queries, check `localStorage.getItem("molakhasat_guest_uuid")` in DevTools Application Storage (or filter out `guest_d08a673c-f737-4d33-845b-118a49e032ed` in pre-cutoff rows).
+- **Document Every Real Bug Pattern:**
+  - Whenever a real production issue is diagnosed via `analytics_events`, Vercel logs, or Discord alerts, log its symptom, root cause, affected device/browser, and fix in [`TECHNICAL_ANALYSIS.md` (§10.3 Production Incident & Bug Pattern Log)](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/TECHNICAL_ANALYSIS.md).
+
+---
+
+## 🔄 5. Chat Session Handoff Protocol
 
 When conversations get long and context becomes diluted, the user will request a session handoff summary to initialize a fresh agent conversation without losing momentum or architectural context.
 

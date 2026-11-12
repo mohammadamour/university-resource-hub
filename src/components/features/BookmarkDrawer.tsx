@@ -190,7 +190,14 @@ export function BookmarkDrawer({
                           <div className="group flex items-center gap-2 rounded-xl border border-border bg-secondary/30 ps-3 pe-1.5 py-2 hover:border-accent/50 hover:bg-secondary/60 transition-colors">
                             <Link
                               href={`/courses/${slug}`}
-                              onClick={onClose}
+                              onClick={() => {
+                                track({
+                                  eventType: "saved_course_open",
+                                  courseSlug: slug,
+                                  metadata: { source: "bookmark_drawer" },
+                                });
+                                onClose();
+                              }}
                               className="flex min-w-0 flex-1 items-center gap-2.5 py-0.5"
                             >
                               <span className="shrink-0 text-base">📚</span>
@@ -249,7 +256,16 @@ export function BookmarkDrawer({
                         <div className="group flex items-center gap-2 rounded-xl border border-border bg-secondary/30 ps-3 pe-1.5 py-2 hover:border-accent/50 hover:bg-secondary/60 transition-colors">
                           <Link
                             href={`/courses/${res.courseSlug}?res=${encodeURIComponent(res.id)}#res-${res.id}`}
-                            onClick={onClose}
+                            onClick={() => {
+                              track({
+                                eventType: "saved_resource_open",
+                                resourceId: res.id,
+                                courseSlug: res.courseSlug,
+                                resourceTitle: res.title,
+                                metadata: { source: "bookmark_drawer" },
+                              });
+                              onClose();
+                            }}
                             className="flex min-w-0 flex-1 items-center gap-2.5 py-0.5"
                           >
                             <span className="shrink-0 text-base">

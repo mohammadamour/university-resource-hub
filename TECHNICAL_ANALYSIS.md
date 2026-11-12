@@ -57,6 +57,7 @@
 10. [Pre-Launch Hardening, Risk Registry & Technical Audit (Claude Architecture Review)](#10-pre-launch-hardening-risk-registry--technical-audit-claude-architecture-review)
     - [10.1 Immediate Pre-Launch Action Items (P0 / P1)](#101-immediate-pre-launch-action-items-p0--p1)
     - [10.2 Mid-Term Architectural Backlog (Phase 3 / Post-Launch)](#102-mid-term-architectural-backlog-phase-3--post-launch)
+    - [10.3 Production Incident & Bug Pattern Log](#103-production-incident--bug-pattern-log)
 11. [Sustainability, Non-Intrusive Monetization & Community Contributor Strategy](#11-sustainability-non-intrusive-monetization--community-contributor-strategy)
     - [11.1 The Ethical Reframing & Core Freemium Boundary](#111-the-ethical-reframing--core-freemium-boundary)
     - [11.2 The Jadara Playbook: Hyper-Local Campus B2B Sponsorships](#112-the-jadara-playbook-hyper-local-campus-b2b-sponsorships)
@@ -1131,21 +1132,77 @@ _Synthesized Nov 11, 2026 after pruning shipped sprints (`sprint_plan.md`, Phase
      2. **Automated Webhook Alerting ([`src/lib/ops-alerts.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/ops-alerts.ts)):** Sends real-time push alerts via `DISCORD_WEBHOOK_URL` and/or `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` on new uploads (`/api/upload` inside `after()`) and unexpected HTTP 500 errors (`/api/upload`, `/api/admin/resources/[id]/quiz`, `/api/quiz/record-attempt`, `/api/admin/resources/[id]`, `/api/admin/thumbnails`, `/api/admin/resources/[id]/quiz/import`). Webhook messages purposefully link to `/admin/resources` without appending `ADMIN_SECRET`.
      3. **First-Party Behavioral Event Log ([`src/lib/analytics.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/analytics.ts) ➔ [`POST /api/events`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/events/route.ts) ➔ [`analytics_events`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/migrations/20261116_analytics_events.sql)):** Uses `navigator.sendBeacon` (with `fetch(..., { keepalive: true })` fallback) so events never block downloads, shares, or page navigation. Server route reuses `createAdminClient()`, validates UUIDs safely (handling non-UUID mock course IDs like `placement-exams`), retries without FK IDs on Postgres `23503`, and always returns HTTP 200 to prevent client retry storms.
    - **Tracked Events Coverage (`analytics_events.event_type`):**
-     - `resource_view` (course page visits + deep-link `?res=`/`?rid=` + `utm_source` / `ref=pdf_watermark`), `pdf_reader_open`, `pdf_reader_error`, `pdf_download`, `external_link_click`, `whatsapp_share`, `bookmark_add`, `bookmark_remove`, `course_pin`, `course_unpin`, `quiz_start`, `quiz_complete`.
+     - **Lifecycle & Session Metrics ([`SessionTracker.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/SessionTracker.tsx) + [`src/lib/analytics.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/analytics.ts)):** `home_view` (landing on `/`, with `visit_number` + `is_returning`), `session_end` (fired on `visibilitychange -> hidden` / `pagehide` carrying `session_id`, active visible `duration_seconds`, `actions_count`, `bounced`, `entry_path`, `exit_path`, `visit_number`, `is_returning`). Founder/admin devices (`localhost`, `/admin/*`, `/upload?key=*`) are automatically excluded via `molakhasat_ignore_analytics`.
+     - **Behavioral Interactions:** `resource_view`, `department_filter`, `quick_select_course`, `pdf_reader_open`, `pdf_reader_error`, `pdf_download`, `external_link_click`, `whatsapp_share`, `whatsapp_community_click`, `bookmark_add`, `bookmark_remove`, `course_pin`, `course_unpin`, `saved_course_open`, `saved_resource_open`, `quiz_start`, `quiz_complete`.
    - **Production Configuration Checklist:**
      - Migration applied in Supabase SQL Editor: [`supabase/migrations/20261116_analytics_events.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/migrations/20261116_analytics_events.sql) (RLS enabled, public `INSERT` only, `SELECT` restricted to service role).
      - Vercel Environment Variables: `DISCORD_WEBHOOK_URL` (Production Secret) and optional `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`.
    - **Saved Supabase Diagnostic SQL Queries (Run in Supabase → SQL Editor):**
 
      ```sql
-     -- 1. Event totals & unique anonymous students (last 7 days)
+     -- 1. Human-readable live activity feed (Amman time + device type)
+     SELECT
+       to_char(created_at AT TIME ZONE 'Asia/Amman', 'MM-DD HH24:MI') AS amman_time,
+       event_type,
+       course_slug,
+       resource_title,
+       LEFT(guest_session_id, 14) AS student_id,
+       CASE
+         WHEN user_agent ILIKE '%Android%' OR user_agent ILIKE '%iPhone%' THEN 'Mobile'
+         ELSE 'Desktop'
+       END AS device
+     FROM analytics_events
+     ORDER BY created_at DESC
+     LIMIT 50;
+
+     -- 2. Session length, actions before leaving & zero-action bounce rate (deduped by session_id)
+     WITH sessions AS (
+       SELECT
+         metadata->>'session_id' AS session_id,
+         MAX((metadata->>'duration_seconds')::int) AS duration_sec,
+         MAX((metadata->>'actions_count')::int) AS actions_count,
+         BOOL_AND((metadata->>'bounced')::boolean) AS bounced,
+         BOOL_OR((metadata->>'is_returning')::boolean) AS is_returning
+       FROM analytics_events
+       WHERE event_type = 'session_end'
+         AND created_at >= now() - interval '7 days'
+         AND metadata->>'session_id' IS NOT NULL
+       GROUP BY metadata->>'session_id'
+     )
+     SELECT
+       COUNT(*) AS total_sessions,
+       ROUND(AVG(duration_sec)) AS avg_seconds,
+       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_sec) AS median_seconds,
+       ROUND(AVG(actions_count), 1) AS avg_actions,
+       ROUND(100.0 * COUNT(*) FILTER (WHERE bounced) / NULLIF(COUNT(*), 0), 1) AS zero_action_bounce_pct,
+       ROUND(100.0 * COUNT(*) FILTER (WHERE is_returning) / NULLIF(COUNT(*), 0), 1) AS returning_session_pct
+     FROM sessions;
+
+     -- 3. How often students come back (distinct active days & multi-visit students)
+     WITH per_student AS (
+       SELECT
+         guest_session_id,
+         COUNT(DISTINCT DATE(created_at AT TIME ZONE 'Asia/Amman')) AS active_days,
+         COUNT(*) FILTER (WHERE event_type <> 'session_end') AS total_actions
+       FROM analytics_events
+       WHERE guest_session_id IS NOT NULL
+       GROUP BY guest_session_id
+     )
+     SELECT
+       COUNT(*) AS total_students,
+       COUNT(*) FILTER (WHERE active_days >= 2) AS came_back_2plus_days,
+       ROUND(AVG(active_days), 2) AS avg_active_days,
+       ROUND(AVG(total_actions), 1) AS avg_lifetime_actions
+     FROM per_student;
+
+     -- 4. Event trends & unique students (last 7 days)
      SELECT event_type, COUNT(*) AS total, COUNT(DISTINCT guest_session_id) AS unique_students
      FROM analytics_events
      WHERE created_at >= now() - interval '7 days'
      GROUP BY event_type
      ORDER BY total DESC;
 
-     -- 2. Top read, downloaded, and WhatsApp-shared resources
+     -- 5. Top read, downloaded, and WhatsApp-shared resources
      SELECT resource_title, course_slug, event_type, COUNT(*) AS hits
      FROM analytics_events
      WHERE event_type IN ('pdf_reader_open', 'pdf_download', 'whatsapp_share')
@@ -1153,14 +1210,19 @@ _Synthesized Nov 11, 2026 after pruning shipped sprints (`sprint_plan.md`, Phase
      ORDER BY hits DESC
      LIMIT 20;
 
-     -- 3. Broken PDFs / client render errors
-     SELECT created_at, resource_title, course_slug, metadata->>'error' AS error_msg, user_agent
+     -- 6. Broken PDFs / client render errors (Amman time + device)
+     SELECT
+       to_char(created_at AT TIME ZONE 'Asia/Amman', 'MM-DD HH24:MI') AS amman_time,
+       resource_title,
+       course_slug,
+       metadata->>'error' AS error_msg,
+       user_agent
      FROM analytics_events
      WHERE event_type = 'pdf_reader_error'
      ORDER BY created_at DESC
      LIMIT 20;
 
-     -- 4. Quiz start -> completion funnel & viral referral sources
+     -- 7. Quiz start -> completion funnel & viral referral sources
      SELECT event_type, COUNT(*) AS total, COUNT(DISTINCT guest_session_id) AS unique_students
      FROM analytics_events
      WHERE event_type IN ('quiz_start', 'quiz_complete')
@@ -1176,6 +1238,19 @@ _Synthesized Nov 11, 2026 after pruning shipped sprints (`sprint_plan.md`, Phase
      ```
 
    - **Remaining Future Enhancement:** Wire a `search_query` event if/when a live keyword search bar is introduced on `/`.
+
+---
+
+### 10.3 🐛 Production Incident & Bug Pattern Log
+
+> **Why keep this log:** Logging every real production failure reveals recurring patterns across Jordanian mobile devices, Supabase storage/migrations, and deployment drift so future fixes target root causes rather than symptoms.
+
+| Date | Incident / Symptom | Affected Surface | Root Cause | Fix & Pattern Takeaway |
+| :--- | :--- | :--- | :--- | :--- |
+| **Nov 12, 2026** | `ERROR: 42P01: relation "quiz_attempts" does not exist` when applying schema sync | Production quizzes (`NativeQuiz.tsx` -> `/api/quiz/record-attempt`) | [`20261016_quiz_tracking.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/migrations/20261016_quiz_tracking.sql) was committed to git but never executed in production Supabase SQL Editor; unguarded `DROP POLICY IF EXISTS` failed when the table didn't exist. | Executed `20261016_quiz_tracking.sql` in production and wrapped `DROP POLICY` in `to_regclass(...) IS NOT NULL` inside [`20261117_schema_sync.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/migrations/20261117_schema_sync.sql). **Pattern:** Treat SQL files in git as pending until verified in Supabase Table Editor. |
+| **Nov 11–12, 2026** | `UnknownErrorException: a.toHex is not a function` logged via `pdf_reader_error` | Android 13 Redmi 12 / Xiaomi `MiuiBrowser` (`Chrome/135`) on [`PdfReaderModal.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/PdfReaderModal.tsx) | Modern `pdfjs-dist@6.4.299` uses ES2025 `Uint8Array.prototype.toHex()`, unsupported on Chromium `<140`, Xiaomi MiuiBrowser, and older Android WebViews. | Switched [`PdfReaderModal.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/PdfReaderModal.tsx) & [`client-pdf-extractor.ts`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/lib/pipeline/client-pdf-extractor.ts) to `pdfjs-dist/legacy/build/pdf.mjs` + `legacy/build/pdf.worker.min.mjs` (`core-js` polyfills). **Pattern:** Always ship legacy/polyfilled builds for campus Android diversity. |
+| **Nov 11–12, 2026** | `ResponseException: Unexpected server response (400)` logged via `pdf_reader_error` on `Arrays D1` | iPhone OS 18.7 Safari (`programming-2` / `Arrays D1`) | Inspecting the Supabase Storage URL returned HTTP 400 `{"statusCode":"404","error":"not_found","message":"Object not found","code":"NoSuchKey"}`: DB row existed in `resources` without a matching PDF in the `resources` bucket. | Flagged `Arrays D1` for deletion/re-upload in `/admin/resources`. **Pattern:** Never assume DB row existence guarantees Storage object existence; always keep upload/delete atomic or verify before marking `active`. |
+| **Nov 12, 2026** | `?key=` admin secret visible in browser window title bar + React `#418` hydration error in DevTools on `/upload` | Admin DevTools inspection (`/upload?key=...`) | Admin gating relies on URL query strings (`C-01`), exposing secrets in window titles, history, and screenshots. | Scheduled `HttpOnly` cookie session replacement in **Tier 1B** + rotated `ADMIN_SECRET`. **Pattern:** Never keep bearer secrets in URLs past MVP bootstrap. |
 
 ---
 

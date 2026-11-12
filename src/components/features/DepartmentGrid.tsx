@@ -224,9 +224,17 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                onClick={() =>
-                  setActiveDeptId((prev) => (prev === dept.id ? null : dept.id))
-                }
+                onClick={() => {
+                  const isClearing = activeDeptId === dept.id;
+                  setActiveDeptId((prev) => (prev === dept.id ? null : dept.id));
+                  track({
+                    eventType: "department_filter",
+                    metadata: {
+                      department_slug: dept.slug,
+                      action: isClearing ? "clear" : "select",
+                    },
+                  });
+                }}
                 className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-bold transition-all sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm cursor-pointer ${
                   isActive
                     ? "bg-card text-foreground shadow-sm border border-border/80 ring-2 ring-accent/30"
@@ -262,8 +270,15 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                 id="course-quick-select"
                 value=""
                 onChange={(e) => {
-                  if (e.target.value) {
-                    router.push(e.target.value);
+                  const targetUrl = e.target.value;
+                  if (targetUrl) {
+                    const courseSlug = targetUrl.replace(/^\/courses\//, "");
+                    track({
+                      eventType: "quick_select_course",
+                      courseSlug,
+                      metadata: { source: "homepage_dropdown" },
+                    });
+                    router.push(targetUrl);
                   }
                 }}
                 className="w-full appearance-none rounded-xl border border-border bg-card px-4 py-2.5 pr-10 pl-10 text-xs sm:text-sm font-medium text-foreground shadow-xs transition-all hover:border-accent/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 cursor-pointer"

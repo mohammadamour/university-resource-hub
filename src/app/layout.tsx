@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { SITE_NAME, SITE_DESCRIPTION, SITE_URL } from "@/lib/constants";
+import SessionTracker from "@/components/features/SessionTracker";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -29,6 +30,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
+        {/* Session duration, action count, bounce & returning visit tracker */}
+        <SessionTracker />
         {/* Vercel Analytics: page views, referrers, country breakdown */}
         <Analytics />
         {/* Speed Insights: real Web Vitals (LCP, CLS, FID) from actual student devices */}

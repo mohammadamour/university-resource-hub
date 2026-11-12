@@ -1,4 +1,5 @@
 import { SITE_NAME, WHATSAPP_COMMUNITY_URL } from "@/lib/constants";
+import TrackedExternalLink from "@/components/ui/TrackedExternalLink";
 
 /**
  * Site footer with trust disclaimer, WhatsApp community group, and links.
@@ -26,15 +27,15 @@ export default function Footer() {
               </p>
             </div>
           </div>
-          <a
+          <TrackedExternalLink
             href={WHATSAPP_COMMUNITY_URL}
-            target="_blank"
-            rel="noopener noreferrer"
+            eventType="whatsapp_community_click"
+            metadata={{ source: "footer_cta" }}
             className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:shadow hover:scale-[1.02] active:scale-[0.98]"
           >
             <span>انضم إلى القروب</span>
             <span>↗</span>
-          </a>
+          </TrackedExternalLink>
         </div>
 
         {/* Trust Disclaimer */}
