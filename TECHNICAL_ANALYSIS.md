@@ -1245,6 +1245,17 @@ _Synthesized Nov 11, 2026 after pruning shipped sprints (`sprint_plan.md`, Phase
 
 > **Why keep this log:** Logging every real production failure reveals recurring patterns across Jordanian mobile devices, Supabase storage/migrations, and deployment drift so future fixes target root causes rather than symptoms.
 
+#### 📱 Observed Traffic & Device Baseline (Nov 2026)
+
+- **Mix:** ~90% mobile traffic (primarily WhatsApp group/status referrals), with **~60% on iOS** (iPhone Safari + WhatsApp in-app browser) and ~40% on Android.
+- **Founder Blindspot:** Primary local testing happens on Android, making iOS WebKit (`WKWebView` / Safari) regressions easy to miss without explicit guardrails and telemetry (`pdf_reader_error`, `Speed Insights`).
+- **iOS / WhatsApp `WKWebView` Engineering Watchouts:**
+  1. **Input Auto-Zoom (`DepartmentGrid.tsx`):** Public `<select>` / `<input>` elements with `< 16px` mobile font-size (`text-xs`) trigger automatic viewport zoom on iOS Safari when tapped. Use `text-base sm:text-sm` on mobile inputs/selects.
+  2. **WhatsApp In-App Browser Handoff (`ResourceList.tsx`):** `window.open(waUrl, "_blank", ...)` inside WhatsApp's in-app browser or iOS Safari can be popup-blocked or behave awkwardly; direct navigation / `<a href>` / `navigator.share` fallback is more reliable for returning to the native WhatsApp app.
+  3. **Isolated `WKWebView` Storage:** WhatsApp's iOS in-app browser does not always share `localStorage` with standalone Safari. As a result, `molakhasat_guest_uuid`, `molakhasat_bookmarks`, and `molakhasat_quiz_history` can fragment per browser container (slightly inflating unique student counts and hiding bookmarks if a student switches to Safari).
+  4. **iOS Canvas & PDF Download UX (`PdfReaderModal.tsx`):** Keeping `PdfReaderModal` as the primary PDF entry point is a win on iOS (since `<a target="_blank">` PDFs in `WKWebView` hijack the tab with QuickLook and hide the quiz CTA), while `MAX_DPR = 2` + `PAGE_WINDOW_RADIUS = 2` + bitmap zeroing protect against WebKit's strict total canvas memory cap. Still verify `ZOOM_STEPS = 2` (200%) on wide landscape slide decks on iPhone.
+  5. **iOS Background Lifecycle:** Keep `visibilitychange` + `pagehide` + `navigator.sendBeacon` in `analytics.ts` (never rely on `beforeunload`, which iOS Safari drops).
+
 | Date | Incident / Symptom | Affected Surface | Root Cause | Fix & Pattern Takeaway |
 | :--- | :--- | :--- | :--- | :--- |
 | **Nov 12, 2026** | `ERROR: 42P01: relation "quiz_attempts" does not exist` when applying schema sync | Production quizzes (`NativeQuiz.tsx` -> `/api/quiz/record-attempt`) | [`20261016_quiz_tracking.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/migrations/20261016_quiz_tracking.sql) was committed to git but never executed in production Supabase SQL Editor; unguarded `DROP POLICY IF EXISTS` failed when the table didn't exist. | Executed `20261016_quiz_tracking.sql` in production and wrapped `DROP POLICY` in `to_regclass(...) IS NOT NULL` inside [`20261117_schema_sync.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/migrations/20261117_schema_sync.sql). **Pattern:** Treat SQL files in git as pending until verified in Supabase Table Editor. |
