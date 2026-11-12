@@ -349,7 +349,17 @@ export default function UploadForm({
           formData.append("pageCount", String(pageCount));
         }
         if (extractedSourceText) {
-          formData.append("sourceText", extractedSourceText);
+          // Cap sourceText at 50,000 characters (~50 KB) before sending.
+          // WHY: Full text from a 100-page PDF can be 300 KB+, inflating the FormData body past
+          // Vercel's serverless limit and triggering a plain-text "413 Request Entity Too Large"
+          // that the JSON parser chokes on with the cryptic error:
+          // "Unexpected token 'R', "Request En"... is not valid JSON"
+          // 50 KB is more than enough for Gemini to synthesize a full 50-question bank.
+          const MAX_SOURCE_TEXT_CHARS = 50_000;
+          const truncatedText = extractedSourceText.length > MAX_SOURCE_TEXT_CHARS
+            ? extractedSourceText.slice(0, MAX_SOURCE_TEXT_CHARS)
+            : extractedSourceText;
+          formData.append("sourceText", truncatedText);
         }
         if (thumbnailBlob) {
           formData.append("thumbnail", thumbnailBlob, "thumbnail.jpg");
@@ -386,13 +396,28 @@ export default function UploadForm({
         body: formData,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "فشل رفع الملف.");
+      // Parse body safely: Vercel can return a plain-text "413 Request Entity Too Large"
+      // or "502 Bad Gateway" when the payload exceeds limits or the function times out.
+      // Calling .json() directly on those throws "Unexpected token 'R', ..." in the UI.
+      // Always try JSON first; fall back to the HTTP status text for a human-readable message.
+      let data: { resourceId?: string; error?: string; status?: string } = {};
+      const contentType = response.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else if (!response.ok) {
+        // Non-JSON error (413, 502, 503, etc.) — read the text for debugging, show friendly Arabic
+        const bodyText = await response.text().catch(() => "");
+        const statusHint = response.status === 413
+          ? "حجم الملف أو بيانات الاستخلاص كبير جداً — يرجى الضغط على الملف بـ Ghostscript قبل الرفع."
+          : `خطأ في الخادم (${response.status}): ${bodyText.slice(0, 120)}`;
+        throw new Error(statusHint);
       }
 
-      const resourceId = data.resourceId;
+      if (!response.ok) {
+        throw new Error(data.error ?? "فشل رفع الملف.");
+      }
+
+      const resourceId = typeof data.resourceId === "string" ? data.resourceId : "";
 
       if (isLinkResource) {
         // Immediate completion for links (no background processing needed)
