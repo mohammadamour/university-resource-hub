@@ -1050,8 +1050,8 @@ _Synthesized Nov 11, 2026 after pruning shipped sprints (`sprint_plan.md`, Phase
   3. [ ] Migrate admin auth from URL `?key=` to an HttpOnly cookie session (`C-01` / `M-03`).
   4. [ ] Add Vitest unit guardrails (admin auth, `sanitizeTextForPostgres`, quiz shuffle invariant, offset-0 PDF validation).
 - **Tier 2 (Viral Growth Quick Wins):**
-  1. Dynamic course `openGraph` tags in `src/app/courses/[slug]/page.tsx` for rich WhatsApp link previews.
-  2. "Share My Score" WhatsApp Challenge button on `NativeQuiz.tsx` high-score results.
+  1. [x] **Dynamic course `openGraph` & `twitter` metadata (Nov 12, 2026):** Extended `generateMetadata` in `src/app/courses/[slug]/page.tsx` with course-specific `openGraph` / `twitter` tags and live resource/quiz-question counts (strictly via `params.slug` to preserve `revalidate = 3600` ISR, aligned `placement-exams` fallback across metadata + page render, avoided duplicate `| ملخصات` `<title>` suffix, and added a 96 KB pre-rendered `public/og-default.jpg` banner wired in both `layout.tsx` and `[slug]/page.tsx` to avoid Satori Arabic shaping issues).
+  2. [ ] "Share My Score" WhatsApp Challenge button on `NativeQuiz.tsx` high-score results.
 - **Tier 3 (Discrete Math Group Project):**
   1. Build deterministic TypeScript tokenizer, Shunting-yard parser, and interactive truth-table/equivalence UI (`Phase 5` in `src/lib/academic-tools/discrete-math/`). _Note: Defer custom `/admin/contribute` portal (`Phase 6`) until volunteer count justifies the auth surface; keep Git/Vercel/Supabase keys isolated to the lead dev._
 

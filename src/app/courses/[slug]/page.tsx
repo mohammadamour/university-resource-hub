@@ -39,97 +39,214 @@ async function getCourse(slug: string): Promise<CourseWithResources | null> {
 }
 
 /**
- * Generate dynamic metadata for SEO and WhatsApp link previews.
+ * Fallback mock course for `/courses/placement-exams` when not yet seeded in DB.
+ * Shared between `generateMetadata` and `CoursePage` so link crawlers never see a false 404 title.
+ */
+function getPlacementExamsMockCourse(): CourseWithResources {
+  const now = new Date().toISOString();
+  return {
+    id: "mock-id",
+    department_id: "mock-dept",
+    title: "امتحانات المستوى",
+    slug: "placement-exams",
+    course_code: null,
+    description: "نماذج ومواد تحضيرية لجميع امتحانات الكفاءة (عربي، إنجليزي، حاسوب)",
+    instructor: null,
+    semester: null,
+    display_order: 0,
+    created_at: now,
+    resources: [
+      {
+        id: "1",
+        course_id: "mock-id",
+        title: "عربي | ملخص قواعد النحو والصرف",
+        type: "summary",
+        storage_url: "#",
+        file_size_bytes: 2500000,
+        uploaded_by: "system",
+        created_at: now,
+      },
+      {
+        id: "2",
+        course_id: "mock-id",
+        title: "عربي | كويز تجريبي مع الحلول",
+        type: "quiz",
+        storage_url: "#",
+        file_size_bytes: 1200000,
+        uploaded_by: "system",
+        created_at: now,
+      },
+      {
+        id: "3",
+        course_id: "mock-id",
+        title: "انجليزي | نماذج امتحانات سابقة",
+        type: "past_exam",
+        storage_url: "#",
+        file_size_bytes: 1200000,
+        uploaded_by: "system",
+        created_at: now,
+      },
+      {
+        id: "4",
+        course_id: "mock-id",
+        title: "حاسوب | أهم اختصارات الكيبورد والأساسيات",
+        type: "summary",
+        storage_url: "#",
+        file_size_bytes: 1200000,
+        uploaded_by: "system",
+        created_at: now,
+      },
+      {
+        id: "5",
+        course_id: "mock-id",
+        title: "حاسوب | امتحان تجريبي تفاعلي",
+        type: "quiz",
+        storage_url: "https://share.gemini.google/KowylEzTUiIe",
+        file_size_bytes: 0,
+        uploaded_by: "system",
+        created_at: now,
+      },
+    ] as Resource[],
+  };
+}
+
+/**
+ * Fetches a course with the placement-exams fallback applied consistently
+ * for both metadata generation and page rendering.
+ */
+async function getCourseWithFallback(
+  slug: string
+): Promise<CourseWithResources | null> {
+  const course = await getCourse(slug);
+  if (!course && slug === "placement-exams") {
+    return getPlacementExamsMockCourse();
+  }
+  return course;
+}
+
+function formatArabicCount(
+  count: number,
+  singular: string,
+  dual: string,
+  pluralFew: string,
+  accusativeMany: string
+): string {
+  if (count === 1) return `1 ${singular}`;
+  if (count === 2) return dual;
+  if (count >= 3 && count <= 10) return `${count} ${pluralFew}`;
+  return `${count} ${accusativeMany}`;
+}
+
+/**
+ * Builds concise, high-signal Arabic OpenGraph summary text from live course stats.
+ * Leads with counts so WhatsApp/Telegram previews show value before any line truncation.
+ */
+function buildCourseShareDescription(course: CourseWithResources): string {
+  const activeResources = (course.resources ?? []).filter(
+    (r) => (r.status || "active") === "active"
+  );
+  const resourceCount = activeResources.length;
+  const quizQuestionCount = activeResources.reduce(
+    (sum, r) => sum + (r.quiz_data?.questions?.length ?? 0),
+    0
+  );
+
+  const statsParts: string[] = [];
+  if (resourceCount > 0) {
+    statsParts.push(
+      formatArabicCount(
+        resourceCount,
+        "ملف ومورد",
+        "ملفان وموردان",
+        "ملفات وموارد",
+        "ملفاً ومورداً"
+      )
+    );
+  }
+  if (quizQuestionCount > 0) {
+    statsParts.push(
+      formatArabicCount(
+        quizQuestionCount,
+        "سؤال تفاعلي",
+        "سؤالان تفاعليان",
+        "أسئلة تفاعلية",
+        "سؤالاً تفاعلياً"
+      )
+    );
+  }
+
+  const fallbackDesc =
+    course.description ||
+    `ملخصات ونماذج امتحانات لمادة ${course.title} — قراءة فورية بدون تسجيل`;
+
+  if (statsParts.length === 0) {
+    return fallbackDesc;
+  }
+
+  const suffix = course.description
+    ? course.description
+    : "قراءة فورية واختبارات مجانية بدون تسجيل";
+
+  return `${statsParts.join(" • ")} — ${suffix}`;
+}
+
+/**
+ * Generate dynamic metadata for SEO and WhatsApp / Telegram link previews.
+ * Note: Intentionally reads only `params` (never `searchParams`) to preserve ISR caching (`revalidate = 3600`).
  */
 export async function generateMetadata({
   params,
 }: CoursePageProps): Promise<Metadata> {
   const { slug } = await params;
-  const course = await getCourse(slug);
+  const course = await getCourseWithFallback(slug);
 
   if (!course) {
     return { title: "غير موجود" };
   }
 
+  // Layout defines `title.template = "%s | ملخصات"`, so omit the brand suffix here to avoid duplication.
+  const displayTitle = course.course_code
+    ? `${course.title} (${course.course_code})`
+    : course.title;
+  const description = buildCourseShareDescription(course);
+  const ogTitle = `${displayTitle} | ${SITE_NAME}`;
+  const canonicalPath = `/courses/${course.slug}`;
+
   return {
-    title: `${course.title} | ${SITE_NAME}`,
-    description:
-      course.description ||
-      `ملخصات وموارد لمادة ${course.title} — ${SITE_NAME}`,
+    title: displayTitle,
+    description,
+    alternates: {
+      canonical: canonicalPath,
+    },
+    openGraph: {
+      title: ogTitle,
+      description,
+      url: canonicalPath,
+      siteName: SITE_NAME,
+      locale: "ar_JO",
+      type: "website",
+      images: [
+        {
+          // Static pre-rendered JPEG (<100 KB) avoids Satori Arabic shaping glitches and WhatsApp's 300 KB crawler limit.
+          url: "/og-default.jpg",
+          width: 1200,
+          height: 630,
+          alt: `${displayTitle} — ${SITE_NAME}`,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: ogTitle,
+      description,
+      images: ["/og-default.jpg"],
+    },
   };
 }
 
 export default async function CoursePage({ params }: CoursePageProps) {
   const { slug } = await params;
-  let course = await getCourse(slug);
-
-  // MOCK FOR PLACEMENT EXAMS (since local DB is not reset)
-  if (slug === 'placement-exams' && !course) {
-    course = {
-      id: "mock-id",
-      department_id: "mock-dept",
-      title: "امتحانات المستوى",
-      slug: "placement-exams",
-      course_code: null,
-      description: "نماذج ومواد تحضيرية لجميع امتحانات الكفاءة (عربي، إنجليزي، حاسوب)",
-      instructor: null,
-      semester: null,
-      display_order: 0,
-      created_at: new Date().toISOString(),
-      resources: [
-        {
-          id: "1",
-          course_id: "mock-id",
-          title: "عربي | ملخص قواعد النحو والصرف",
-          type: "summary",
-          storage_url: "#",
-          file_size_bytes: 2500000,
-          uploaded_by: "system",
-          created_at: new Date().toISOString()
-        },
-        {
-          id: "2",
-          course_id: "mock-id",
-          title: "عربي | كويز تجريبي مع الحلول",
-          type: "quiz",
-          storage_url: "#",
-          file_size_bytes: 1200000,
-          uploaded_by: "system",
-          created_at: new Date().toISOString()
-        },
-        {
-          id: "3",
-          course_id: "mock-id",
-          title: "انجليزي | نماذج امتحانات سابقة",
-          type: "past_exam",
-          storage_url: "#",
-          file_size_bytes: 1200000,
-          uploaded_by: "system",
-          created_at: new Date().toISOString()
-        },
-        {
-          id: "4",
-          course_id: "mock-id",
-          title: "حاسوب | أهم اختصارات الكيبورد والأساسيات",
-          type: "summary",
-          storage_url: "#",
-          file_size_bytes: 1200000,
-          uploaded_by: "system",
-          created_at: new Date().toISOString()
-        },
-        {
-          id: "5",
-          course_id: "mock-id",
-          title: "حاسوب | امتحان تجريبي تفاعلي",
-          type: "quiz",
-          storage_url: "https://share.gemini.google/KowylEzTUiIe",
-          file_size_bytes: 0,
-          uploaded_by: "system",
-          created_at: new Date().toISOString()
-        }
-      ] as Resource[]
-    };
-  }
+  const course = await getCourseWithFallback(slug);
 
   if (!course) {
     notFound();
