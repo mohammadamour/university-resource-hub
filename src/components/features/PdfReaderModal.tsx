@@ -237,7 +237,9 @@ export default function PdfReaderModal({
 
     async function initPdf() {
       try {
-        const pdfjsLib = await import("pdfjs-dist");
+        // Use pdf.js legacy build: modern pdfjs-dist v6 uses ES2025 Uint8Array.prototype.toHex(),
+        // which throws `a.toHex is not a function` on Android Chrome <140 / Xiaomi MiuiBrowser.
+        const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
         pdfjsLib.GlobalWorkerOptions.workerSrc = "/workers/pdf.worker.min.mjs";
 
         // CDN base matched dynamically to installed pdfjs-dist version

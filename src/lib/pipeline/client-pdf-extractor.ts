@@ -8,7 +8,7 @@
  * and bypassing Vercel serverless graphics binary restrictions.
  *
  * We cap text at 300,000 characters (~50,000 words) to capture complete course summaries
- * across all chapters, fitting comfortably within Gemini 3.8 Flash's 1M token context.
+ * across all chapters, fitting comfortably within Gemini 3.5 Flash's context window.
  */
 
 const MAX_CHARS = 300_000;
@@ -30,9 +30,8 @@ export async function extractPdfMetadataAndText(
   file: File
 ): Promise<ClientPdfExtractionResult> {
   try {
-    // Dynamic import: pdfjs-dist relies on browser APIs (Canvas, Worker)
-    // and must NOT be imported at the top level in a Next.js app
-    const pdfjsLib = await import("pdfjs-dist");
+    // Dynamic import using legacy build (ES2025 polyfills for mobile Android/Xiaomi/older Safari)
+    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
     // Point to the self-hosted pdf.js worker in /public/workers.
     pdfjsLib.GlobalWorkerOptions.workerSrc = "/workers/pdf.worker.min.mjs";
