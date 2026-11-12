@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { ResourceType, TargetExam } from "@/types/database";
 
 export interface CourseResourceSummary {
@@ -56,6 +57,56 @@ const ACADEMIC_YEARS = [
 
 const MAX_FILE_SIZE_MB = 30;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const MAX_SOURCE_TEXT_CHARS = 100_000;
+
+async function parseApiResponse<T extends { error?: string }>(
+  response: Response,
+  fallbackError: string
+): Promise<T> {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const data = (await response.json()) as T;
+    if (!response.ok) {
+      throw new Error(data.error ?? fallbackError);
+    }
+    return data;
+  }
+
+  const bodyText = await response.text().catch(() => "");
+  if (response.status === 413) {
+    throw new Error(
+      "حجم البيانات المرسلة تجاوز الحد المسموح للخادم — يرجى المحاولة مرة أخرى أو تقليل حجم الملف."
+    );
+  }
+  throw new Error(
+    `خطأ في الخادم (${response.status}): ${bodyText.slice(0, 120) || fallbackError}`
+  );
+}
+
+async function hasClientPdfSignature(file: File): Promise<boolean> {
+  try {
+    const header = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+    return new TextDecoder("ascii").decode(header) === "%PDF-";
+  } catch {
+    return true; // Let server verify authoritatively if slice fails
+  }
+}
+
+async function computeClientSha256(file: File): Promise<string | null> {
+  if (typeof crypto === "undefined" || !crypto.subtle) {
+    // Plain HTTP on LAN IPs disables crypto.subtle; server will hash after upload
+    return null;
+  }
+  try {
+    const buffer = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest("SHA-256", buffer);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  } catch {
+    return null;
+  }
+}
 
 interface UploadFormProps {
   initialCourses?: UploadCourse[];
@@ -331,93 +382,159 @@ export default function UploadForm({
     );
 
     try {
-      const formData = new FormData();
-      if (isLinkResource) {
-        formData.append("linkUrl", linkUrl.trim());
-      } else if (file) {
-        formData.append("file", file);
-      }
-      formData.append("courseId", selectedCourseId);
-      formData.append("title", title.trim());
-      formData.append("type", resourceType);
-      formData.append("targetExam", targetExam);
-      formData.append("academicYear", academicYear);
-      formData.append("isFeatured", String(isFeatured));
-
-      if (!isLinkResource) {
-        if (pageCount) {
-          formData.append("pageCount", String(pageCount));
-        }
-        if (extractedSourceText) {
-          // Cap sourceText at 50,000 characters (~50 KB) before sending.
-          // WHY: Full text from a 100-page PDF can be 300 KB+, inflating the FormData body past
-          // Vercel's serverless limit and triggering a plain-text "413 Request Entity Too Large"
-          // that the JSON parser chokes on with the cryptic error:
-          // "Unexpected token 'R', "Request En"... is not valid JSON"
-          // 50 KB is more than enough for Gemini to synthesize a full 50-question bank.
-          const MAX_SOURCE_TEXT_CHARS = 50_000;
-          const truncatedText = extractedSourceText.length > MAX_SOURCE_TEXT_CHARS
-            ? extractedSourceText.slice(0, MAX_SOURCE_TEXT_CHARS)
-            : extractedSourceText;
-          formData.append("sourceText", truncatedText);
-        }
-        if (thumbnailBlob) {
-          formData.append("thumbnail", thumbnailBlob, "thumbnail.jpg");
-        }
-      }
-      if (professorName.trim()) {
-        formData.append("professorName", professorName.trim());
-      }
-      if (authorName.trim()) {
-        formData.append("authorName", authorName.trim());
-      }
-      if (description.trim()) {
-        formData.append("description", description.trim());
-      }
-
-      // Step 1: Uploading / Submitting
-      setCurrentStepIndex(0);
-      setProgressPercent(30);
-      const extractHint = extractedSourceText && !isLinkResource ? " (النص مُستخرَج مسبقاً ✓)" : "";
-      setStatusLog(
-        isLinkResource
-          ? "جارٍ تسجيل الرابط في قاعدة البيانات..."
-          : `جارٍ رفع الملف إلى خوادم التخزين...${extractHint}`
-      );
-
       const reqHeaders: Record<string, string> = {};
       if (adminSecret) {
         reqHeaders["x-admin-secret"] = adminSecret;
       }
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        headers: reqHeaders,
-        body: formData,
-      });
+      let resourceId = "";
 
-      // Parse body safely: Vercel can return a plain-text "413 Request Entity Too Large"
-      // or "502 Bad Gateway" when the payload exceeds limits or the function times out.
-      // Calling .json() directly on those throws "Unexpected token 'R', ..." in the UI.
-      // Always try JSON first; fall back to the HTTP status text for a human-readable message.
-      let data: { resourceId?: string; error?: string; status?: string } = {};
-      const contentType = response.headers.get("content-type") ?? "";
-      if (contentType.includes("application/json")) {
-        data = await response.json();
-      } else if (!response.ok) {
-        // Non-JSON error (413, 502, 503, etc.) — read the text for debugging, show friendly Arabic
-        const bodyText = await response.text().catch(() => "");
-        const statusHint = response.status === 413
-          ? "حجم الملف أو بيانات الاستخلاص كبير جداً — يرجى الضغط على الملف بـ Ghostscript قبل الرفع."
-          : `خطأ في الخادم (${response.status}): ${bodyText.slice(0, 120)}`;
-        throw new Error(statusHint);
+      if (isLinkResource) {
+        const formData = new FormData();
+        formData.append("linkUrl", linkUrl.trim());
+        formData.append("courseId", selectedCourseId);
+        formData.append("title", title.trim());
+        formData.append("type", resourceType);
+        formData.append("targetExam", targetExam);
+        formData.append("academicYear", academicYear);
+        formData.append("isFeatured", String(isFeatured));
+        if (professorName.trim()) {
+          formData.append("professorName", professorName.trim());
+        }
+        if (authorName.trim()) {
+          formData.append("authorName", authorName.trim());
+        }
+        if (description.trim()) {
+          formData.append("description", description.trim());
+        }
+
+        setCurrentStepIndex(0);
+        setProgressPercent(30);
+        setStatusLog("جارٍ تسجيل الرابط في قاعدة البيانات...");
+
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          headers: reqHeaders,
+          body: formData,
+        });
+
+        const data = await parseApiResponse<{ resourceId?: string; error?: string }>(
+          response,
+          "فشل حفظ الرابط."
+        );
+        resourceId = typeof data.resourceId === "string" ? data.resourceId : "";
+      } else if (file) {
+        // ── Direct-to-Storage PDF Flow (bypasses Vercel's 4.5 MB serverless body cap) ──
+        if (!(await hasClientPdfSignature(file))) {
+          throw new Error("الملف المختار ليس مستند PDF صالحاً (%PDF- غير موجود).");
+        }
+
+        const fileHash = await computeClientSha256(file);
+
+        // Step 1: Mint signed Storage upload URL + pre-check SHA-256 duplicates (<1 KB JSON)
+        setCurrentStepIndex(0);
+        setProgressPercent(20);
+        setStatusLog("جارٍ فحص التكرار وتجهيز قناة الرفع المباشر...");
+
+        const initResponse = await fetch("/api/upload/init", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            courseId: selectedCourseId,
+            title: title.trim(),
+            type: resourceType,
+            fileSize: file.size,
+            mimeType: file.type,
+            fileHash,
+            hasThumbnail: Boolean(thumbnailBlob),
+          }),
+        });
+
+        const initData = await parseApiResponse<{
+          resourceId: string;
+          filePath: string;
+          pdfUploadToken: string;
+          thumbPath: string | null;
+          thumbUploadToken: string | null;
+          error?: string;
+        }>(initResponse, "تعذر تجهيز رابط الرفع المباشر.");
+
+        // Step 2: Upload PDF binary directly to Supabase Storage (supports up to 30 MB)
+        setProgressPercent(30);
+        const extractHint = extractedSourceText ? " (النص مُستخرَج مسبقاً ✓)" : "";
+        setStatusLog(`جارٍ رفع الملف مباشرة إلى التخزين السحابي...${extractHint}`);
+
+        const supabaseBrowser = createSupabaseBrowserClient();
+        const { error: pdfStorageError } = await supabaseBrowser.storage
+          .from("resources")
+          .uploadToSignedUrl(initData.filePath, initData.pdfUploadToken, file, {
+            contentType: "application/pdf",
+            cacheControl: "31536000",
+          });
+
+        if (pdfStorageError) {
+          throw new Error(
+            `فشل رفع الملف إلى التخزين السحابي: ${pdfStorageError.message}`
+          );
+        }
+
+        let uploadedThumbnail = false;
+        if (thumbnailBlob && initData.thumbPath && initData.thumbUploadToken) {
+          const { error: thumbStorageError } = await supabaseBrowser.storage
+            .from("resources")
+            .uploadToSignedUrl(
+              initData.thumbPath,
+              initData.thumbUploadToken,
+              thumbnailBlob,
+              {
+                contentType: "image/jpeg",
+                cacheControl: "31536000",
+              }
+            );
+          uploadedThumbnail = !thumbStorageError;
+        }
+
+        // Step 3: Notify /api/upload with lightweight JSON metadata to verify, watermark & publish
+        setProgressPercent(45);
+        setStatusLog("تم نقل الملف بنجاح، وجارٍ التحقق النهائي وتضمين العلامة المرجعية...");
+
+        const truncatedText =
+          extractedSourceText && extractedSourceText.length > MAX_SOURCE_TEXT_CHARS
+            ? extractedSourceText.slice(0, MAX_SOURCE_TEXT_CHARS)
+            : extractedSourceText;
+
+        const finalizeResponse = await fetch("/api/upload", {
+          method: "POST",
+          headers: {
+            ...reqHeaders,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            resourceId: initData.resourceId,
+            courseId: selectedCourseId,
+            title: title.trim(),
+            type: resourceType,
+            targetExam,
+            academicYear,
+            pageCount,
+            sourceText: truncatedText,
+            professorName: professorName.trim() || null,
+            authorName: authorName.trim() || null,
+            description: description.trim() || null,
+            hasThumbnail: uploadedThumbnail,
+          }),
+        });
+
+        const finalizeData = await parseApiResponse<{
+          resourceId?: string;
+          error?: string;
+        }>(finalizeResponse, "فشل تسجيل الملف بعد الرفع.");
+
+        resourceId =
+          typeof finalizeData.resourceId === "string"
+            ? finalizeData.resourceId
+            : initData.resourceId;
       }
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "فشل رفع الملف.");
-      }
-
-      const resourceId = typeof data.resourceId === "string" ? data.resourceId : "";
 
       if (isLinkResource) {
         // Immediate completion for links (no background processing needed)
