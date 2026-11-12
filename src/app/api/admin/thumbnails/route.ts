@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendOpsAlert } from "@/lib/ops-alerts";
-
-function verifyAdminAuth(request: Request): boolean {
-  const adminSecret = request.headers.get("x-admin-secret");
-  return Boolean(
-    process.env.ADMIN_SECRET && adminSecret === process.env.ADMIN_SECRET
-  );
-}
+import { isAdminRequest } from "@/lib/admin-auth";
 
 /**
  * POST /api/admin/thumbnails
@@ -16,7 +10,7 @@ function verifyAdminAuth(request: Request): boolean {
  * at thumbnails/{resourceId}.jpg, and updates the resource's thumbnail_url column.
  */
 export async function POST(request: Request) {
-  if (!verifyAdminAuth(request)) {
+  if (!isAdminRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

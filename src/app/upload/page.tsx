@@ -4,6 +4,7 @@ import Footer from "@/components/layout/Footer";
 import AdminTabs from "@/components/features/AdminTabs";
 import { createClient } from "@/lib/supabase/server";
 import UploadForm, { type UploadCourse } from "@/components/features/UploadForm";
+import { verifyAdminSecret } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "مساهمة بمادة دراسية أو ملخص | ملخصات",
@@ -17,9 +18,7 @@ interface UploadPageProps {
 export default async function UploadPage({ searchParams }: UploadPageProps) {
   const { key, courseId, course, title } = await searchParams;
 
-  const isAdmin = Boolean(
-    process.env.ADMIN_SECRET && key && key === process.env.ADMIN_SECRET
-  );
+  const isAdmin = verifyAdminSecret(key);
 
   // Pre-fetch all courses with their existing resources for instant optimistic UX
   const supabase = await createClient();

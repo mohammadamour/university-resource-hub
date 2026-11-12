@@ -285,28 +285,28 @@ POST /api/upload
   Developers can verify key pool health anytime via `npm run test:keys` (`scripts/verify-gemini-pool.mjs`), which enforces IPv4 DNS resolution and tests each key against `gemini-3.5-flash` with sub-token latency reporting.
 - **Candidate Model Fallback Chain & Gateway Timeout Defense:**
   - Priority chain: `gemini-3.5-flash` (primary, curriculum quality) → `gemini-3.5-flash-lite` (ultra-fast fallback, resilient to 503 demand spikes) → `gemini-flash-lite-latest` (secondary fallback).
-  - *Deprecated/Stalled Models Removed:* `gemini-3.8-flash` was removed due to gateway stalling on the v1beta endpoint.
-  - *Lite Model Argument Incompatibility Fix:* Google API strictly rejects `thinkingConfig` on lite model variants with `HTTP 400: INVALID_ARGUMENT`. The engine conditionally sets `thinkingBudget: 0` only on non-lite models.
-  - *Per-Candidate 9-Second Timeout (`AbortSignal.timeout(9000)`):* Prevents serverless functions from hanging until Vercel's 15s cutoff (`504 FUNCTION_INVOCATION_TIMEOUT`) by aborting stalled candidate calls quickly and advancing to the next model/key.
-  - *503 / 500 Demand Spike Failover:* On high-demand server spikes (`503 UNAVAILABLE`), the engine immediately pivots to `gemini-3.5-flash-lite` on the active key.
+  - _Deprecated/Stalled Models Removed:_ `gemini-3.8-flash` was removed due to gateway stalling on the v1beta endpoint.
+  - _Lite Model Argument Incompatibility Fix:_ Google API strictly rejects `thinkingConfig` on lite model variants with `HTTP 400: INVALID_ARGUMENT`. The engine conditionally sets `thinkingBudget: 0` only on non-lite models.
+  - _Per-Candidate 9-Second Timeout (`AbortSignal.timeout(9000)`):_ Prevents serverless functions from hanging until Vercel's 15s cutoff (`504 FUNCTION_INVOCATION_TIMEOUT`) by aborting stalled candidate calls quickly and advancing to the next model/key.
+  - _503 / 500 Demand Spike Failover:_ On high-demand server spikes (`503 UNAVAILABLE`), the engine immediately pivots to `gemini-3.5-flash-lite` on the active key.
 - **Baseline Question Batching (8 Questions) & Infinite Multi-Expansion:**
-  - *The 15-Second Vercel Serverless Wall:* Generating 15 questions with 4 options and detailed Arabic explanations consumes ~2,500 output tokens (~14–17s), flirting with Vercel Hobby's hard 15s execution limit. Initial generation is set to **8 high-yield questions**, completing deterministically in ~5–6 seconds.
-  - *Infinite Zero-Duplicate Expansion (`[➕ توسيع]`):* Admins can expand the bank on demand as many times as desired. Each expansion sends up to 40 existing question stems as strict negative prompt context (`DO NOT REPEAT OR REPHRASE`). Since input tokens process at >100k tokens/sec, sending prior question stems adds virtually zero latency (+30ms) while guaranteeing zero duplicates across successive expansions (8 → 14 → 20 → 26 questions).
+  - _The 15-Second Vercel Serverless Wall:_ Generating 15 questions with 4 options and detailed Arabic explanations consumes ~2,500 output tokens (~14–17s), flirting with Vercel Hobby's hard 15s execution limit. Initial generation is set to **8 high-yield questions**, completing deterministically in ~5–6 seconds.
+  - _Infinite Zero-Duplicate Expansion (`[➕ توسيع]`):_ Admins can expand the bank on demand as many times as desired. Each expansion sends up to 40 existing question stems as strict negative prompt context (`DO NOT REPEAT OR REPHRASE`). Since input tokens process at >100k tokens/sec, sending prior question stems adds virtually zero latency (+30ms) while guaranteeing zero duplicates across successive expansions (8 → 14 → 20 → 26 questions).
 - **Bulletproof Frontend Error Handling & Floating Sticky Toast:**
-  - *Safe Error Body Parsing:* In [`AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx), response status is inspected before attempting `response.json()`, preventing HTML error pages (e.g. 504 timeouts) from crashing with unhandled JSON `SyntaxError`s.
-  - *Fixed Floating Viewport Toast:* The notification banner is positioned with `fixed bottom-6 left-6 z-50` with high-contrast backdrop blur and a 5.5-second linger, ensuring immediate visual feedback even when the admin is scrolled deep into the table.
+  - _Safe Error Body Parsing:_ In [`AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx), response status is inspected before attempting `response.json()`, preventing HTML error pages (e.g. 504 timeouts) from crashing with unhandled JSON `SyntaxError`s.
+  - _Fixed Floating Viewport Toast:_ The notification banner is positioned with `fixed bottom-6 left-6 z-50` with high-contrast backdrop blur and a 5.5-second linger, ensuring immediate visual feedback even when the admin is scrolled deep into the table.
 - **Strict JSON Enforcement & Regex Sanitizer:**
-  ````typescript
+  ```typescript
   generationConfig: {
     temperature: 0.25,
     responseMimeType: "application/json",
     ...(isLite ? {} : { thinkingConfig: { thinkingBudget: 0 } }),
   }
-  ````
+  ```
 - **Validation Before Persistence (Structural Integrity & Blind Consensus):**
-  - *Grounded CoT Generation Layer:* Prompts require an exact verbatim `source_quote` from the uploaded text (preventing off-syllabus hallucinations) and a `step_by_step_derivation` solving the problem before emitting the `correct_answer`.
-  - *In-Memory Fisher-Yates Shuffle:* Generates `correct_answer` and 3 `distractors` separately, then deterministically shuffles the 4 options in TypeScript memory. This eradicates option position bias (no more artificial skew toward option A or B).
-  - *Automated Dual-Pass Blind Solver Audit:* Prior to database insertion, an independent audit pass evaluates the generated question stems and options blindly without access to answer keys or explanations. Using dual verification (Letter Option Label [A-D] + Option Text Matching), questions that yield key disagreements, calculation mismatches, or ambiguity are automatically dropped from the batch. Only consensus-verified questions enter the course bank.
+  - _Grounded CoT Generation Layer:_ Prompts require an exact verbatim `source_quote` from the uploaded text (preventing off-syllabus hallucinations) and a `step_by_step_derivation` solving the problem before emitting the `correct_answer`.
+  - _In-Memory Fisher-Yates Shuffle:_ Generates `correct_answer` and 3 `distractors` separately, then deterministically shuffles the 4 options in TypeScript memory. This eradicates option position bias (no more artificial skew toward option A or B).
+  - _Automated Dual-Pass Blind Solver Audit:_ Prior to database insertion, an independent audit pass evaluates the generated question stems and options blindly without access to answer keys or explanations. Using dual verification (Letter Option Label [A-D] + Option Text Matching), questions that yield key disagreements, calculation mismatches, or ambiguity are automatically dropped from the batch. Only consensus-verified questions enter the course bank.
 
 ---
 
@@ -355,6 +355,7 @@ POST /api/upload
 - **The Problem:** Storage buckets fill rapidly when different students or admins repeatedly re-upload the same official syllabus or slides under slightly different titles. Furthermore, running Ghostscript compression and PDF watermarking on duplicate files wastes compute.
 - **The SHA-256 Fingerprint Gate:**
   Before writing bytes to Supabase Storage or invoking the background worker, the server calculates a cryptographic SHA-256 hash of `rawBuffer`:
+
   ```typescript
   const fileHash = crypto
     .createHash("sha256")
@@ -370,11 +371,14 @@ POST /api/upload
 
   if (existingDuplicate) {
     return Response.json(
-      { error: `⚠️ هذا الملف تم رفعه مسبقاً لهذه المادة بعنوان: "${existingDuplicate.title}"` },
-      { status: 409 }
+      {
+        error: `⚠️ هذا الملف تم رفعه مسبقاً لهذه المادة بعنوان: "${existingDuplicate.title}"`,
+      },
+      { status: 409 },
     );
   }
   ```
+
 - **Dual-Layer Page-Count Resolution:**
   1. **Client WebWorker (Zero Latency):** `extractPdfMetadataAndText()` captures `pdf.numPages` during speculative extraction in the browser, instantly showing a `📑 X صفحة` badge in the dropzone and passing `pageCount` in `FormData`.
   2. **Server Fallback (`pdf-lib`):** If the client worker failed or was bypassed, the server queries `tempDoc.getPageCount()` from `pdf-lib` (already loaded for watermarking) without spawning child processes.
@@ -406,20 +410,20 @@ POST /api/upload
 - **File:** [`src/components/features/ResourceList.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/ResourceList.tsx)
 - **Evolution from Pipe Delimiters:** Earlier iterations used a title pipe hack (`"الموضوع | العنوان"`) to group materials. In Step 4, this hack and the ambiguous generic badges (`✦ المعتمد`) were completely retired in favor of a clean, deterministic 4-tier shelf layout:
   1. **Shelf 1 — 📚 المادة الرسمية / Official Syllabus:**
-     - *Filter:* `is_featured === true`
-     - *Badge:* Exclusive `⭐ رسمي` badge.
-     - *Purpose:* Official textbook chapters, curriculum syllabi, and faculty slides anchoring the top of the course page.
+     - _Filter:_ `is_featured === true`
+     - _Badge:_ Exclusive `⭐ رسمي` badge.
+     - _Purpose:_ Official textbook chapters, curriculum syllabi, and faculty slides anchoring the top of the course page.
   2. **Shelf 2 — 🌟 ملخصات ومراجعات:**
-     - *Filter:* `type === "summary" && !is_featured`
-     - *Deterministic Sort:* `target_exam === "midterm"` first ➔ `"final"` second ➔ `"other"` third, then `display_order ASC`, then `created_at ASC`.
-     - *Interactive Integration:* Renders inline `<NativeQuiz />` directly attached to summaries containing `quiz_data`.
+     - _Filter:_ `type === "summary" && !is_featured`
+     - _Deterministic Sort:_ `target_exam === "midterm"` first ➔ `"final"` second ➔ `"other"` third, then `display_order ASC`, then `created_at ASC`.
+     - _Interactive Integration:_ Renders inline `<NativeQuiz />` directly attached to summaries containing `quiz_data`.
   3. **Shelf 3 — 📝 أسئلة ونماذج امتحانات:**
-     - *Filter:* `type === "past_exam" && !is_featured`
-     - *Sort:* `display_order ASC, created_at ASC`.
-     - *Zero-Ghost Rule:* Hides the entire section and header when no past exams exist (no empty placeholders).
+     - _Filter:_ `type === "past_exam" && !is_featured`
+     - _Sort:_ `display_order ASC, created_at ASC`.
+     - _Zero-Ghost Rule:_ Hides the entire section and header when no past exams exist (no empty placeholders).
   4. **Shelf 4 — 🗂️ أرشيف إضافي ومصادر خارجية (Collapsible Drawer):**
-     - *Filter:* All remaining active items (`type === "link"`, `type === "other"`, `type === "guide"`).
-     - *Drawer Experience:* Collapsed by default via subtle toggle. Features categorized sub-headers only when items exist:
+     - _Filter:_ All remaining active items (`type === "link"`, `type === "other"`, `type === "guide"`).
+     - _Drawer Experience:_ Collapsed by default via subtle toggle. Features categorized sub-headers only when items exist:
        - 🔗 `روابط ومصادر خارجية` (YouTube, GitHub, Drive platform cards)
        - 📎 `سلايدات وفصول إضافية` (Chapter notes and reference guides)
        - 👥 `مساهمات الطلاب` (Student community submissions)
@@ -531,7 +535,7 @@ POST /api/upload
 - **Zero-Barrier Funnel Strategy:**
   To bootstrap content coverage across hundreds of university courses without manual founder overload:
   1. **Universal Navbar CTA (`Header.tsx`):** A prominent `[📤 شارك ملخصك]` action is visible on every single page across mobile and desktop, converting passive readers into contributors without auth friction.
-  2. **Empty Course State Transformation (`ResourceList.tsx`):** Courses with zero approved resources render a high-converting contribution card: *"لا توجد موارد أو ملخصات لهذه المادة حتى الآن — كن أول من يشارك ملخصاته لمساعدة زملائك!"*.
+  2. **Empty Course State Transformation (`ResourceList.tsx`):** Courses with zero approved resources render a high-converting contribution card: _"لا توجد موارد أو ملخصات لهذه المادة حتى الآن — كن أول من يشارك ملخصاته لمساعدة زملائك!"_.
   3. **Context-Preserving Funnel (`UploadPage.tsx` & `UploadForm.tsx`):** Clicking the empty state CTA passes `?courseId=UUID` (or `?course=slug`). `UploadPage` resolves the target course and automatically pre-selects it in the dropdown, eliminating search friction and driving conversion.
 
 ### 3.6 Upload Form Taxonomy, Exam Scope & Curated Syllabus Toggle
@@ -639,7 +643,7 @@ universities (Jadara)
 - **Migration File:** [`supabase/migrations/20261020_metadata_expansion.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/migrations/20261020_metadata_expansion.sql)
 - **Schema Enhancements:**
   ```sql
-  ALTER TABLE resources 
+  ALTER TABLE resources
   ADD COLUMN IF NOT EXISTS page_count INT DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS file_hash TEXT DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS target_exam TEXT NOT NULL DEFAULT 'other',
@@ -865,9 +869,9 @@ export interface PipelineProgressEvent {
 
 - **Symptom**: Site takes ~10 seconds to load on Jordanian campus Wi-Fi (Jadara University).
 - **Root Causes**:
-  1. *Default Serverless Region Disconnect:* Without `vercel.json`, Vercel deploys functions to `iad1` (Washington DC). Connecting across the Atlantic to Supabase in Frankfurt (`fra1`) added ~700ms raw latency, stretching to 5–8s with mobile packet loss, TLS renegotiation, and serverless cold starts.
-  2. *Frequent Edge Cache Expirations:* Course pages used `revalidate = 60`, forcing frequent cache regenerations on sporadic student visits.
-  3. *Unused Latin Webfonts:* `layout.tsx` was loading Google Fonts Geist/Geist Mono for Latin subsets on an Arabic-first application, introducing font-fetching stalls and FOUT/FOIT.
+  1. _Default Serverless Region Disconnect:_ Without `vercel.json`, Vercel deploys functions to `iad1` (Washington DC). Connecting across the Atlantic to Supabase in Frankfurt (`fra1`) added ~700ms raw latency, stretching to 5–8s with mobile packet loss, TLS renegotiation, and serverless cold starts.
+  2. _Frequent Edge Cache Expirations:_ Course pages used `revalidate = 60`, forcing frequent cache regenerations on sporadic student visits.
+  3. _Unused Latin Webfonts:_ `layout.tsx` was loading Google Fonts Geist/Geist Mono for Latin subsets on an Arabic-first application, introducing font-fetching stalls and FOUT/FOIT.
 - **The Tri-Layer Fix**:
   1. **Vercel Compute Co-location (`vercel.json`):** Configured `"regions": ["fra1"]` (Frankfurt) so serverless compute runs in the exact same European cloud region as Supabase, slashing server round-trips from Jordan to ~150ms.
   2. **1-Hour Edge ISR with Instant On-Demand Invalidation:** Raised course page ISR to `revalidate = 3600` (1 hour) and added `revalidatePath('/')` and `revalidatePath('/courses/[slug]')` to all resource and quiz mutation handlers (`/api/upload`, `/api/admin/resources/[id]`). 100% of student traffic receives instant (<30ms) edge cache hits while updates reflect instantly.
@@ -934,7 +938,8 @@ export interface PipelineProgressEvent {
 This living backlog serves as the authoritative North Star for future development sessions. It bridges high-level vision from [`README.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/README.md) with ground-level architectural realities.
 
 ### 9.1 Phase 1: Completed Architecture (The Decoupled Foundation)
-*Status: Shipped & Hardened (October 2026)*
+
+_Status: Shipped & Hardened (October 2026)_
 
 - [x] **Decoupled Upload Pipeline:** Purged blocking synchronous/background AI generation from `/api/upload`. Ingestion completes deterministically in `< 2.5s` with referral watermarks (`molakhasat.me/r/:id`).
 - [x] **Multi-Account Gemini Key Pool:** Configured `GEMINI_API_KEYS` support with 4 active developer accounts to quadruple free-tier daily quotas.
@@ -947,19 +952,20 @@ This living backlog serves as the authoritative North Star for future developmen
 ---
 
 ### 9.2 Phase 2: Immediate Launch Sprint (Seed & Polish)
-*Target: Freshman Semester Kickoff (Jadara University)*
+
+_Target: Freshman Semester Kickoff (Jadara University)_
 
 - [x] **Phase 0 (P0 Hotfix): Frictionless Navigation & Campus Latency Defense:**
-  - *Top Course Back Pill & Breadcrumbs:* Sticky/top `[ ← العودة للرئيسية ]` pill in `courses/[slug]` so visitors from WhatsApp links never feel trapped.
-  - *Campus Wi-Fi Latency Defense (~10s TTFB):* Co-locate Vercel compute to Frankfurt (`vercel.json` regions: `["fra1"]`) to eliminate cross-continental ping between Jordan, US serverless, and EU Supabase. Optimized ISR cache windows to 1 hour (`revalidate = 3600`) backed by programmatic on-demand `revalidatePath` in upload/admin mutations.
-  - *Zero-Byte Native Arabic Typography & HTTP Compression:* Replaced unused Latin webfonts with a high-performance native Arabic typography stack and added Brotli compression + immutable asset caching headers in `next.config.ts`.
+  - _Top Course Back Pill & Breadcrumbs:_ Sticky/top `[ ← العودة للرئيسية ]` pill in `courses/[slug]` so visitors from WhatsApp links never feel trapped.
+  - _Campus Wi-Fi Latency Defense (~10s TTFB):_ Co-locate Vercel compute to Frankfurt (`vercel.json` regions: `["fra1"]`) to eliminate cross-continental ping between Jordan, US serverless, and EU Supabase. Optimized ISR cache windows to 1 hour (`revalidate = 3600`) backed by programmatic on-demand `revalidatePath` in upload/admin mutations.
+  - _Zero-Byte Native Arabic Typography & HTTP Compression:_ Replaced unused Latin webfonts with a high-performance native Arabic typography stack and added Brotli compression + immutable asset caching headers in `next.config.ts`.
 - [ ] **Phase 5: Discrete Mathematics Modular Tool Engine (Academic Group Project Deliverable):**
-  - *Deterministic Client-Side Propositional Logic Parser:* Pure TypeScript Shunting-yard AST parser (`src/lib/academic-tools/discrete-math/`) generating full truth tables, tautology/contradiction classifications, and logical equivalence proofs in <2ms.
-  - *Zero LLM Dependency:* 100% deterministic mathematical accuracy, zero latency, $0 API costs, and full offline functionality on dead campus networks.
-  - *Modular Tool Framework:* Pluggable `AcademicTool` interface extensible to Linear Algebra (Matrix Solvers) and Calculus.
+  - _Deterministic Client-Side Propositional Logic Parser:_ Pure TypeScript Shunting-yard AST parser (`src/lib/academic-tools/discrete-math/`) generating full truth tables, tautology/contradiction classifications, and logical equivalence proofs in <2ms.
+  - _Zero LLM Dependency:_ 100% deterministic mathematical accuracy, zero latency, $0 API costs, and full offline functionality on dead campus networks.
+  - _Modular Tool Framework:_ Pluggable `AcademicTool` interface extensible to Linear Algebra (Matrix Solvers) and Calculus.
 - [ ] **Phase 6: The "Benevolent Dictator" Contributor Dashboard (Classmate Onboarding):**
-  - *Repository & Infra Isolation:* Sole developer maintains exclusive access to GitHub, Supabase credentials, and Vercel deployments. Classmates receive zero Git or direct database access.
-  - *Lightweight Reviewer Portal:* Simple passcode-gated interface (`/admin/contributor`) for syllabus taxonomy mapping, logic test-case submissions, question bank QA, and generating academic presentation binders for professor grading.
+  - _Repository & Infra Isolation:_ Sole developer maintains exclusive access to GitHub, Supabase credentials, and Vercel deployments. Classmates receive zero Git or direct database access.
+  - _Lightweight Reviewer Portal:_ Simple passcode-gated interface (`/admin/contributor`) for syllabus taxonomy mapping, logic test-case submissions, question bank QA, and generating academic presentation binders for professor grading.
 - [x] **Metadata Expansion & Exam Scope Architecture (Migration `20261020`):** Extended `resources` schema with `page_count`, `file_hash`, `target_exam` (midterm/final/other), `academic_year`, `professor_name`, `author_name`, and `description`.
 - [x] **Pre-Storage SHA-256 Duplicate Defense:** Cryptographic duplicate rejection (`HTTP 409 Conflict`) preventing duplicate storage bloat and redundant serverless compute.
 - [x] **Decoupled Crowdsourcing Funnel (`/upload`):** Opened public student upload gateway with pending moderation queue, frozen appreciation card, deep-linking pre-selection, and 150-char description guardrail.
@@ -984,7 +990,8 @@ This living backlog serves as the authoritative North Star for future developmen
 ---
 
 ### 9.3 Phase 3: Student Personalization & Engagement
-*Target: Mid-Semester Adoption & Retention*
+
+_Target: Mid-Semester Adoption & Retention_
 
 - [ ] **Quiz Results "Share My Score" WhatsApp Challenge:**
   - When a student achieves a high score on the Results screen (`isFinished === true`), render a prominent `[ 🏆 شارك نتيجتك وتحدّ زملاءك على واتساب ]` action.
@@ -1005,20 +1012,21 @@ This living backlog serves as the authoritative North Star for future developmen
   - Completed local-first course and resource bookmarking across homepage cards, course headers, resource rows, and the in-app PDF reader bar using compact metadata snapshots in `localStorage` (seamless Supabase profile sync deferred until auth lands).
 - [ ] **Frictionless Auth & Basic Student Profiles:**
   - Implement zero-barrier authentication (Supabase Auth via Magic Links or Google/Telegram OAuth).
-  - **Golden Architectural Rule:** *Zero-login guest reading must never be broken.* Unauthenticated visitors can always read and download freely; profiles simply unlock cloud bookmarks, quiz history, and weak-point analytics.
+  - **Golden Architectural Rule:** _Zero-login guest reading must never be broken._ Unauthenticated visitors can always read and download freely; profiles simply unlock cloud bookmarks, quiz history, and weak-point analytics.
 - [ ] **Diagnostic Mistake Remediation ("Train My Weaknesses"):**
   - Store student quiz attempt history in `quiz_attempts` / `quiz_attempt_answers`.
   - Introduce an adaptive drill mode filtering only previously missed questions grouped by Arabic topic tags (e.g., "أخطائي في المصفوفات").
 - [ ] **Cohesive Course Card & Header Backgrounds (Deferred — Campus Performance Priority):**
   - **Guardrails:** Never sacrifice homepage load speed on slow campus mobile networks or legibility on 2-column Arabic cards (`Card.tsx`). Avoid watermarked stock images, third-party textbook covers, baked-in text overlays, and mismatched visual styles across light/dark modes.
   - **Viable Paths to Revisit Later:**
-    1. *Shared Domain-Familiar or Matched AI-Generated WebP/AVIF Assets:* Reuse a small, cohesive set of text-free domain backgrounds (e.g., coding backdrop for PL1/PL2, math/geometry for Calculus/Discrete Math) paired with a consistent gradient scrim for text contrast.
-    2. *Zero-Byte Inline SVG Motifs + Accent Tints:* Lightweight corner vector symbols per subject family for instant load and native light/dark theme compatibility.
+    1. _Shared Domain-Familiar or Matched AI-Generated WebP/AVIF Assets:_ Reuse a small, cohesive set of text-free domain backgrounds (e.g., coding backdrop for PL1/PL2, math/geometry for Calculus/Discrete Math) paired with a consistent gradient scrim for text contrast.
+    2. _Zero-Byte Inline SVG Motifs + Accent Tints:_ Lightweight corner vector symbols per subject family for instant load and native light/dark theme compatibility.
 
 ---
 
 ### 9.4 Phase 4: Multi-University Scaling & Advanced Admin
-*Target: Cross-Campus Expansion (JUST, Yarmouk, Jordan University)*
+
+_Target: Cross-Campus Expansion (JUST, Yarmouk, Jordan University)_
 
 - [ ] **Comprehensive Super-Admin Analytics Dashboard:**
   - Visual metrics for most downloaded summaries, high-friction quiz questions (highest error rates), and real-time search term queries.
@@ -1032,19 +1040,19 @@ This living backlog serves as the authoritative North Star for future developmen
 ---
 
 ### 9.5 Consolidated Active Priority Queue (Deduplicated Backlog)
-*Synthesized Nov 11, 2026 after pruning shipped sprints (`sprint_plan.md`, Phase 0/1/4) and obsolete plans (Sentry -> Vercel Speed Insights + `analytics_events` + Discord ops alerts).*
+
+_Synthesized Nov 11, 2026 after pruning shipped sprints (`sprint_plan.md`, Phase 0/1/4) and obsolete plans (Sentry -> Vercel Speed Insights + `analytics_events` + Discord ops alerts)._
 
 - **Tier 1 (P0 Security & Schema Hardening — Priority with Active Campus Traffic):**
-  1. Replace `===` admin secret checks with `crypto.timingSafeEqual` (`C-02`), fix `/r/[id]` `.or()` filter injection (`H-03`), remove duplicate `filePath`/`publicUrl` in `/api/upload` (`H-04`), enforce offset-0 `%PDF-` bytes (`M-02`), and sync doc model refs (`gemini-3.5-flash`) + `.env.example` (`ADMIN_SECRET`, `GEMINI_API_KEYS`).
-  2. Sync ghost columns (`is_featured`, `display_order`, `external_platform`, `thumbnail_url`, `midterm_exam_date`, `final_exam_date`) into SQL migration `schema_sync.sql` (`H-01`) + tighten `quiz_attempts` RLS `INSERT` policy.
-  3. Add IP rate limiting on `/api/upload`, `/api/quiz/record-attempt`, and `/api/events` (`C-03`).
-  4. Migrate admin auth from URL `?key=` to an HttpOnly cookie session (`C-01` / `M-03`).
-  5. Add Vitest unit guardrails (admin auth, `sanitizeTextForPostgres`, quiz shuffle invariant, offset-0 PDF validation).
+  1. [x] **Tier 1A Completed (Nov 12, 2026):** Centralized constant-time admin secret verification (`crypto.timingSafeEqual` over SHA-256 digests in `src/lib/admin-auth.ts`) across all admin pages & routes (`C-02`), replaced `/r/[id]` `.or()` string interpolation with UUID-validated `.eq()` queries (`H-03`), eliminated duplicate `filePath`/`publicUrl` computations (`H-04`) and enforced offset-0 `%PDF-` bytes in `/api/upload` (`M-02`), synced doc model refs (`gemini-3.5-flash`) + `.env.example` (`ADMIN_SECRET`, `GEMINI_API_KEYS`), and added `supabase/migrations/20261117_schema_sync.sql` (`H-01` 6 ghost columns + `quiz_attempts` RLS tightening — run in Supabase SQL Editor).
+  2. [ ] Add IP rate limiting on `/api/upload`, `/api/quiz/record-attempt`, and `/api/events` (`C-03`).
+  3. [ ] Migrate admin auth from URL `?key=` to an HttpOnly cookie session (`C-01` / `M-03`).
+  4. [ ] Add Vitest unit guardrails (admin auth, `sanitizeTextForPostgres`, quiz shuffle invariant, offset-0 PDF validation).
 - **Tier 2 (Viral Growth Quick Wins):**
   1. Dynamic course `openGraph` tags in `src/app/courses/[slug]/page.tsx` for rich WhatsApp link previews.
   2. "Share My Score" WhatsApp Challenge button on `NativeQuiz.tsx` high-score results.
 - **Tier 3 (Discrete Math Group Project):**
-  1. Build deterministic TypeScript tokenizer, Shunting-yard parser, and interactive truth-table/equivalence UI (`Phase 5` in `src/lib/academic-tools/discrete-math/`). *Note: Defer custom `/admin/contribute` portal (`Phase 6`) until volunteer count justifies the auth surface; keep Git/Vercel/Supabase keys isolated to the lead dev.*
+  1. Build deterministic TypeScript tokenizer, Shunting-yard parser, and interactive truth-table/equivalence UI (`Phase 5` in `src/lib/academic-tools/discrete-math/`). _Note: Defer custom `/admin/contribute` portal (`Phase 6`) until volunteer count justifies the auth surface; keep Git/Vercel/Supabase keys isolated to the lead dev._
 
 ---
 
@@ -1095,7 +1103,7 @@ This living backlog serves as the authoritative North Star for future developmen
 ### 10.2 📋 Mid-Term Architectural Backlog (Phase 3 / Post-Launch)
 
 1. **Copyright & Content Takedown SOP:**
-   - Add a transparent *"حقوق الملكية الفكرية وطلب إزالة المحتوى"* (DMCA / Removal Contact) link in the website footer.
+   - Add a transparent _"حقوق الملكية الفكرية وطلب إزالة المحتوى"_ (DMCA / Removal Contact) link in the website footer.
    - Note the caching caveat: Because PDFs are served with `Cache-Control: immutable, max-age=31536000`, a purged file can remain cached in student browser storage and local WhatsApp downloads.
 
 2. **Download & View Telemetry Counter:**
@@ -1128,6 +1136,7 @@ This living backlog serves as the authoritative North Star for future developmen
      - Migration applied in Supabase SQL Editor: [`supabase/migrations/20261116_analytics_events.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/migrations/20261116_analytics_events.sql) (RLS enabled, public `INSERT` only, `SELECT` restricted to service role).
      - Vercel Environment Variables: `DISCORD_WEBHOOK_URL` (Production Secret) and optional `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`.
    - **Saved Supabase Diagnostic SQL Queries (Run in Supabase → SQL Editor):**
+
      ```sql
      -- 1. Event totals & unique anonymous students (last 7 days)
      SELECT event_type, COUNT(*) AS total, COUNT(DISTINCT guest_session_id) AS unique_students
@@ -1165,6 +1174,7 @@ This living backlog serves as the authoritative North Star for future developmen
      GROUP BY source
      ORDER BY visits DESC;
      ```
+
    - **Remaining Future Enhancement:** Wire a `search_query` event if/when a live keyword search bar is introduced on `/`.
 
 ---
@@ -1208,6 +1218,7 @@ This living backlog serves as the authoritative North Star for future developmen
 ### 11.3 Value-Add Freemium Horizons (Phase 4)
 
 If and when student-facing paid features are introduced, they must strictly follow the "Compute-Heavy Convenience" model without gating core course notes:
+
 1. **Mock Exam Simulator with Adaptive Weakness Training:** Unlimited on-demand full exam simulations (25–50 questions) with instant personalized mistake remediation and step-by-step breakdown.
 2. **AI Audio Flashcards & Slide Summarizer:** Ingesting 100-page raw lecture slide decks into bite-sized 5-minute audio capsules or interactive flashcard decks.
 3. **Exam Week Fast-Lane:** Dedicated high-priority LLM generation queues ensuring instant quiz synthesis even during nationwide midterm/final traffic spikes.
@@ -1218,9 +1229,9 @@ If and when student-facing paid features are introduced, they must strictly foll
 
 - **The Reality of Volunteer Student Admins:**
   Student contributors (like Anas and future faculty representatives) quit when three friction points occur:
-  1. *Repetitive Grunt Work:* Complex multi-field forms, manual OCR, or clunky UIs cause burnout in days.
-  2. *Fear of Breaking Production:* Handing over raw database access or destructive super-admin credentials creates anxiety.
-  3. *Zero Social Attribution:* Performing hours of invisible work with no public recognition kills motivation.
+  1. _Repetitive Grunt Work:_ Complex multi-field forms, manual OCR, or clunky UIs cause burnout in days.
+  2. _Fear of Breaking Production:_ Handing over raw database access or destructive super-admin credentials creates anxiety.
+  3. _Zero Social Attribution:_ Performing hours of invisible work with no public recognition kills motivation.
 - **The Modder Playbook (Autonomy + Speed + Status):**
   - **Public Attribution Badges (`uploader_name`):** Every summary or quiz curated by an ambassador visibly displays:
     `مرفوع بواسطة: أنس (مشرف معتمد) ✦`
@@ -1233,7 +1244,7 @@ If and when student-facing paid features are introduced, they must strictly foll
 ### 11.5 Direct Micro-Supporter Tips (Buy Me a Coffee & Jordan CliQ)
 
 - **The Mechanism:** A clean, human "About the Creator" modal or footer attribution with a friendly, unpretentious message:
-  *"Hey, I'm Ethan, a software engineering student building Molakhasat to eliminate the chaos of university group chats. If these summaries helped you pass an exam, consider buying me a coffee or supporting server costs."*
+  _"Hey, I'm Ethan, a software engineering student building Molakhasat to eliminate the chaos of university group chats. If these summaries helped you pass an exam, consider buying me a coffee or supporting server costs."_
 - **The Jordan Localization (CliQ Advantage):** While international platforms rely on Stripe/PayPal or BuyMeACoffee, in Jordan **CliQ** is universally adopted by university students with zero transfer fees. Displaying a verified CliQ alias (`ETHAN-MOLAKHASAT` or mobile number) alongside a BuyMeACoffee button eliminates payment friction. Students who cram the night before an exam and score an 'A' frequently feel genuine gratitude and will gladly send 1–3 JOD as a gesture of appreciation. Zero maintenance, zero intrusive ads.
 
 ---
@@ -1243,7 +1254,7 @@ If and when student-facing paid features are introduced, they must strictly foll
 - **The Distribution Trojan Horse:** Molakhasat is not just an isolated website; it is the top-of-funnel distribution engine for Ethan's broader software suite.
 - **AI-Powered Student Workspace Integration:**
   - Ethan is engineering a tailored, AI-assisted Notion-style workspace customized for Jordanian academic curricula.
-  - *The Integration Loop:* On any summary page in Molakhasat, a 1-click action: `[📂 تصدير إلى مساحة العمل الخاصة بك]` imports the summary text directly into the student's personal workspace. From there, the student can chat with an embedded AI tutor, generate custom flashcards, or create personalized revision notes.
+  - _The Integration Loop:_ On any summary page in Molakhasat, a 1-click action: `[📂 تصدير إلى مساحة العمل الخاصة بك]` imports the summary text directly into the student's personal workspace. From there, the student can chat with an embedded AI tutor, generate custom flashcards, or create personalized revision notes.
 - **Companion Utilities ("Void" Productivity Suite):**
   - Cross-promoting complementary study tooling (e.g. weighted objective tracking, OLED-safe pomodoro focus timers, and habit drills) directly to a captive audience of motivated engineering and science students.
 
@@ -1257,11 +1268,8 @@ If and when student-facing paid features are introduced, they must strictly foll
     - Real, active users and peer adoption.
     - Full-stack modern architecture (Next.js 16, Supabase, WebWorkers, AI LLM synthesis pipelines, and binary PDF manipulation).
     - Measurable community impact and viral retention.
-  - *Scholarship & Visa Weaponization:* When applying for DAAD master's scholarships, German *Werkstudent* (working student) positions, or high-tier remote engineering contracts on Mostaql/Upwork, Molakhasat serves as undeniable evidence of autonomous, senior-tier product execution.
+  - _Scholarship & Visa Weaponization:_ When applying for DAAD master's scholarships, German _Werkstudent_ (working student) positions, or high-tier remote engineering contracts on Mostaql/Upwork, Molakhasat serves as undeniable evidence of autonomous, senior-tier product execution.
 
 ---
 
 _Maintained continuously during development. Last updated: November 11, 2026._
-
-
-

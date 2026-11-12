@@ -7,6 +7,7 @@ import type { ResourceType, TargetExam, ExternalPlatform } from "@/types/databas
 import { sanitizeTextForPostgres } from "@/lib/utils";
 import { SITE_URL } from "@/lib/constants";
 import { sendOpsAlert } from "@/lib/ops-alerts";
+import { isAdminRequest } from "@/lib/admin-auth";
 
 // ─── Serverless & Network Runtime Config ──────────────────────────────────────
 // Next.js Route Segment Config: allow up to 60s execution for background AI synthesis
@@ -75,9 +76,9 @@ async function notifyNewUpload(
  * Runs after the initial DB row is inserted.
  * Steps:
  *   1. (Optional) Ghostscript compression — gated by NEXT_PUBLIC_ENABLE_COMPRESSION
- *   2. Upload the (possibly compressed) PDF to Supabase Storage
- *   3. If generateQuiz=true: keep status='processing', synthesize quiz via Gemini 3.8 Flash, then mark status='active'
- *   4. If generateQuiz=false: mark status='active' immediately after storage upload
+ *   2. Stamp the permanent molakhasat.me referral badge onto PDF margins
+ *   3. Upload the (possibly compressed) PDF to Supabase Storage
+ *   4. Persist storage URL, extracted source text, and target status ('active' or 'pending')
  *
  * Telemetry: At every transition, events are published to `progressBus` so clients connected
  * to the SSE route receive instant live feedback.
@@ -86,6 +87,10 @@ async function processFileInBackground(
   rawBuffer: ArrayBuffer,
   resourceId: string,
   courseId: string,
+  /** Deterministic storage object path computed once during Stage 2 DB insert */
+  filePath: string,
+  /** Deterministic public storage URL computed once during Stage 2 DB insert */
+  publicUrl: string,
   /** Pre-extracted text from client-side pdfjs saved in DB for on-demand quiz generation */
   preExtractedText: string | null = null,
   /** Resource title */
@@ -94,10 +99,6 @@ async function processFileInBackground(
   targetStatus: "active" | "pending" = "active"
 ) {
   const supabase = createAdminClient();
-  const filePath = `courses/${courseId}/${resourceId}.pdf`;
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from("resources").getPublicUrl(filePath);
 
   try {
     progressBus.publish(resourceId, {
@@ -169,9 +170,6 @@ async function processFileInBackground(
       message: "جارٍ رفع المستند إلى خوادم التخزين السحابي الموثوقة...",
     });
 
-
-  const filePath = `courses/${courseId}/${resourceId}.pdf`;
-
     // Convert ArrayBuffer → Node.js Buffer so Supabase sends raw binary correctly.
     // Passing an ArrayBuffer directly can silently corrupt the file in some runtimes.
     const fileBuffer = Buffer.from(finalBuffer);
@@ -194,10 +192,6 @@ async function processFileInBackground(
         `Storage upload failed [${code ?? "?"}]: ${storageError.message}`
       );
     }
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("resources").getPublicUrl(filePath);
 
     const compressionRatio =
       finalSize < rawBuffer.byteLength
@@ -305,9 +299,7 @@ export async function POST(req: Request) {
   // If the request contains a valid ADMIN_SECRET, it is published immediately ('active')
   // and attributed to Mohammad Al-Amour.
   // Otherwise, it is treated as a crowdsourced guest upload ('pending') for admin moderation.
-  const adminSecret = process.env.ADMIN_SECRET;
-  const authHeader = req.headers.get("x-admin-secret");
-  const isAdmin = Boolean(adminSecret && authHeader === adminSecret);
+  const isAdmin = isAdminRequest(req);
 
   // ── Parse multipart form ─────────────────────────────────────────────────────
   let formData: FormData;
@@ -475,10 +467,10 @@ export async function POST(req: Request) {
   // Read file buffer upfront (required before request stream terminates)
   const rawBuffer = await file.arrayBuffer();
 
-  // Magic bytes check (%PDF- in first 1024 bytes per ISO 32000-1 standard)
-  const headerSlice = new Uint8Array(rawBuffer.slice(0, 1024));
+  // Magic bytes check: genuine PDF files begin with "%PDF-" at byte offset 0 (ISO 32000-1)
+  const headerSlice = new Uint8Array(rawBuffer.slice(0, 5));
   const headerText = new TextDecoder("ascii").decode(headerSlice);
-  if (!headerText.includes("%PDF-")) {
+  if (headerText !== "%PDF-") {
     return Response.json(
       { error: "INVALID_PDF_SIGNATURE: File content is not a valid PDF document." },
       { status: 422 }
@@ -608,6 +600,8 @@ export async function POST(req: Request) {
       rawBuffer,
       resourceId,
       courseId,
+      filePath,
+      publicUrl,
       sourceText,
       title,
       targetStatus

@@ -4,6 +4,7 @@ import dns from "node:dns";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeTextForPostgres } from "@/lib/utils";
 import { sendOpsAlert } from "@/lib/ops-alerts";
+import { isAdminRequest } from "@/lib/admin-auth";
 import {
   generateQuizWithGemini,
   expandQuizWithGemini,
@@ -28,10 +29,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const adminSecret = process.env.ADMIN_SECRET;
-  const authHeader = req.headers.get("x-admin-secret");
 
-  if (!adminSecret || authHeader !== adminSecret) {
+  if (!isAdminRequest(req)) {
     return NextResponse.json({ error: "Unauthorized access." }, { status: 401 });
   }
 
@@ -218,10 +217,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const adminSecret = process.env.ADMIN_SECRET;
-  const authHeader = req.headers.get("x-admin-secret");
 
-  if (!adminSecret || authHeader !== adminSecret) {
+  if (!isAdminRequest(req)) {
     return NextResponse.json({ error: "Unauthorized access." }, { status: 401 });
   }
 

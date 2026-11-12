@@ -27,7 +27,7 @@ Never ask the user to re-explain the stack or the architecture. Here is everythi
   - **Framework:** Next.js 16 (App Router with Turbopack, React 19, TypeScript).
   - **Styling:** Pure Vanilla CSS with CSS custom properties (`src/app/globals.css`). **No TailwindCSS**.
   - **Database & Storage:** Supabase (PostgreSQL with Session Pooler on IPv4, `materials` storage bucket).
-  - **AI Engine:** Google Gemini Pro (`gemini-3.8-flash:generateContent`) called directly via REST with exponential backoff retry.
+  - **AI Engine:** Google Gemini (`gemini-3.5-flash:generateContent` + lite fallbacks) called directly via REST with exponential backoff retry.
   - **PDF Pipeline:** Eager client extraction via `pdfjs-dist` WebWorker + server fallback with `pdf-parse@1` + Ghostscript (`gswin64c`) optimization.
   - **Quiz System:** Interactive `<NativeQuiz />` component with instant feedback, explanations, and SVG score ring. Offline/model-assisted question seeding via JSON (`src/quiz_seeds/`) and `npm run seed:quizzes`.
 - **Key Files & Directories:**
@@ -86,8 +86,8 @@ Never ask the user to re-explain the stack or the architecture. Here is everythi
    - Turbopack uses static AST parsing for route segment options. Imported variables like `export const revalidate = REVALIDATE_COURSE;` will crash the build.
    - **Fix:** ALWAYS use literal numbers (e.g., `export const revalidate = 60;` or `3600;`).
 3. **Gemini Model Deprecation:**
-   - `gemini-2.0-flash` and `gemini-2.5-*` endpoints return HTTP 404.
-   - **Fix:** Always target `gemini-3.8-flash:generateContent`.
+   - `gemini-2.0-flash`, `gemini-2.5-*`, and stalled `gemini-3.8-flash` endpoints fail or stall on v1beta.
+   - **Fix:** Target `gemini-3.5-flash:generateContent` (with `gemini-3.5-flash-lite` / `gemini-flash-lite-latest` fallback pool in `src/lib/pipeline/gemini-quiz.ts`).
 4. **Binary Buffer Integrity in Supabase Storage:**
    - Passing Web `ArrayBuffer` directly to `supabase.storage.upload()` can silently truncate or corrupt binary PDF files.
    - **Fix:** Always convert via `Buffer.from(arrayBuffer)`.

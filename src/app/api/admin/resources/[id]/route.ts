@@ -3,17 +3,10 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ResourceType, ResourceStatus } from "@/types/database";
 import { sendOpsAlert } from "@/lib/ops-alerts";
+import { isAdminRequest } from "@/lib/admin-auth";
 
 interface RouteProps {
   params: Promise<{ id: string }>;
-}
-
-
-function verifyAdminAuth(request: Request): boolean {
-  const adminSecret = request.headers.get("x-admin-secret");
-  return Boolean(
-    process.env.ADMIN_SECRET && adminSecret === process.env.ADMIN_SECRET
-  );
 }
 
 /**
@@ -24,7 +17,7 @@ function verifyAdminAuth(request: Request): boolean {
  * 2. Deletes the database row from `resources` (cascading cleanly to quiz_attempts/bookmarks).
  */
 export async function DELETE(request: Request, props: RouteProps) {
-  if (!verifyAdminAuth(request)) {
+  if (!isAdminRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -108,7 +101,7 @@ export async function DELETE(request: Request, props: RouteProps) {
  * Updates resource metadata (Title, Course reassignment, Resource Type, Status).
  */
 export async function PATCH(request: Request, props: RouteProps) {
-  if (!verifyAdminAuth(request)) {
+  if (!isAdminRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

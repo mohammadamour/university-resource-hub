@@ -8,6 +8,7 @@ import AdminResourceManager, {
   type AdminCourseOption,
 } from "@/components/features/AdminResourceManager";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyAdminSecret } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "إدارة الموارد والمواد الدراسية | ملخصات",
@@ -27,7 +28,7 @@ export default async function AdminResourcesPage({
   const { key } = await searchParams;
 
   // Gate check: If ADMIN_SECRET is not configured or key doesn't match, return 404
-  if (!process.env.ADMIN_SECRET || key !== process.env.ADMIN_SECRET) {
+  if (!verifyAdminSecret(key)) {
     notFound();
   }
 

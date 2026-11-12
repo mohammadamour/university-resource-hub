@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import dns from "node:dns";
 import { progressBus, type PipelineProgressEvent } from "@/lib/pipeline/progress-bus";
+import { isAdminRequest } from "@/lib/admin-auth";
 
 // Force IPv4 resolution first to bypass local network IPv6 routing black-holes
 try {
@@ -45,12 +46,7 @@ export async function GET(
   // ── Auth Gate: check x-admin-secret header OR ?key= query parameter ─────────
   // Native EventSource in browsers cannot send custom headers, so ?key= is supported.
   // Fetch-based streams (like our UploadForm) can use x-admin-secret header.
-  const adminSecret = process.env.ADMIN_SECRET;
-  const url = new URL(req.url);
-  const keyParam = url.searchParams.get("key");
-  const authHeader = req.headers.get("x-admin-secret");
-
-  if (!adminSecret || (authHeader !== adminSecret && keyParam !== adminSecret)) {
+  if (!isAdminRequest(req, { allowQueryKey: true })) {
     return Response.json({ error: "Unauthorized access to telemetry stream." }, { status: 401 });
   }
 

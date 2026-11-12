@@ -19,6 +19,9 @@ interface RouteProps {
  * 3. If the platform domain moves (e.g. molakhasat.me -> molakhasat.com), a simple DNS 301
  *    forwarding rule forwards /r/:id to the new domain, preserving 100% of links forever.
  */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(request: Request, props: RouteProps) {
   const { id } = await props.params;
 
@@ -28,32 +31,34 @@ export async function GET(request: Request, props: RouteProps) {
 
   try {
     const supabase = await createClient();
+    const isUuid = UUID_RE.test(id);
 
-    // 1. Attempt lookup as a Resource ID
-    const { data: resource } = await supabase
-      .from("resources")
-      .select("id, course_id, courses(slug)")
-      .eq("id", id)
-      .maybeSingle();
+    // 1. Attempt lookup as a Resource ID (only when :id is a valid UUID to avoid cast errors)
+    if (isUuid) {
+      const { data: resource } = await supabase
+        .from("resources")
+        .select("id, course_id, courses(slug)")
+        .eq("id", id)
+        .maybeSingle();
 
-    const courseSlug = (resource as { courses?: { slug?: string } | null })?.courses
-      ?.slug;
-    if (courseSlug) {
-      return NextResponse.redirect(
-        new URL(
-          `/courses/${courseSlug}?ref=pdf_watermark&rid=${encodeURIComponent(id)}`,
-          request.url
-        ),
-        307
-      );
+      const courseSlug = (resource as { courses?: { slug?: string } | null })?.courses
+        ?.slug;
+      if (courseSlug) {
+        return NextResponse.redirect(
+          new URL(
+            `/courses/${courseSlug}?ref=pdf_watermark&rid=${encodeURIComponent(id)}`,
+            request.url
+          ),
+          307
+        );
+      }
     }
 
-    // 2. Attempt lookup as a Course ID or Course Slug
-    const { data: course } = await supabase
-      .from("courses")
-      .select("slug")
-      .or(`id.eq.${id},slug.eq.${id}`)
-      .maybeSingle();
+    // 2. Attempt lookup as a Course ID or Course Slug via safe parameterized .eq() filters
+    // (avoids raw string interpolation inside PostgREST .or() filters)
+    const { data: course } = isUuid
+      ? await supabase.from("courses").select("slug").eq("id", id).maybeSingle()
+      : await supabase.from("courses").select("slug").eq("slug", id).maybeSingle();
 
     if (course?.slug) {
       return NextResponse.redirect(

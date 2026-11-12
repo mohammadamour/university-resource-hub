@@ -4,16 +4,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeTextForPostgres } from "@/lib/utils";
 import { sendOpsAlert } from "@/lib/ops-alerts";
 import type { QuizQuestion, QuizData } from "@/types/database";
+import { isAdminRequest } from "@/lib/admin-auth";
 
 interface RouteProps {
   params: Promise<{ id: string }>;
-}
-
-function verifyAdminAuth(request: Request): boolean {
-  const adminSecret = request.headers.get("x-admin-secret");
-  return Boolean(
-    process.env.ADMIN_SECRET && adminSecret === process.env.ADMIN_SECRET
-  );
 }
 
 /**
@@ -216,7 +210,7 @@ function sanitizeQuestion(
  * }
  */
 export async function POST(request: Request, props: RouteProps) {
-  if (!verifyAdminAuth(request)) {
+  if (!isAdminRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

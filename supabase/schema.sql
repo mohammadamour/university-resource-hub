@@ -60,6 +60,8 @@ CREATE TABLE courses (
     instructor TEXT, -- Doctor name (optional in V1, used for filtering later)
     semester TEXT, -- e.g., "Fall 2026" (optional in V1)
     display_order INT DEFAULT 0,
+    midterm_exam_date DATE DEFAULT NULL,
+    final_exam_date DATE DEFAULT NULL,
     created_at TIMESTAMPTZ DEFAULT now(),
     UNIQUE (department_id, slug)
 );
@@ -98,7 +100,11 @@ CREATE TABLE resources (
     academic_year TEXT NOT NULL DEFAULT '2025/2026',
     professor_name TEXT DEFAULT NULL,
     author_name TEXT DEFAULT NULL,
-    description TEXT DEFAULT NULL
+    description TEXT DEFAULT NULL,
+    is_featured BOOLEAN DEFAULT false,
+    display_order INT DEFAULT 0,
+    external_platform TEXT DEFAULT NULL,
+    thumbnail_url TEXT DEFAULT NULL
 );
 
 -- ─── BOOKMARKS ──────────────────────────────────────────────────────────────
