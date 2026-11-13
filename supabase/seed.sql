@@ -32,7 +32,8 @@ INSERT INTO courses (department_id, title, slug, description, display_order) VAL
   ((SELECT id FROM it_dept), 'البرمجة المرئية', 'visual-programming', 'بناء واجهات المستخدم التفاعلية (GUI) والبرمجة الموجهة بالأحداث', 26),
   ((SELECT id FROM it_dept), 'تصميم المنطق الرقمي', 'digital-logic-design', 'الجبر البولياني، البوابات المنطقية، الدوائر التوافقية والتتابعية، وتبسيط الدوال', 27),
   ((SELECT id FROM it_dept), 'تراكيب البيانات (Data Structures)', 'data-structures', 'القوائم المترابطة، المكدسات، الطوابير، الأشجار، والرسوم البيانية وتطبيقاتها', 28),
-  ((SELECT id FROM it_dept), 'أنظمة التشغيل (Operating Systems)', 'operating-systems', 'إدارة العمليات والذاكرة، جدولة المعالج، تزامن العمليات، وأنظمة الملفات', 29)
+  ((SELECT id FROM it_dept), 'أنظمة التشغيل (Operating Systems)', 'operating-systems', 'إدارة العمليات والذاكرة، جدولة المعالج، تزامن العمليات، وأنظمة الملفات', 29),
+  ((SELECT id FROM it_dept), 'الشبكات وتراسل البيانات', 'networks-data-communication', 'مفاهيم شبكات الحاسوب، نموذج OSI، بروتوكولات TCP/IP، وتراسل البيانات', 30)
 ON CONFLICT (department_id, slug) DO UPDATE SET
   title = EXCLUDED.title,
   description = EXCLUDED.description,
