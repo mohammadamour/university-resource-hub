@@ -1177,12 +1177,12 @@ ${formattedQuestions}
                               className="font-semibold text-foreground hover:text-accent hover:underline flex items-center gap-1.5"
                               title="فتح ومعاينة ملف الـ PDF الأصلي في نافذة جديدة"
                             >
-                              <span>{res.title}</span>
+                              <span dir="auto">{res.title}</span>
                               <span className="text-xs text-muted-foreground">↗</span>
                             </a>
                           ) : (
                             <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-muted-foreground">{res.title}</span>
+                              <span dir="auto" className="font-semibold text-muted-foreground">{res.title}</span>
                               {res.storage_url === "__processing__" && (
                                 <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded px-1.5 py-0.5">
                                   جارٍ المعالجة...
@@ -1454,12 +1454,12 @@ ${formattedQuestions}
                           className="font-bold text-foreground hover:text-accent flex items-center gap-1"
                           title="فتح ومعاينة ملف الـ PDF الأصلي"
                         >
-                          <span>{res.title}</span>
+                          <span dir="auto">{res.title}</span>
                           <span className="text-xs">↗</span>
                         </a>
                       ) : (
                         <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-muted-foreground">{res.title}</span>
+                          <span dir="auto" className="font-bold text-muted-foreground">{res.title}</span>
                           {res.storage_url === "__processing__" && (
                             <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded px-1.5 py-0.5">
                               جارٍ المعالجة...
@@ -1686,7 +1686,7 @@ ${formattedQuestions}
                   <span>📥</span>
                   <span>استيراد بنك أسئلة (JSON)</span>
                 </h3>
-                <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-sm">
+                <p dir="auto" className="text-xs text-muted-foreground mt-0.5 truncate max-w-sm">
                   {importingResource.title}
                 </p>
               </div>
@@ -1946,6 +1946,7 @@ ${formattedQuestions}
                 </label>
                 <input
                   type="text"
+                  dir="auto"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
                   className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
@@ -2105,6 +2106,7 @@ ${formattedQuestions}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-foreground">ملاحظات / وصف سريع (اختياري)</label>
                 <textarea
+                  dir="auto"
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   maxLength={150}

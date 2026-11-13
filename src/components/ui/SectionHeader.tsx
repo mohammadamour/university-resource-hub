@@ -10,11 +10,11 @@ interface SectionHeaderProps {
 export default function SectionHeader({ title, description }: SectionHeaderProps) {
   return (
     <div className="mb-4 mt-8 first:mt-0">
-      <h2 className="text-xl font-bold text-foreground sm:text-2xl">
+      <h2 dir="auto" className="text-xl font-bold text-foreground sm:text-2xl">
         {title}
       </h2>
       {description && (
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p dir="auto" className="mt-1 text-sm text-muted-foreground">
           {description}
         </p>
       )}

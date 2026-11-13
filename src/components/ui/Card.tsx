@@ -64,13 +64,19 @@ export default function Card({
           )}
 
           {/* Title */}
-          <h3 className="text-sm font-bold leading-snug text-card-foreground group-hover:text-accent transition-colors line-clamp-2 sm:text-base lg:text-lg">
+          <h3
+            dir="auto"
+            className="text-sm font-bold leading-snug text-card-foreground group-hover:text-accent transition-colors line-clamp-2 sm:text-base lg:text-lg"
+          >
             {title}
           </h3>
 
           {/* Description */}
           {description && (
-            <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+            <p
+              dir="auto"
+              className="mt-1.5 text-xs text-muted-foreground line-clamp-2 leading-relaxed"
+            >
               {description}
             </p>
           )}

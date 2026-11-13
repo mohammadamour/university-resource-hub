@@ -914,10 +914,13 @@ export interface PipelineProgressEvent {
   5. Delete database record in `resources` (cascading to `quiz_attempts` and `quiz_attempt_answers`).
   6. Return atomic confirmation for client-side optimistic UI removal.
 
-### 8.4 Bidirectional RTL Formatting & Real-Time Metrics
+### 8.4 Bidirectional RTL Formatting, Real-Time Metrics & Title Inversion Defense
 
-- In Arabic RTL layouts (`dir="rtl"`), fractional numbers containing slashes (e.g., `{coursesWithContent} / {courses.length}`) are inverted by the Unicode Bidirectional Algorithm (Bidi).
-- Enforcing `dir="ltr"` on numerical fractions ensures counters like `2 / 12` render in their natural mathematical order.
+- **Unicode Bidirectional Algorithm (UAX #9) & Mixed-Script Titles:**
+  - In an RTL root layout (`<html dir="rtl">`), text elements inherit `dir="rtl"` as their base paragraph direction.
+  - When user-generated resource titles contain mixed Latin/Arabic scripts (e.g., `Data Structures - ملخص`) or end with neutral punctuation characters (e.g., `-`, `?`, `!`, `/`), BiDi Rule N2 resolves trailing neutral characters to the base direction (RTL). This causes question marks, hyphens, and leading English phrases to flip to the opposite side of the card (e.g., `Introduction to AI?` visually rendered as `?Introduction to AI`).
+  - **Resolution via `dir="auto"` & BiDi Isolation:** Enforcing `dir="auto"` across all resource headings, descriptions, and input controls (`ResourceList.tsx`, `UploadForm.tsx`, `BookmarkDrawer.tsx`, `PdfReaderModal.tsx`, `AdminResourceManager.tsx`, `Card.tsx`, and `SectionHeader.tsx`) prompts the browser engine to evaluate directionality based on the first strong character and isolates the inline run (`unicode-bidi: isolate`). This immediately fixes both historical database records and new user submissions without altering the stored UTF-8 string data.
+- **Fractional Counters:** In Arabic RTL layouts, fractional numbers containing slashes (e.g., `{coursesWithContent} / {courses.length}`) are inverted by the BiDi algorithm. Enforcing `dir="ltr"` on numerical fractions ensures counters like `2 / 12` render in their natural mathematical order.
 - Each resource entry provides one-click testing via the evergreen shortlink `/r/:id`, ensuring watermarked link fidelity before public student access.
 
 ### 8.5 The 3-Tier Content Engine & Split-Tab Moderation Queue

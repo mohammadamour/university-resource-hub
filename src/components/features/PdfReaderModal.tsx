@@ -410,7 +410,7 @@ export default function PdfReaderModal({
           </button>
 
           <div className="min-w-0">
-            <h2 className="truncate text-xs font-bold text-white sm:text-sm">
+            <h2 dir="auto" className="truncate text-xs font-bold text-white sm:text-sm">
               {resource.title}
             </h2>
             <p className="text-[11px] text-slate-400">

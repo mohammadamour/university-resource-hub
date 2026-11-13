@@ -288,11 +288,11 @@ export default async function CoursePage({ params }: CoursePageProps) {
                 {course.course_code}
               </span>
             )}
-            <h1 className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">
+            <h1 dir="auto" className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">
               {course.title}
             </h1>
             {course.description && (
-              <p className="mt-2 text-muted-foreground">{course.description}</p>
+              <p dir="auto" className="mt-2 text-muted-foreground">{course.description}</p>
             )}
             {course.instructor && (
               <p className="mt-1 text-sm text-muted-foreground">

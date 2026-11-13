@@ -725,7 +725,7 @@ export default function UploadForm({
                         {res.type === "link" && "🔗"}
                         {res.type === "other" && "📁"}
                       </span>
-                      <span className="max-w-[200px] truncate">{res.title}</span>
+                      <span dir="auto" className="max-w-[200px] truncate">{res.title}</span>
                       {isJustAdded && (
                         <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-[10px] text-emerald-300 font-bold">
                           جديد ✨
@@ -755,6 +755,7 @@ export default function UploadForm({
         <input
           id="upload-title"
           type="text"
+          dir="auto"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           disabled={isSubmitting}
@@ -1067,6 +1068,7 @@ export default function UploadForm({
                 id="upload-description"
                 rows={2}
                 maxLength={150}
+                dir="auto"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={isSubmitting}

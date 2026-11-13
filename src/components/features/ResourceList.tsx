@@ -525,7 +525,10 @@ export default function ResourceList({
         )}
 
         {/* Row 2: Title */}
-        <span className="text-sm font-bold text-card-foreground group-hover:text-accent transition-colors line-clamp-2 sm:text-base leading-snug">
+        <span
+          dir="auto"
+          className="text-sm font-bold text-card-foreground group-hover:text-accent transition-colors line-clamp-2 sm:text-base leading-snug"
+        >
           {resource.title}
         </span>
 
@@ -549,7 +552,10 @@ export default function ResourceList({
         </div>
 
         {resource.description && (
-          <p className="text-xs text-muted-foreground/80 line-clamp-1 mt-0.5">
+          <p
+            dir="auto"
+            className="text-xs text-muted-foreground/80 line-clamp-1 mt-0.5"
+          >
             {resource.description}
           </p>
         )}
@@ -727,7 +733,7 @@ export default function ResourceList({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-foreground truncate">
+            <span dir="auto" className="text-sm font-medium text-foreground truncate">
               {res.title}
             </span>
             {examScopeLabel && (
@@ -943,11 +949,11 @@ export default function ResourceList({
                                   <span>{meta.name}</span>
                                 </span>
                               </div>
-                              <h5 className="text-sm font-bold text-foreground line-clamp-2">
+                              <h5 dir="auto" className="text-sm font-bold text-foreground line-clamp-2">
                                 {res.title}
                               </h5>
                               {res.description && (
-                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                <p dir="auto" className="text-xs text-muted-foreground line-clamp-2">
                                   {res.description}
                                 </p>
                               )}
@@ -978,12 +984,12 @@ export default function ResourceList({
                               </span>
                             </div>
 
-                            <h5 className="text-sm font-bold text-foreground group-hover:text-accent transition-colors line-clamp-2">
+                            <h5 dir="auto" className="text-sm font-bold text-foreground group-hover:text-accent transition-colors line-clamp-2">
                               {res.title}
                             </h5>
 
                             {res.description && (
-                              <p className="text-xs text-muted-foreground line-clamp-2">
+                              <p dir="auto" className="text-xs text-muted-foreground line-clamp-2">
                                 {res.description}
                               </p>
                             )}

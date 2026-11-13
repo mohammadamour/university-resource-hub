@@ -202,7 +202,7 @@ export function BookmarkDrawer({
                             >
                               <span className="shrink-0 text-base">📚</span>
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-foreground group-hover:text-accent">
+                                <p dir="auto" className="truncate text-sm font-semibold text-foreground group-hover:text-accent">
                                   {displayTitle}
                                 </p>
                                 {meta?.courseCode && (
@@ -272,10 +272,10 @@ export function BookmarkDrawer({
                               {getResourceTypeIcon(res.type)}
                             </span>
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-foreground group-hover:text-accent">
+                              <p dir="auto" className="truncate text-sm font-semibold text-foreground group-hover:text-accent">
                                 {res.title}
                               </p>
-                              <p className="truncate text-[11px] text-muted-foreground">
+                              <p dir="auto" className="truncate text-[11px] text-muted-foreground">
                                 {res.courseTitle}
                                 {res.hasQuiz ? " • ✨ كويز" : ""}
                               </p>
