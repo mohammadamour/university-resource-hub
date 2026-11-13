@@ -149,3 +149,36 @@ When asked for a handoff summary, the agent MUST produce a structured, high-dens
 3. **Current Git & Deployment State:** Active branch, latest commit hash, uncommitted changes, and deployment URLs.
 4. **Discovered Quirks & "Gotchas":** Any IPv6 quirks, Vercel timeouts, model deprecations, or typing nuances uncovered during the session.
 5. **Immediate Flight-Check & Next Actions:** Concrete, step-by-step actions for the next agent to immediately execute or verify.
+
+---
+
+## 📚 6. Fast Protocol: Adding a New Course (Under 60 Seconds)
+
+Adding a course is strictly an atomic database row addition + seed file sync. **Never** spend time grepping the codebase for hardcoded course lists, over-analyzing routing, or generating throwaway script files.
+
+### 📍 Where Courses Live
+- **Runtime:** The `courses` table in Supabase PostgreSQL (queried dynamically by `/`, `/courses/[slug]`, `/upload`, and `/admin/resources`).
+- **Codebase Source of Truth:** [`supabase/seed.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/seed.sql) (Section 2 for IT courses, Section 3 for University Requirements).
+
+### ⚡ The Exact 2-Step Action
+1. **Update [`supabase/seed.sql`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/supabase/seed.sql):**
+   Append the course row to the appropriate department's `INSERT INTO courses` statement:
+   ```sql
+   ((SELECT id FROM it_dept), 'اسم المادة بالعربية', 'kebab-case-slug', 'وصف مختصر للمساق', <display_order>)
+   ```
+2. **Execute in Supabase & Provide SQL:**
+   - Execute or provide the exact copy-paste SQL snippet for the user to run in **Supabase Dashboard -> SQL Editor**:
+   ```sql
+   WITH dept AS (SELECT id FROM departments WHERE slug = 'it') -- or 'university-requirements'
+   INSERT INTO courses (department_id, title, slug, description, display_order)
+   VALUES ((SELECT id FROM dept), 'اسم المادة بالعربية', 'kebab-case-slug', 'وصف مختصر للمساق', <display_order>)
+   ON CONFLICT (department_id, slug) DO UPDATE SET
+     title = EXCLUDED.title,
+     description = EXCLUDED.description,
+     display_order = EXCLUDED.display_order;
+   ```
+
+### ⚠️ Behavioral Gotchas (Never Forget)
+- **Homepage Visibility Rule (`DepartmentGrid.tsx`):** A newly added course with 0 approved resources is **deliberately hidden from the homepage grid** to prevent empty card clutter. It appears **immediately** in the `/upload` dropdown and at its direct URL `/courses/[slug]`. Once the first approved resource is attached, it surfaces on the homepage automatically.
+- **Arabic Typography Standard:** Always connect the conjunction "و" to the subsequent word without spaces (`الشبكات وتراسل البيانات`, NOT `الشبكات و تراسل البيانات`), matching the rest of the course catalog and standard Arabic orthography.
+
