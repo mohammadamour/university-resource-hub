@@ -7,11 +7,12 @@ A lean, zero-friction protocol for seeding high-yield university materials, gene
 ## 🎯 1. Definition of "Course Done" (Midterm Season MVP)
 
 A course is considered **DONE** and ready for students when it has:
+
 1. **Tier 1 (Core Shelf):** 1x Midterm Gold Summary (with AI Quiz) + 1x Solved Past Midterm Bank.
 2. **Tier 2 (Archive Drawer):** 1x Merged Official Slides/Textbook (Midterm Scope only: Ch 1–X).
 3. **Tier 3 (Toolkit Grid):** 1x Curated YouTube Playlist link (Best Arabic lecturer/channel).
 
-*Do NOT waste time on Final exam materials right now. Win Midterm season first.*
+_Do NOT waste time on Final exam materials right now. Win Midterm season first._
 
 ---
 
@@ -131,3 +132,37 @@ JSON template:
   ]
 }
 ```
+
+prompt for question extraction from screenshots and generation of pdf:
+I'm uploading [screenshots / exam PDFs / course & lab PDFs] for [Course Name]. Run my 3-step Question Bank & Quiz JSON pipeline:
+
+1. Extract & Deduplicate:
+   - Extract all valid, high-value questions from the uploaded materials.
+   - Remove duplicates, garbled/unclear captures, and non-question screens. If multiple batches or lecture + lab files are provided, merge them into one deduplicated bank.
+
+2. Standardize to Quiz JSON:
+   - Use this exact schema:
+     {
+     "version": 1,
+     "sourceTitle": "[Course / Resource Title]",
+     "questions": [
+     {
+     "chapter": "...",
+     "topic": "...",
+     "difficulty": "easy | medium | hard",
+     "tags": ["..."],
+     "question": "...",
+     "options": ["...", "...", "...", "..."],
+     "correctIndex": 0,
+     "explanation": "..."
+     }
+     ]
+     }
+   - Language loyalty: Match the source language (Arabic for Arabic courses; English for IT/Science/Math, with brief Arabic in parentheses only for tough terms).
+   - Options: Exactly 4 unique choices. No letter prefixes (A, B, C, D) and no "All/None of the above" (reframe True/False, 3-option, or "All of the above" items into 4 concrete choices).
+   - Balance & Formatting: Distribute `correctIndex` evenly across 0, 1, 2, 3; target ~35% easy, 40% medium, 25% hard; use plain text + Unicode math only (never LaTeX `$...$`).
+   - Provide the full JSON file for download (and a curated 30–40 high-value JSON if the full bank is larger).
+
+3. Generate 1:1 Synced Question Bank PDF:
+   - Using HTML → A4 PDF, build a clean, student-readable practice question bank PDF directly from the finalized JSON (exact same questions, 4 options, checked/highlighted correct answers, and explanations).
+   - Include a Page 1 overview table of question counts by chapter/module, keep every question card intact without splitting across pages, and support proper RTL/LTR formatting.
