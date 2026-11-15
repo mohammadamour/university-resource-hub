@@ -166,3 +166,65 @@ I'm uploading [screenshots / exam PDFs / course & lab PDFs] for [Course Name]. R
 3. Generate 1:1 Synced Question Bank PDF:
    - Using HTML → A4 PDF, build a clean, student-readable practice question bank PDF directly from the finalized JSON (exact same questions, 4 options, checked/highlighted correct answers, and explanations).
    - Include a Page 1 overview table of question counts by chapter/module, keep every question card intact without splitting across pages, and support proper RTL/LTR formatting.
+
+# SYSTEM CONTEXT & PROJECT ONBOARDING: University Study Platform Pipeline
+
+## 1. Who I Am & What We Are Building
+
+I am building and maintaining an online university student resource-sharing platform. Rather than sharing raw, fragmented lecture slides or messy screenshots of past online exams (Moodle / MS Forms / e-learning portals), I use a standardized pipeline to turn raw course files into three polished student resources:
+
+1. **Interactive Platform Quizzes (`JSON`)**: Standardized JSON files that my platform's quiz engine ingests directly.
+2. **Synced Printable Question Bank Study Files (`PDF`)**: Clean, well-formatted A4 PDF study banks containing the exact same questions, 4 options, marked correct answers (`✓`), and concise explanations as the JSON file.
+3. **Exam Survival Guide Summaries (`HTML`)**: Self-contained, 80/20 high-yield HTML study guides (Midterm or Final) that are both **mobile-first (zero horizontal scrolling on phones)** and **A4 print-ready**.
+
+In this chat, I will upload course materials (lecture slides, lab sheets, or PDFs/screenshots of past exams) for one or more subjects and ask you to run one or more of the workflows below.
+
+---
+
+## 2. Core Workflows & Technical Standards
+
+### WORKFLOW 1: Past-Exam Extraction & Question Bank Generation (`JSON` + `1:1 PDF`)
+
+When I share past exam screenshot compilations or lecture/lab PDFs and ask for a question bank or quiz:
+
+#### A. Extraction & Question Engineering Rules
+
+- **Source Modes**:
+  - **Past Exam Screenshots Mode**: Extract every readable question from the screenshots, deduplicate repeated screenshots, discard unreadable/garbled items, verify the correct answer scientifically (note if a student's selected radio button in a screenshot was wrong), and write a brief, clear explanation for why the correct answer is right.
+  - **Lecture / Lab Material Mode**: Generate high-yield exam-style questions (definitions, edge cases, code/packet traces, and calculations) covering all attached files. If I ask for both a full bank and a curated high-value bank (e.g., top 30–40 questions), provide both.
+- **Strict 4-Option Rule**:
+  - Every question MUST have **exactly 4 unique options**.
+  - **No letter prefixes** inside option strings (do NOT write `"A) ..."` or `"أ. ..."`).
+  - **NEVER use `"All of the above"` / `"جميع ما ذكر"` or `"None of the above"` / `"لا شيء مما ذكر"`**. If an original exam question is True/False, has 2–3 options, or uses "All/None of the above", reframe the question stem or rewrite the distractor options into 4 concrete, mutually exclusive choices while testing the exact same concept.
+- **Balanced Distribution**:
+  - `correctIndex` (`0, 1, 2, 3`): Distribute evenly (~25% each) across the bank so the correct answer isn't always index `0` or `1`.
+  - `difficulty`: Calibrate across `"easy"` (~35%), `"medium"` (~40%), and `"hard"` (~25%).
+- **Formatting & Language**:
+  - Plain text + Unicode symbols (`∀, ¬, ∧, ∨, →, ≤, ≥, ≠, x², √`) only — **never use LaTeX (`$...$`)** inside JSON strings.
+  - **Language loyalty**: If the course material is in Arabic, write everything in clear academic Arabic. If the course material is in English (IT, CS, Math, Engineering), write questions, options, and explanations in English (adding brief Arabic translations in parentheses only for tough conceptual terms where helpful).
+
+#### B. Required JSON Schema (`[course_name]_exam_bank.json`)
+
+```json
+{
+  "version": 1,
+  "sourceTitle": "[Course Name — Resource Title]",
+  "questions": [
+    {
+      "chapter": "[Module / Chapter Name]",
+      "topic": "[Specific Concept]",
+      "difficulty": "easy | medium | hard",
+      "tags": ["tag1", "tag2"],
+      "question": "Clear question stem...",
+      "options": [
+        "Option 0 text",
+        "Option 1 text",
+        "Option 2 text",
+        "Option 3 text"
+      ],
+      "correctIndex": 0,
+      "explanation": "Concise explanation of why the correct option is right and why common traps fail."
+    }
+  ]
+}
+```

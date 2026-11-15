@@ -6,6 +6,7 @@ import AdminTabs from "@/components/features/AdminTabs";
 import AdminResourceManager, {
   type AdminResourceItem,
   type AdminCourseOption,
+  type AdminDepartmentOption,
 } from "@/components/features/AdminResourceManager";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAdminSecret } from "@/lib/admin-auth";
@@ -32,10 +33,10 @@ export default async function AdminResourcesPage({
     notFound();
   }
 
-  // Pre-fetch all resources with their courses, and all courses for filters
+  // Pre-fetch all resources with their courses, courses for filters, and departments
   const supabase = createAdminClient();
 
-  const [resourcesResult, coursesResult] = await Promise.all([
+  const [resourcesResult, coursesResult, departmentsResult] = await Promise.all([
     supabase
       .from("resources")
       .select(`
@@ -79,10 +80,16 @@ export default async function AdminResourcesPage({
         department:departments (name)
       `)
       .order("title"),
+
+    supabase
+      .from("departments")
+      .select("id, name, slug")
+      .order("display_order"),
   ]);
 
   const resources = (resourcesResult.data || []) as unknown as AdminResourceItem[];
   const courses = (coursesResult.data || []) as unknown as AdminCourseOption[];
+  const departments = (departmentsResult.data || []) as unknown as AdminDepartmentOption[];
 
   return (
     <>
@@ -109,6 +116,7 @@ export default async function AdminResourcesPage({
         <AdminResourceManager
           initialResources={resources}
           courses={courses}
+          departments={departments}
           adminSecret={key!}
         />
       </main>

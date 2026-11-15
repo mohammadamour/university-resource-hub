@@ -48,6 +48,7 @@
    - [8.3 Atomic Storage & DB Purging (`/api/admin/resources/[id]`)](#83-atomic-storage--db-purging-apiadminresourcesid)
    - [8.4 Bidirectional RTL Formatting & Real-Time Metrics](#84-bidirectional-rtl-formatting--real-time-metrics)
    - [8.5 The 3-Tier Content Engine & Split-Tab Moderation Queue](#85-the-3-tier-content-engine--split-tab-moderation-queue)
+   - [8.6 In-App Course Generation & Real-Time Sync (`POST /api/admin/courses`)](#86-in-app-course-generation--real-time-sync-post-apiadmincourses)
 9. [Strategic Roadmap & Living Engineering Backlog](#9-strategic-roadmap--living-engineering-backlog)
    - [9.1 Phase 1: Completed Architecture (The Decoupled Foundation)](#91-phase-1-completed-architecture-the-decoupled-foundation)
    - [9.2 Phase 2: Immediate Sprint Priorities (Launch Readiness)](#92-phase-2-immediate-sprint-priorities-launch-readiness)
@@ -934,6 +935,16 @@ export interface PipelineProgressEvent {
   - **Active Tab:** Real-time search, inline 1-click tier flipping (`[⭐ رئيسي]` ↔ `[📁 أرشيف]`), and on-demand quiz generation (`/api/admin/resources/[id]/quiz`).
   - **Pending Tab (`بانتظار المراجعة`):** Amber badge with live pending count. Allows 1-click approval directly into either Tier 1 (`اعتماد كملخص رئيسي`) or Tier 2 (`اعتماد في الأرشيف الإضافي`), or rejection with atomic physical storage and database purging.
   - **Guest Ingestion Boundary:** Public uploads via `/upload` default to `status: 'pending'` and `is_featured: false`, while admin uploads default to `status: 'active'` and `is_featured: true`.
+
+### 8.6 In-App Course Generation & Real-Time Sync (`POST /api/admin/courses`)
+
+- **The Problem:** Previously, expanding into a new major or elective required manual SQL execution in Supabase Dashboard or script edits to register course records.
+- **The Solution:** Added an atomic course creation modal in [`AdminResourceManager.tsx`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/components/features/AdminResourceManager.tsx) backed by [`/api/admin/courses`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/src/app/api/admin/courses/route.ts):
+  - Validates `x-admin-secret` using constant-time digest comparison.
+  - Normalizes and sanitizes user-entered course slugs (kebab-case alphanumeric).
+  - Handles PostgreSQL `23505` unique constraint conflicts gracefully on `(department_id, slug)`.
+  - Performs optimistic client-side state sync on `coursesList`, instantly updating course count badges, search filter dropdowns, and resource re-allocation selectors without requiring a page reload.
+  - Courses immediately surface in the public `/upload` dropdown and direct route `/courses/[slug]`, while adhering to the homepage visibility rule (hidden from `/` until the first approved resource is attached).
 
 ---
 

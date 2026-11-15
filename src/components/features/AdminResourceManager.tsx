@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import type { ResourceType, ResourceStatus } from "@/types/database";
 
@@ -46,6 +46,12 @@ export interface AdminResourceItem {
   thumbnail_url?: string | null;
 }
 
+export interface AdminDepartmentOption {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface AdminCourseOption {
   id: string;
   title: string;
@@ -57,6 +63,7 @@ export interface AdminCourseOption {
 interface AdminResourceManagerProps {
   initialResources: AdminResourceItem[];
   courses: AdminCourseOption[];
+  departments?: AdminDepartmentOption[];
   adminSecret: string;
 }
 
@@ -140,14 +147,33 @@ function formatDate(dateStr: string): string {
 export default function AdminResourceManager({
   initialResources,
   courses,
+  departments = [],
   adminSecret,
 }: AdminResourceManagerProps) {
   const [resources, setResources] = useState<AdminResourceItem[]>(initialResources);
+  const [coursesList, setCoursesList] = useState<AdminCourseOption[]>(courses);
   const [viewTab, setViewTab] = useState<"active" | "pending" | "all">("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCourseFilter, setSelectedCourseFilter] = useState("all");
   const [selectedTypeFilter, setSelectedTypeFilter] = useState("all");
   const [selectedStatusFilter, setSelectedStatusFilter] = useState("all");
+
+  // Add New Course Modal State
+  const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
+  const [newCourseDeptId, setNewCourseDeptId] = useState(departments[0]?.id || "");
+  const [newCourseTitle, setNewCourseTitle] = useState("");
+  const [newCourseSlug, setNewCourseSlug] = useState("");
+  const [newCourseCode, setNewCourseCode] = useState("");
+  const [newCourseDescription, setNewCourseDescription] = useState("");
+  const [newCourseOrder, setNewCourseOrder] = useState<number>(0);
+  const [isSubmittingCourse, setIsSubmittingCourse] = useState(false);
+  const [courseError, setCourseError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (departments.length > 0 && !newCourseDeptId) {
+      setNewCourseDeptId(departments[0].id);
+    }
+  }, [departments, newCourseDeptId]);
 
   // Modals state
   const [editingResource, setEditingResource] = useState<AdminResourceItem | null>(null);
@@ -831,7 +857,7 @@ ${formattedQuestions}
         professor_name: editProfessorName.trim() || null,
         author_name: editAuthorName.trim() || null,
         description: editDescription.trim() || null,
-        course: courses.find((c) => c.id === editCourseId) || editingResource.course,
+        course: coursesList.find((c) => c.id === editCourseId) || editingResource.course,
       };
 
       setResources((prev) =>
@@ -844,6 +870,79 @@ ${formattedQuestions}
       setEditError(err instanceof Error ? err.message : "حدث خطأ غير متوقع.");
     } finally {
       setIsSavingEdit(false);
+    }
+  };
+
+  // ─── Add Course Handler ───────────────────────────────────────────────────
+  const handleCreateCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCourseError(null);
+
+    const targetDeptId = newCourseDeptId || departments[0]?.id;
+    if (!targetDeptId) {
+      setCourseError("يرجى اختيار الكلية أو القسم التابع له المساق.");
+      return;
+    }
+    if (!newCourseTitle.trim()) {
+      setCourseError("يرجى إدخال اسم المساق بالعربية.");
+      return;
+    }
+    if (!newCourseSlug.trim()) {
+      setCourseError("يرجى إدخال المعرف اللاتيني (slug).");
+      return;
+    }
+
+    setIsSubmittingCourse(true);
+    try {
+      const response = await fetch("/api/admin/courses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-secret": adminSecret,
+        },
+        body: JSON.stringify({
+          departmentId: targetDeptId,
+          title: newCourseTitle.trim(),
+          slug: newCourseSlug.trim(),
+          courseCode: newCourseCode.trim() || null,
+          description: newCourseDescription.trim() || null,
+          displayOrder: newCourseOrder,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "فشل إنشاء المساق.");
+      }
+
+      const created: AdminCourseOption = {
+        id: data.course.id,
+        title: data.course.title,
+        slug: data.course.slug,
+        course_code: data.course.course_code,
+        department: data.course.department,
+      };
+
+      setCoursesList((prev) =>
+        [...prev, created].sort((a, b) => a.title.localeCompare(b.title, "ar"))
+      );
+
+      showNotification(
+        "success",
+        data.message || `تمت إضافة مساق "${created.title}" بنجاح! أصبح جاهزاً للرفع الآن.`
+      );
+
+      // Reset and close
+      setIsAddCourseOpen(false);
+      setNewCourseTitle("");
+      setNewCourseSlug("");
+      setNewCourseCode("");
+      setNewCourseDescription("");
+      setNewCourseOrder(0);
+    } catch (err) {
+      setCourseError(err instanceof Error ? err.message : "حدث خطأ غير متوقع.");
+    } finally {
+      setIsSubmittingCourse(false);
     }
   };
 
@@ -905,64 +1004,79 @@ ${formattedQuestions}
         </div>
       )}
 
-      {/* ─── Moderation Queue Tabs ────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
-        <button
-          onClick={() => {
-            setViewTab("active");
-            setSelectedStatusFilter("all");
-          }}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
-            viewTab === "active"
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
-          }`}
-        >
-          <span>📁 المعتمدة والنشطة</span>
-          <span className="rounded-full bg-background/25 px-2 py-0.5 text-xs font-semibold" dir="ltr">
-            {metrics.activeCount}
-          </span>
-        </button>
-
-        <button
-          onClick={() => {
-            setViewTab("pending");
-            setSelectedStatusFilter("all");
-          }}
-          className={`relative flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
-            viewTab === "pending"
-              ? "bg-amber-500 text-white shadow-sm"
-              : "border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
-          }`}
-        >
-          <span>⏳ بانتظار المراجعة والاعتماد</span>
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-              metrics.pendingCount > 0
-                ? "bg-amber-400 text-amber-950 animate-pulse"
-                : "bg-background/25"
+      {/* ─── Moderation Queue Tabs & Add Course Action ──────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => {
+              setViewTab("active");
+              setSelectedStatusFilter("all");
+            }}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
+              viewTab === "active"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}
-            dir="ltr"
           >
-            {metrics.pendingCount}
-          </span>
-        </button>
+            <span>📁 المعتمدة والنشطة</span>
+            <span className="rounded-full bg-background/25 px-2 py-0.5 text-xs font-semibold" dir="ltr">
+              {metrics.activeCount}
+            </span>
+          </button>
 
+          <button
+            onClick={() => {
+              setViewTab("pending");
+              setSelectedStatusFilter("all");
+            }}
+            className={`relative flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
+              viewTab === "pending"
+                ? "bg-amber-500 text-white shadow-sm"
+                : "border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}
+          >
+            <span>⏳ بانتظار المراجعة والاعتماد</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                metrics.pendingCount > 0
+                  ? "bg-amber-400 text-amber-950 animate-pulse"
+                  : "bg-background/25"
+              }`}
+              dir="ltr"
+            >
+              {metrics.pendingCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => {
+              setViewTab("all");
+              setSelectedStatusFilter("all");
+            }}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
+              viewTab === "all"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}
+          >
+            <span>🗄️ جميع الموارد</span>
+            <span className="rounded-full bg-background/25 px-2 py-0.5 text-xs font-semibold" dir="ltr">
+              {metrics.totalCount}
+            </span>
+          </button>
+        </div>
+
+        {/* Action Button: Add New Course */}
         <button
+          type="button"
           onClick={() => {
-            setViewTab("all");
-            setSelectedStatusFilter("all");
+            setCourseError(null);
+            setIsAddCourseOpen(true);
           }}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
-            viewTab === "all"
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
-          }`}
+          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-sm hover:opacity-90 active:scale-95 transition-all cursor-pointer shrink-0"
         >
-          <span>🗄️ جميع الموارد</span>
-          <span className="rounded-full bg-background/25 px-2 py-0.5 text-xs font-semibold" dir="ltr">
-            {metrics.totalCount}
-          </span>
+          <span>➕</span>
+          <span>إضافة مساق جديد</span>
         </button>
       </div>
 
@@ -1007,7 +1121,7 @@ ${formattedQuestions}
         <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
           <div className="text-xs font-medium text-muted-foreground">المواد المغطاة</div>
           <div className="mt-2 text-2xl font-bold text-sky-400 sm:text-3xl" dir="ltr">
-            {metrics.coursesWithContent} / {courses.length}
+            {metrics.coursesWithContent} / {coursesList.length}
           </div>
           <div className="mt-1 text-xs text-muted-foreground">مادة دراسية تحوي ملفات</div>
         </div>
@@ -1066,8 +1180,8 @@ ${formattedQuestions}
               onChange={(e) => setSelectedCourseFilter(e.target.value)}
               className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             >
-              <option value="all">جميع المواد الدراسية ({courses.length})</option>
-              {courses.map((c) => (
+              <option value="all">جميع المواد الدراسية ({coursesList.length})</option>
+              {coursesList.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.course_code ? `${c.course_code} - ` : ""}
                   {c.title}
@@ -1967,7 +2081,7 @@ ${formattedQuestions}
                   onChange={(e) => setEditCourseId(e.target.value)}
                   className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                 >
-                  {courses.map((c) => (
+                  {coursesList.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.course_code ? `${c.course_code} - ` : ""}
                       {c.title}
@@ -2334,6 +2448,211 @@ ${formattedQuestions}
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 6. Add New Course Modal ───────────────────────────────────────── */}
+      {isAddCourseOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200"
+        >
+          <div className="flex max-h-[92vh] w-full max-w-lg flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border p-5 sm:p-6 shrink-0 bg-secondary/30">
+              <div>
+                <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <span className="text-xl">📚</span>
+                  <span>إضافة مساق دراسي جديد</span>
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  يصبح المساق متاحاً فوراً في قوائم رفع الموارد وصفحات المواد.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isSubmittingCourse) setIsAddCourseOpen(false);
+                }}
+                disabled={isSubmittingCourse}
+                className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1.5 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+                title="إغلاق"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form onSubmit={handleCreateCourse} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+              {courseError && (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>{courseError}</span>
+                </div>
+              )}
+
+              {/* Department Selector */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                  <span>
+                    القسم / الكلية <span className="text-destructive">*</span>
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-normal">
+                    يحدد القسم التابع له المساق
+                  </span>
+                </label>
+                <select
+                  value={newCourseDeptId}
+                  onChange={(e) => setNewCourseDeptId(e.target.value)}
+                  disabled={isSubmittingCourse}
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
+                  required
+                >
+                  {departments && departments.length > 0 ? (
+                    departments.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">لا توجد أقسام متاحة</option>
+                  )}
+                </select>
+              </div>
+
+              {/* Course Title */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  اسم المساق بالعربية <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="text"
+                  dir="auto"
+                  value={newCourseTitle}
+                  onChange={(e) => setNewCourseTitle(e.target.value)}
+                  disabled={isSubmittingCourse}
+                  placeholder="مثال: أمن المعلومات والسيبراني أو برمجة مرئية (جافا)"
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
+                  required
+                />
+              </div>
+
+              {/* Course Slug & Course Code Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-foreground">
+                      المعرف اللاتيني (slug) <span className="text-destructive">*</span>
+                    </label>
+                    <span className="text-[10px] font-mono text-muted-foreground" dir="ltr">
+                      /courses/[slug]
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={newCourseSlug}
+                    onChange={(e) =>
+                      setNewCourseSlug(
+                        e.target.value
+                          .toLowerCase()
+                          .replace(/[\s_]+/g, "-")
+                      )
+                    }
+                    disabled={isSubmittingCourse}
+                    placeholder="e.g. cyber-security"
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm font-mono text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">
+                    رمز المساق (اختياري)
+                  </label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={newCourseCode}
+                    onChange={(e) => setNewCourseCode(e.target.value)}
+                    disabled={isSubmittingCourse}
+                    placeholder="مثال: CS201 أو 0601201"
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm font-mono text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
+                  />
+                </div>
+              </div>
+
+              {/* Course Description */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  وصف مختصر للمساق (اختياري)
+                </label>
+                <textarea
+                  dir="auto"
+                  rows={2}
+                  value={newCourseDescription}
+                  onChange={(e) => setNewCourseDescription(e.target.value)}
+                  disabled={isSubmittingCourse}
+                  placeholder="مثال: مبادئ التشفير وأمن الشبكات والبروتوكولات الآمنة وتحليل الثغرات"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent resize-none disabled:opacity-50"
+                />
+              </div>
+
+              {/* Display Order */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-foreground">
+                    ترتيب الظهور في القسم
+                  </label>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    الأصغر يظهر أولاً
+                  </span>
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={newCourseOrder}
+                  onChange={(e) =>
+                    setNewCourseOrder(parseInt(e.target.value, 10) || 0)
+                  }
+                  disabled={isSubmittingCourse}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
+                />
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="mt-6 flex items-center justify-end gap-3 border-t border-border pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsAddCourseOpen(false)}
+                  disabled={isSubmittingCourse}
+                  className="rounded-xl border border-border bg-secondary px-4 py-2 text-xs font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
+                >
+                  إلغاء
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSubmittingCourse}
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  {isSubmittingCourse ? (
+                    <>
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      <span>جارٍ الحفظ والإنشاء...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>➕</span>
+                      <span>إنشاء المساق الآن</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
