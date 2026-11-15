@@ -72,11 +72,19 @@ function isRequirementsDepartment(slug: string): boolean {
 }
 
 /**
+ * Checks whether the slug corresponds to University Electives / Other.
+ */
+function isElectivesDepartment(slug: string): boolean {
+  return slug === "university-electives" || slug.includes("elective") || slug === "other";
+}
+
+/**
  * Returns an appropriate emoji icon based on department slug.
  */
 function getDepartmentIcon(slug: string): string {
   if (isItDepartment(slug)) return "💻";
   if (isRequirementsDepartment(slug)) return "🏛️";
+  if (isElectivesDepartment(slug)) return "🌟";
   if (slug === "placement-exams") return "📝";
   return "📚";
 }
@@ -87,6 +95,7 @@ function getDepartmentIcon(slug: string): string {
 function getDepartmentShortLabel(dept: DepartmentWithCourses): string {
   if (isItDepartment(dept.slug)) return "مواد IT";
   if (isRequirementsDepartment(dept.slug)) return "إجباري جامعة";
+  if (isElectivesDepartment(dept.slug)) return "اختياري جامعة / أخرى";
   if (dept.slug === "placement-exams") return "امتحانات المستوى";
   return dept.name;
 }

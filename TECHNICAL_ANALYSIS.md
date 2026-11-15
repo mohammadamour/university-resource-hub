@@ -613,7 +613,7 @@ universities (Jadara)
                  └── resources (PDFs, Quizzes, Links)
 ```
 
-- **The "Fake Department" Strategy:** University-wide requirements (National Education, Military Sciences, Life Skills) and Placement Exam prep are modeled directly as **departments** in the `departments` table.
+- **The "Fake Department" Strategy:** University-wide requirements (National Education, Military Sciences, Life Skills), Electives / Other (`university-electives`), and Placement Exam prep are modeled directly as **departments** in the `departments` table.
 - **Why:** Avoids creating complex many-to-many relationship join tables (`course_departments`). Every course belongs to one department slug, keeping Supabase joins simple and fast: `.select("*, courses(*)")`.
 
 ---

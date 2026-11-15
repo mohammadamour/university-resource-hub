@@ -43,9 +43,18 @@ VALUES (
             SELECT id
             FROM jadara
         ),
+        'اختياري جامعة / أخرى',
+        'university-electives',
+        3
+    ),
+    (
+        (
+            SELECT id
+            FROM jadara
+        ),
         'امتحانات المستوى',
         'placement-exams',
-        3
+        4
     ),
     (
         (
@@ -54,7 +63,7 @@ VALUES (
         ),
         'قسم اللغة الإنجليزية',
         'english',
-        4
+        5
     );
 
 -- 2. Insert IT Department Courses

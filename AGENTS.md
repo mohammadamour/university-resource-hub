@@ -169,7 +169,7 @@ Adding a course is strictly an atomic database row addition + seed file sync. **
 2. **Execute in Supabase & Provide SQL:**
    - Execute or provide the exact copy-paste SQL snippet for the user to run in **Supabase Dashboard -> SQL Editor**:
    ```sql
-   WITH dept AS (SELECT id FROM departments WHERE slug = 'it') -- or 'university-requirements'
+   WITH dept AS (SELECT id FROM departments WHERE slug = 'it') -- or 'university-requirements' or 'university-electives'
    INSERT INTO courses (department_id, title, slug, description, display_order)
    VALUES ((SELECT id FROM dept), 'اسم المادة بالعربية', 'kebab-case-slug', 'وصف مختصر للمساق', <display_order>)
    ON CONFLICT (department_id, slug) DO UPDATE SET
