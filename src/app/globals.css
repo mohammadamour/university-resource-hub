@@ -1,53 +1,70 @@
 @import "tailwindcss";
 
-/* ─── Design System Tokens ───────────────────────────────────────────────── */
+/* ─── Design System Tokens (Molakhasat Warm Parchment Identity) ────────── */
 
 :root {
-  /* Colors - Clean, professional, university-inspired palette */
-  --background: #fafbfc;
-  --foreground: #1a1a2e;
-  --card: #ffffff;
-  --card-foreground: #1a1a2e;
-  --primary: #1e3a5f;         /* Deep navy - trust & authority */
-  --primary-foreground: #ffffff;
-  --secondary: #f0f4f8;
-  --secondary-foreground: #334155;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #2563eb;          /* Bright blue - interactive elements */
-  --accent-foreground: #ffffff;
-  --border: #e2e8f0;
-  --ring: #2563eb;
+  /* ── 1. Core Brand Colors ── */
+  --paper: #F4EFE6;           /* Warm parchment main background */
+  --surface: #FBF8F2;         /* Rich cream card & modal surface */
+  --ink: #1B1F2A;             /* Charcoal typography & deep contrast */
+  --muted: #5A5E6B;           /* Readable secondary slate for subtitles/counts */
+  --line: #DDD5C4;            /* Warm sand borders and dividers */
+  --btn: #1B1F2A;             /* Dark charcoal primary button */
+  --btn-ink: #FBF8F2;         /* Cream text inside dark button */
+  --hi: #F2D43A;              /* Golden highlight yellow for chips/active rings */
+  --brand-green: #1F7A5A;     /* Muted emerald for live indicators */
+
+  /* ── 2. Notebook Pastel Hues ── */
+  --hue-tomato-tint: #F7DDD3;
+  --hue-tomato-deep: #A8361C;
+  --hue-teal-tint: #D5ECE7;
+  --hue-teal-deep: #14594F;
+  --hue-indigo-tint: #DDE0F5;
+  --hue-indigo-deep: #2E3A94;
+  --hue-ochre-tint: #F5E6C4;
+  --hue-ochre-deep: #7A4F0C;
+  --hue-plum-tint: #EBD5E6;
+  --hue-plum-deep: #6E2563;
+  --hue-sky-tint: #D3E7F4;
+  --hue-sky-deep: #1B5C8A;
+  --hue-olive-tint: #E3E8C6;
+  --hue-olive-deep: #4E5B10;
+
+  /* ── 3. Semantic Aliases for Compatibility & Tailwind ── */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --primary: var(--btn);
+  --primary-foreground: var(--btn-ink);
+  --secondary: var(--surface);
+  --secondary-foreground: var(--muted);
+  --muted-bg: #EAE3D5;
+  --muted-foreground: var(--muted);
+  --accent: var(--hi);
+  --accent-foreground: #1B1F2A;
+  --border: var(--line);
+  --ring: var(--ink);
   --destructive: #ef4444;
 
-  /* Spacing & Layout */
-  --radius: 0.75rem;
-  --header-height: 4rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f172a;
-    --foreground: #e2e8f0;
-    --card: #1e293b;
-    --card-foreground: #e2e8f0;
-    --primary: #60a5fa;
-    --primary-foreground: #0f172a;
-    --secondary: #1e293b;
-    --secondary-foreground: #cbd5e1;
-    --muted: #1e293b;
-    --muted-foreground: #94a3b8;
-    --accent: #3b82f6;
-    --accent-foreground: #ffffff;
-    --border: #334155;
-    --ring: #3b82f6;
-    --destructive: #f87171;
-  }
+  /* ── 4. Spacing & Shape Geometry ── */
+  --radius: 0.875rem;
+  --header-height: 4.75rem;
 }
 
 /* ─── Tailwind Theme Integration ─────────────────────────────────────────── */
 
 @theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-btn: var(--btn);
+  --color-btn-ink: var(--btn-ink);
+  --color-hi: var(--hi);
+  --color-brand-green: var(--brand-green);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -56,7 +73,6 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
@@ -64,23 +80,23 @@
   --color-ring: var(--ring);
   --color-destructive: var(--destructive);
   --radius: var(--radius);
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Tajawal", "Cairo", Arial, sans-serif;
+
+  --font-sans: 'IBM Plex Sans Arabic', 'Tajawal', 'Cairo', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-heading: 'Reem Kufi', 'IBM Plex Sans Arabic', serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 /* ─── Base Styles ────────────────────────────────────────────────────────── */
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--paper);
+  color: var(--ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 /* ─── RTL-Aware Utilities ────────────────────────────────────────────────── */
-/* Tailwind 4 supports logical properties natively (ms-, me-, ps-, pe-).
-   These custom utilities cover edge cases. */
 
 [dir="rtl"] .flip-rtl {
   transform: scaleX(-1);
@@ -101,17 +117,21 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--muted);
+  background: var(--paper);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--muted-foreground);
+  background: var(--line);
   border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
 }
 
 /* ─── Selection Color ────────────────────────────────────────────────────── */
 
 ::selection {
-  background: var(--accent);
-  color: var(--accent-foreground);
+  background: var(--hi);
+  color: #1B1F2A;
 }
