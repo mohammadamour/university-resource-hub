@@ -648,20 +648,19 @@ POST /api/upload
   11. **Student-First Shelf Taxonomy, Quiz Legibility & Warm Unfurl Card:**
      - **Clean Question Typography (`NativeQuiz.tsx`):** Unstylized active question text by replacing display `font-heading` (Reem Kufi) with clean body `font-sans` (`IBM Plex Sans Arabic`), matching the answer options for optimal exam reading speed.
      - **High-Converting OpenGraph Unfurl Card (`public/og-default.jpg` & `.png`):** Rebuilt the 1200×630 social preview card using the Warm Parchment identity, new brand mark, ruled notebook lines, yellow highlight accents, and instant WhatsApp trust badges (`⚡ بدون تسجيل`, `📖 قراءة فورية`, `🏆 كويزات تفاعلية`).
-     - **Course Filter & Shelf Reordering (`ResourceList.tsx`):** Reordered course shelves and category filter pills to reflect student search intent:
-       1. **ملخصات** (`summary`): Focused summaries and reviews placed prominently at the top.
-       2. **امتحانات وأسئلة** (`past_exam`): Exam archives and training questions.
-       3. **المادة / المرجع** (`official`): Official university syllabus, course slides, and reference guides.
-       4. **الكل** (`all`): Comprehensive full-catalog view.
-  12. **Prominent Card Badge Hierarchy & 2-Tier Exam Scope Sub-Filtering (`ResourceList.tsx`):**
-     - **Multi-Badge Top Micro-Row (`renderResourceCard`):** Fully exposed database taxonomy metadata on every resource card before the title:
+     - **Streamlined Single-Tier Category Filter (`ResourceList.tsx`):** Scrapped nested sub-filtering in favor of an intuitive, single-tier pill navigation bar displayed conditionally based on course content availability:
+       1. **الكل** (`all`): Shows all course materials.
+       2. **خطة المادة / المرجع** (`official`): Official university syllabus, course slides, and reference guides.
+       3. **ملخصات دراسية** (`summary`): Focused summaries, cheat sheets, and study notes.
+       4. **أسئلة سنوات** (`past_exam`): Exam archives and training questions (sorted with Midterm before Final).
+     - **Type-First Shelf Classification Defense:** Fixed a critical bug where `is_featured === true` on past exams or summaries swallowed them into `officialSyllabusResources`, which starved `pastExamResources` (reducing it to 0) and hid the `أسئلة سنوات` tab even when exam papers existed. Classification is now strictly type-first: `type === 'past_exam'` and `type === 'summary'` always populate their respective shelves and filter tabs, with official `is_featured` items prioritized at the top within each exam scope.
+  12. **Prominent Card Badge Hierarchy & Metadata Exposure (`ResourceList.tsx`):**
+     - **Multi-Badge Top Micro-Row (`renderResourceCard`):** Exposes resource taxonomy directly on every card above the title:
        - **Official Badge:** `⭐ رسمي معتمد` (`bg-hi/25 border-hi/50 text-ink`)
-       - **Resource Type Badge:** Explicit pill matching the upload taxonomy (`📄 ملخص دراسي`, `📝 أسئلة سنوات وتجميعات`, `📖 دليل دراسي / خطة`, `🔗 رابط خارجي / مرجع`, `📁 سلايدات ومصادر`, `❓ كويز تفاعلي`).
+       - **Resource Type Badge:** Explicit pill matching upload taxonomy (`📄 ملخص دراسي`, `📝 أسئلة سنوات`, `📖 دليل دراسي / خطة`, `🔗 رابط خارجي / مرجع`, `📁 سلايدات ومصادر`, `❓ كويز تفاعلي`).
        - **Exam Scope Badge:** `🎯 مادة الميد` (`bg-hi/25 border-hi/60 text-ink font-bold`), `🏁 مادة الفاينل` (`bg-ink/10 border-ink/30 text-ink font-bold`), and `🌐 شامل / أخرى`.
        - **Live Quiz Indicator:** `✨ كويز (X سؤال)` displaying live count when interactive questions exist.
-     - **2-Tier Filtering Architecture:** Rendered a dedicated secondary Exam Scope pill row (`جميع الفترات`, `🎯 مادة الميد`, `🏁 مادة الفاينل`, `🌐 شامل / عام`) directly below the category tabs whenever exam-scoped materials are present.
-     - **Deterministic Exam Prioritization:** Applied `sortSummaries` to past exams so Midterm past exams deterministically rank before Final past exams.
-     - **Zero-Result Recovery State:** Added an intuitive, warm parchment empty state card with a 1-tap `[🔄 عرض جميع الموارد]` reset button when a category and exam period filter combination yields 0 results.
+     - **Zero-Result Recovery State:** Clean warm parchment empty state card with a 1-tap `[🔄 عرض جميع الموارد]` reset button if a selected category has no items.
 
 ---
 

@@ -146,7 +146,6 @@ export default function ResourceList({
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<"all" | "official" | "summary" | "past_exam">("all");
-  const [activeExamScope, setActiveExamScope] = useState<"all" | "midterm" | "final" | "other">("all");
   const [selectedQuizCount, setSelectedQuizCount] = useState<5 | 10 | 20 | "all">(10);
   const [selectedQuizDifficulty, setSelectedQuizDifficulty] = useState<"balanced" | "easy" | "medium" | "hard">("balanced");
 
@@ -366,7 +365,7 @@ export default function ResourceList({
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   };
 
-  // Summaries sorting comparator: midterm first -> final second -> other third -> display_order ASC
+  // Summaries & Exams sorting comparator: exam period (midterm -> final -> other) -> featured official first -> display_order ASC
   const sortSummaries = (a: Resource, b: Resource) => {
     const examRank = (exam: string | null | undefined) => {
       if (exam === "midterm") return 1;
@@ -376,6 +375,11 @@ export default function ResourceList({
     const rankA = examRank(a.target_exam);
     const rankB = examRank(b.target_exam);
     if (rankA !== rankB) return rankA - rankB;
+
+    // Featured / official items first within same exam scope
+    const featA = a.is_featured ? 1 : 0;
+    const featB = b.is_featured ? 1 : 0;
+    if (featA !== featB) return featB - featA;
 
     const orderA = a.display_order ?? 0;
     const orderB = b.display_order ?? 0;
@@ -390,57 +394,42 @@ export default function ResourceList({
     [resources]
   );
 
-  // Exam scope counts across all active resources
-  const midtermCount = useMemo(
-    () => activeResources.filter((r) => r.target_exam === "midterm").length,
-    [activeResources]
-  );
-  const finalCount = useMemo(
-    () => activeResources.filter((r) => r.target_exam === "final").length,
-    [activeResources]
-  );
-  const otherExamCount = useMemo(
-    () => activeResources.filter((r) => (r.target_exam || "other") === "other").length,
-    [activeResources]
-  );
-
-  // Filter active resources by activeExamScope
-  const scopeFilteredResources = useMemo(() => {
-    if (activeExamScope === "all") return activeResources;
-    return activeResources.filter((r) => (r.target_exam || "other") === activeExamScope);
-  }, [activeResources, activeExamScope]);
-
-  // ─── Shelf 1: 🌟 ملخصات ومراجعات (type === 'summary', not featured) ───────────
-  const summaryResources = useMemo(
-    () =>
-      scopeFilteredResources
-        .filter((r) => !r.is_featured && r.type === "summary")
-        .sort(sortSummaries),
-    [scopeFilteredResources]
-  );
-
-  // ─── Shelf 2: 📝 أسئلة ونماذج امتحانات (type === 'past_exam', not featured) ────
-  const pastExamResources = useMemo(
-    () =>
-      scopeFilteredResources
-        .filter((r) => !r.is_featured && r.type === "past_exam")
-        .sort(sortSummaries),
-    [scopeFilteredResources]
-  );
-
-  // ─── Shelf 3: 📚 المادة الرسمية / Official Syllabus & Guides ──────────────────
+  // ─── Shelf 1: 📚 خطة المادة / المرجع الرسمي (Guides + Featured Syllabus/Slides) ───
   const officialSyllabusResources = useMemo(
     () =>
-      scopeFilteredResources
-        .filter((r) => r.is_featured === true || r.type === "guide")
+      activeResources
+        .filter(
+          (r) =>
+            r.type !== "summary" &&
+            r.type !== "past_exam" &&
+            (r.type === "guide" || r.is_featured === true)
+        )
         .sort(sortByDisplayOrder),
-    [scopeFilteredResources]
+    [activeResources]
+  );
+
+  // ─── Shelf 2: 🌟 ملخصات دراسية ومراجعات (All type === 'summary') ───────────────
+  const summaryResources = useMemo(
+    () =>
+      activeResources
+        .filter((r) => r.type === "summary")
+        .sort(sortSummaries),
+    [activeResources]
+  );
+
+  // ─── Shelf 3: 📝 أسئلة سنوات ونماذج امتحانات (All type === 'past_exam') ────────
+  const pastExamResources = useMemo(
+    () =>
+      activeResources
+        .filter((r) => r.type === "past_exam")
+        .sort(sortSummaries),
+    [activeResources]
   );
 
   // ─── Shelf 4: 🗂️ أرشيف إضافي ومصادر خارجية (All other active resources) ───────
   const archiveResources = useMemo(
     () =>
-      scopeFilteredResources
+      activeResources
         .filter(
           (r) =>
             !r.is_featured &&
@@ -449,7 +438,7 @@ export default function ResourceList({
             r.type !== "guide"
         )
         .sort(sortByDisplayOrder),
-    [scopeFilteredResources]
+    [activeResources]
   );
 
   // Shelf 4 sub-categories
@@ -495,27 +484,27 @@ export default function ResourceList({
     }
   };
 
-  // Filter tabs definition: Summaries -> Exams & Questions -> Syllabus/Reference -> All
+  // Filter tabs definition: الكل -> خطة المادة / المرجع -> ملخصات دراسية -> أسئلة سنوات
   const tabs = useMemo(() => {
     const referenceCount = officialSyllabusResources.length + archiveResources.length;
     return [
+      { id: "all" as const, label: "الكل", count: activeResources.length },
+      ...(referenceCount > 0 || activeFilter === "official"
+        ? [{ id: "official" as const, label: "خطة المادة / المرجع", count: referenceCount }]
+        : []),
       ...(summaryResources.length > 0 || activeFilter === "summary"
         ? [{ id: "summary" as const, label: "ملخصات دراسية", count: summaryResources.length }]
         : []),
       ...(pastExamResources.length > 0 || activeFilter === "past_exam"
-        ? [{ id: "past_exam" as const, label: "أسئلة سنوات وتجميعات", count: pastExamResources.length }]
+        ? [{ id: "past_exam" as const, label: "أسئلة سنوات", count: pastExamResources.length }]
         : []),
-      ...(referenceCount > 0 || activeFilter === "official"
-        ? [{ id: "official" as const, label: "خطة المادة / المرجع", count: referenceCount }]
-        : []),
-      { id: "all" as const, label: "الكل", count: scopeFilteredResources.length },
     ];
   }, [
-    summaryResources.length,
-    pastExamResources.length,
+    activeResources.length,
     officialSyllabusResources.length,
     archiveResources.length,
-    scopeFilteredResources.length,
+    summaryResources.length,
+    pastExamResources.length,
     activeFilter,
   ]);
 
@@ -562,7 +551,7 @@ export default function ResourceList({
         case "summary":
           return { label: "ملخص دراسي", icon: "📄", style: "border-[#14594F]/30 bg-[#14594F]/10 text-[#14594F]" };
         case "past_exam":
-          return { label: "أسئلة وتجميعات", icon: "📝", style: "border-[#A8361C]/30 bg-[#A8361C]/10 text-[#A8361C]" };
+          return { label: "أسئلة سنوات", icon: "📝", style: "border-[#A8361C]/30 bg-[#A8361C]/10 text-[#A8361C]" };
         case "guide":
           return { label: "دليل دراسي / خطة", icon: "📖", style: "border-[#2E3A94]/30 bg-[#2E3A94]/10 text-[#2E3A94]" };
         case "link":
@@ -930,10 +919,13 @@ export default function ResourceList({
   };
 
   const hasVisibleResources =
-    (activeFilter === "all" && scopeFilteredResources.length > 0) ||
-    (activeFilter === "summary" && summaryResources.length > 0) ||
-    (activeFilter === "past_exam" && pastExamResources.length > 0) ||
-    (activeFilter === "official" && (officialSyllabusResources.length > 0 || archiveResources.length > 0));
+    activeFilter === "all"
+      ? activeResources.length > 0
+      : activeFilter === "official"
+      ? officialSyllabusResources.length > 0 || archiveResources.length > 0
+      : activeFilter === "summary"
+      ? summaryResources.length > 0
+      : pastExamResources.length > 0;
 
   return (
     <div dir="rtl">
@@ -972,62 +964,34 @@ export default function ResourceList({
             })}
           </div>
 
-          {/* Exam Scope Sub-Filter Row (Midterm, Final, All) */}
-          {(midtermCount > 0 || finalCount > 0) && (
-            <div
-              role="radiogroup"
-              aria-label="تصفية حسب فترة الامتحان"
-              className="flex items-center gap-1.5 sm:gap-2 flex-wrap pt-0.5"
-            >
-              <span className="text-xs font-bold text-muted ps-1 hidden sm:inline">
-                فترة الامتحان:
-              </span>
-              {[
-                { id: "all" as const, label: "جميع الفترات", count: activeResources.length },
-                ...(midtermCount > 0
-                  ? [{ id: "midterm" as const, label: "🎯 مادة الميد", count: midtermCount }]
-                  : []),
-                ...(finalCount > 0
-                  ? [{ id: "final" as const, label: "🏁 مادة الفاينل", count: finalCount }]
-                  : []),
-                ...(otherExamCount > 0 && otherExamCount < activeResources.length
-                  ? [{ id: "other" as const, label: "🌐 شامل / عام", count: otherExamCount }]
-                  : []),
-              ].map((scope) => {
-                const isScopeActive = activeExamScope === scope.id;
-                return (
-                  <button
-                    key={scope.id}
-                    type="button"
-                    aria-pressed={isScopeActive}
-                    onClick={() => setActiveExamScope(scope.id)}
-                    className={`min-h-[36px] px-3.5 py-1.5 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer border ${
-                      isScopeActive
-                        ? "bg-ink text-surface border-ink shadow-2xs font-bold"
-                        : "bg-surface text-muted border-line hover:border-muted hover:text-ink"
-                    }`}
-                  >
-                    <span>{scope.label}</span>
-                    <span
-                      className={`min-w-5 h-5 px-1 rounded-full text-[11px] font-mono inline-flex items-center justify-center ${
-                        isScopeActive ? "bg-white/20 text-surface" : "bg-line/60 text-muted"
-                      }`}
-                    >
-                      {scope.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+          {/* ─── Shelf 1: 📚 خطة المادة / المرجع ───────────────────────── */}
+          {(activeFilter === "all" || activeFilter === "official") && officialSyllabusResources.length > 0 && (
+            <section className="space-y-4" aria-label="خطة المادة والمرجع الرسمي">
+              <div className="border-b border-line pb-3">
+                <h2 className="font-heading text-[27px] font-bold text-ink flex items-center gap-2">
+                  <span>📚</span>
+                  <span>خطة المادة / المرجع</span>
+                </h2>
+                <p className="mt-1 text-xs text-muted sm:text-sm">
+                  الخطة الدراسية، كتاب المادة، أو السلايدات الرسمية الصادرة عن الجامعة ومدرس المساق.
+                </p>
+              </div>
+
+              <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
+                {officialSyllabusResources.map((r) =>
+                  renderResourceCard(r, { isOfficial: true })
+                )}
+              </ul>
+            </section>
           )}
 
-          {/* ─── Shelf 1: 🌟 ملخصات ومراجعات ─────────────────────────── */}
+          {/* ─── Shelf 2: 🌟 ملخصات دراسية ومراجعات ───────────────────── */}
           {(activeFilter === "all" || activeFilter === "summary") && summaryResources.length > 0 && (
             <section className="space-y-4" aria-label="ملخصات ومراجعات شاملة">
               <div className="border-b border-line pb-3">
                 <h2 className="font-heading text-[27px] font-bold text-ink flex items-center gap-2">
                   <span>🌟</span>
-                  <span>ملخصات ومراجعات شاملة</span>
+                  <span>ملخصات دراسية ومراجعات شاملة</span>
                 </h2>
                 <p className="mt-1 text-xs text-muted sm:text-sm">
                   شروحات ومذكرات مركزة تغطي مواضيع الامتحانات مع بنوك أسئلة تفاعلية ذكية.
@@ -1040,13 +1004,13 @@ export default function ResourceList({
             </section>
           )}
 
-          {/* ─── Shelf 2: 📝 أسئلة ونماذج امتحانات ─────────────────────── */}
+          {/* ─── Shelf 3: 📝 أسئلة سنوات ونماذج امتحانات ─────────────────── */}
           {(activeFilter === "all" || activeFilter === "past_exam") && pastExamResources.length > 0 && (
-            <section className="space-y-4" aria-label="أسئلة ونماذج امتحانات سابقة">
+            <section className="space-y-4" aria-label="أسئلة سنوات ونماذج امتحانات">
               <div className="border-b border-line pb-3">
                 <h2 className="font-heading text-[27px] font-bold text-ink flex items-center gap-2">
                   <span>📝</span>
-                  <span>أسئلة ونماذج امتحانات سابقة</span>
+                  <span>أسئلة سنوات ونماذج امتحانات</span>
                 </h2>
                 <p className="mt-1 text-xs text-muted sm:text-sm">
                   تجميعات امتحانات السنوات السابقة وأسئلة التدريب للاختبارات النصفية والنهائية.
@@ -1055,27 +1019,6 @@ export default function ResourceList({
 
               <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
                 {pastExamResources.map((r) => renderResourceCard(r))}
-              </ul>
-            </section>
-          )}
-
-          {/* ─── Shelf 3: 📚 المادة الرسمية / المرجع ──────────────────── */}
-          {(activeFilter === "all" || activeFilter === "official") && officialSyllabusResources.length > 0 && (
-            <section className="space-y-4" aria-label="المادة الرسمية المعتمدة">
-              <div className="border-b border-line pb-3">
-                <h2 className="font-heading text-[27px] font-bold text-ink flex items-center gap-2">
-                  <span>📚</span>
-                  <span>المادة الرسمية / المرجع</span>
-                </h2>
-                <p className="mt-1 text-xs text-muted sm:text-sm">
-                  الخطة الدراسية، كتاب المادة، أو السلايدات الرسمية الصادرة عن الجامعة ومدرس المساق.
-                </p>
-              </div>
-
-              <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
-                {officialSyllabusResources.map((r) =>
-                  renderResourceCard(r, { isOfficial: true })
-                )}
               </ul>
             </section>
           )}
@@ -1244,25 +1187,22 @@ export default function ResourceList({
             </section>
           )}
 
-          {/* Empty Filter State (when current filter/scope combination yields 0 items) */}
+          {/* Empty Filter State (when current filter yields 0 items) */}
           {!hasVisibleResources && (
             <div className="rounded-[22px] border border-dashed border-line bg-surface p-8 sm:p-10 text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-line/50 text-2xl mb-3">
                 🔍
               </div>
               <h3 className="font-heading text-lg font-bold text-ink sm:text-xl">
-                لا توجد ملفات مطابقة لخيارات التصفية
+                لا توجد ملفات مطابقة للفلتر المحدد
               </h3>
               <p className="mx-auto mt-1 max-w-sm text-xs sm:text-sm text-muted leading-relaxed">
-                لم نجد مواد تحت هذا التصنيف وفترة الامتحان المحددة. جرب اختيار فترة أخرى أو إعادة ضبط التصفية.
+                لم نجد مواد تحت هذا القسم في هذا المساق حالياً.
               </p>
               <div className="mt-4 flex justify-center gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setActiveFilter("all");
-                    setActiveExamScope("all");
-                  }}
+                  onClick={() => setActiveFilter("all")}
                   className="inline-flex items-center gap-2 rounded-xl bg-btn px-4 py-2 text-xs font-semibold text-btn-ink hover:opacity-90 active:scale-95 transition-all cursor-pointer"
                 >
                   <span>🔄</span>
