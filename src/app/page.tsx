@@ -1,12 +1,9 @@
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import DepartmentGrid from "@/components/features/DepartmentGrid";
+import HeroSection from "@/components/features/HeroSection";
 import { createClient } from "@/lib/supabase/server";
-import {
-  SITE_NAME,
-  DEFAULT_UNIVERSITY_SLUG,
-  REVALIDATE_LANDING,
-} from "@/lib/constants";
+import { DEFAULT_UNIVERSITY_SLUG } from "@/lib/constants";
 import type { DepartmentWithCourses } from "@/types/database";
 
 // ISR: Re-fetch data every hour (departments/courses rarely change)
@@ -55,21 +52,36 @@ async function getDepartments(): Promise<DepartmentWithCourses[]> {
 export default async function HomePage() {
   const departments = await getDepartments();
 
+  // Compute live counts for trust badges
+  const totalCourses = departments.reduce(
+    (acc, d) => acc + (d.courses?.length || 0),
+    0
+  );
+  const totalResources = departments.reduce(
+    (acc, d) =>
+      acc +
+      (d.courses || []).reduce(
+        (cAcc, c) =>
+          cAcc +
+          ((c.resources || []).filter(
+            (r) => (r.status || "active") === "active"
+          ).length),
+        0
+      ),
+    0
+  );
+
   return (
     <>
       <Header />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-10">
-        {/* Hero Section */}
-        <section className="mb-10 text-center sm:mb-14">
-          <h1 className="text-3xl font-bold text-foreground sm:text-4xl lg:text-5xl">
-            {SITE_NAME}
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-base text-muted-foreground sm:text-lg">
-            ملخصات، موارد، وأدلة دراسية لطلاب الجامعة — كل شيء في مكان واحد
-          </p>
-        </section>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-4 sm:px-6 sm:py-6">
+        {/* Dynamic Hero Section */}
+        <HeroSection
+          totalCourses={totalCourses > 0 ? totalCourses : 20}
+          totalResources={totalResources > 0 ? totalResources : 130}
+        />
 
-        {/* Department Sections */}
+        {/* Course Catalog & Department Sections */}
         <DepartmentGrid departments={departments} />
       </main>
       <Footer />
