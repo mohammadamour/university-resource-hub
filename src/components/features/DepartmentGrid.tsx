@@ -213,17 +213,16 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8">
-      {/* ─── 1. Segment Switcher Tabs ────────────────────────────────────────── */}
-      <div className="flex flex-col items-center gap-3.5">
+    <div className="space-y-6 sm:space-y-10">
+      {/* ─── 1. Filter Tab Pills ─────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-3.5">
         <div
           role="tablist"
           aria-label="أقسام المواد الدراسية"
-          className="inline-flex max-w-full items-center gap-1.5 overflow-x-auto rounded-2xl border border-border bg-secondary/50 p-1.5 shadow-xs"
+          className="flex flex-wrap gap-2 sm:gap-2.5"
         >
           {visibleDepartments.map((dept) => {
             const isActive = dept.id === activeDeptId;
-            const icon = getDepartmentIcon(dept.slug);
             const label = getDepartmentShortLabel(dept);
             const count = dept.courses.length;
 
@@ -244,20 +243,19 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                     },
                   });
                 }}
-                className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-bold transition-all sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm cursor-pointer ${
+                className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-xs sm:text-[15px] font-semibold transition-all cursor-pointer border-[1.5px] ${
                   isActive
-                    ? "bg-card text-foreground shadow-sm border border-border/80 ring-2 ring-accent/30"
-                    : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground border border-transparent"
+                    ? "bg-btn text-btn-ink border-btn shadow-sm"
+                    : "bg-surface text-ink border-line hover:border-ink/40"
                 }`}
               >
-                <span className="text-base sm:text-lg">{icon}</span>
                 <span>{label}</span>
                 {count > 0 && (
                   <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-mono ${
+                    className={`min-w-[22px] h-[22px] rounded-full px-1.5 text-[11.5px] flex items-center justify-center font-semibold ${
                       isActive
-                        ? "bg-accent/15 text-accent font-semibold"
-                        : "bg-muted text-muted-foreground"
+                        ? "bg-white/18 text-btn-ink"
+                        : "bg-black/[0.06] text-muted"
                     }`}
                   >
                     {count}
@@ -268,9 +266,9 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
           })}
         </div>
 
-        {/* ─── 2. Direct Course Selector Dropdown ────────────────────────────── */}
+        {/* ─── 2. Direct Course Selector Dropdown ─────────────────────────────── */}
         {totalCoursesCount > 0 && (
-          <div className="w-full max-w-md px-1">
+          <div className="w-full max-w-md">
             <label htmlFor="course-quick-select" className="sr-only">
               اختر مادة للانتقال السريع
             </label>
@@ -290,12 +288,12 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                     router.push(targetUrl);
                   }
                 }}
-                className="w-full appearance-none rounded-xl border border-border bg-card px-4 py-2.5 pr-10 pl-10 text-xs sm:text-sm font-medium text-foreground shadow-xs transition-all hover:border-accent/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 cursor-pointer"
+                className="w-full appearance-none rounded-[14px] border border-line bg-surface px-4 py-2.5 pe-9 ps-9 text-sm font-medium text-ink shadow-xs transition-all hover:border-ink/40 focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10 cursor-pointer"
               >
                 <option value="" disabled>
                   {activeDept
-                    ? `⚡ اختر مادة من ${getDepartmentShortLabel(activeDept)} (${activeDept.courses.length} مادة)...`
-                    : `⚡ اختر مادة للانتقال المباشر (${totalCoursesCount} مادة)...`}
+                    ? `اختر مادة من ${getDepartmentShortLabel(activeDept)} (${activeDept.courses.length} مادة)...`
+                    : `اختر مادة للانتقال المباشر (${totalCoursesCount} مادة)...`}
                 </option>
                 {activeDept ? (
                   sortCourses(activeDept.courses).map((course) => (
@@ -318,25 +316,17 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                 )}
               </select>
 
-              {/* Leading Icon (Right side in RTL) */}
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">
-                <span className="text-sm">🎯</span>
+              {/* Leading search icon (inline-end in RTL = right) */}
+              <div className="pointer-events-none absolute inset-y-0 end-0 flex items-center pe-3 text-muted">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                  <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
+                </svg>
               </div>
 
-              {/* Trailing Dropdown Chevron (Left side in RTL) */}
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M19 9l-7 7-7-7"
-                  />
+              {/* Trailing chevron (inline-start in RTL = left) */}
+              <div className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3 text-muted">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
             </div>
@@ -344,32 +334,31 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
         )}
       </div>
 
-      {/* ─── 3. Department Sections (Filtered or All) ────────────────────────── */}
-      <div className="space-y-8">
+      {/* ─── 3. Department Sections ───────────────────────────────────────────── */}
+      <div className="space-y-10">
         {departmentsToRender.map((dept) => {
           const sorted = sortCourses(dept.courses);
+          const deptLabel = getDepartmentShortLabel(dept);
 
           return (
-            <section key={dept.id} className="space-y-3.5">
+            <section key={dept.id} className="space-y-4">
               {/* Section Header */}
-              <div className="flex items-center justify-between border-b border-border/60 pb-2.5 pt-1">
+              <div className="flex items-end justify-between gap-3">
                 <div>
-                  <h2 className="flex items-center gap-2 text-base font-bold text-foreground sm:text-xl">
-                    <span>{getDepartmentIcon(dept.slug)}</span>
-                    <span>{dept.name}</span>
+                  <h2 className="font-heading text-[26px] sm:text-[30px] font-bold text-ink leading-tight">
+                    {dept.name}
                   </h2>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+                  <p className="mt-1 text-sm sm:text-[15px] text-muted">
                     {dept.slug === "placement-exams"
                       ? "نماذج ومواد تدريبية لجميع امتحانات الكفاءة"
                       : `${dept.courses.length} مادة دراسية متاحة`}
                   </p>
                 </div>
-
                 {activeDeptId && (
                   <button
                     type="button"
                     onClick={() => setActiveDeptId(null)}
-                    className="flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/50 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer"
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs font-medium text-muted hover:border-ink/30 hover:text-ink transition-colors cursor-pointer"
                   >
                     <span>✕</span>
                     <span>عرض الكل</span>
@@ -379,12 +368,14 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
 
               {/* Course Grid */}
               {dept.slug === "placement-exams" ? (
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3">
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3">
                   <Card
                     key="mock-placement"
                     href="/courses/placement-exams"
+                    slug="placement-exams"
                     title="امتحانات المستوى"
                     courseCode={null}
+                    departmentLabel="امتحانات"
                     description="نماذج ومواد تحضيرية لجميع امتحانات الكفاءة (عربي، إنجليزي، حاسوب)"
                   />
                 </div>
@@ -394,8 +385,10 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                     <Card
                       key={course.id}
                       href={`/courses/${course.slug}`}
+                      slug={course.slug}
                       title={course.title}
                       courseCode={course.course_code}
+                      departmentLabel={deptLabel}
                       badges={buildCourseBadges(course)}
                       isPinned={savedCourseSlugSet.has(course.slug)}
                       onTogglePin={() => {
@@ -417,8 +410,8 @@ export default function DepartmentGrid({ departments }: DepartmentGridProps) {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-2xl border border-dashed border-border p-8 text-center bg-card/40">
-                  <p className="text-sm text-muted-foreground">
+                <div className="rounded-2xl border border-dashed border-line p-8 text-center bg-surface/40">
+                  <p className="text-sm text-muted">
                     قريباً — يتم تجهيز المحتوى لهذا القسم ✨
                   </p>
                 </div>
