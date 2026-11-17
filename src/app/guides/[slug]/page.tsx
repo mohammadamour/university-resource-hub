@@ -19,6 +19,15 @@ interface GuideContent {
   sections: { heading: string; content: string }[];
 }
 
+export function generateStaticParams() {
+  return [
+    { slug: "getting-started" },
+    { slug: "library-guide" },
+    { slug: "campus-wifi" },
+    { slug: "campus-cafes" },
+  ];
+}
+
 const GUIDE_CONTENT: Record<string, GuideContent> = {
   "getting-started": {
     title: "دليل الطالب الجديد",

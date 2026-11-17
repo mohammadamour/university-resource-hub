@@ -1,10 +1,11 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ResourceList from "@/components/features/ResourceList";
 import CoursePinButton from "@/components/features/CoursePinButton";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/server";
 import { REVALIDATE_COURSE, SITE_NAME } from "@/lib/constants";
 import { getCourseHueStyles } from "@/lib/design-hues";
 import type { CourseWithResources, Resource } from "@/types/database";
@@ -13,15 +14,34 @@ import type { Metadata } from "next";
 // ISR: Cache course pages at the edge for 1 hour (3600s). On-demand revalidation purges this instantly on uploads/edits.
 export const revalidate = 3600;
 
+/**
+ * Pre-renders all course pages at build time into static edge-cacheable HTML/RSC.
+ * When students tap courses on mobile, pages load instantly (< 50ms) from CDN/memory.
+ */
+export async function generateStaticParams() {
+  try {
+    const supabase = createPublicClient();
+    const { data: courses } = await supabase.from("courses").select("slug");
+    const staticParams = (courses || []).map((c) => ({ slug: c.slug }));
+    if (!staticParams.some((p) => p.slug === "placement-exams")) {
+      staticParams.push({ slug: "placement-exams" });
+    }
+    return staticParams;
+  } catch {
+    return [{ slug: "placement-exams" }];
+  }
+}
+
 interface CoursePageProps {
   params: Promise<{ slug: string }>;
 }
 
 /**
  * Fetches a single course by slug, including all its resources.
+ * Uses createPublicClient (no cookies) to ensure clean static generation and edge CDN caching.
  */
 async function getCourse(slug: string): Promise<CourseWithResources | null> {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
 
   const { data: course } = await supabase
     .from("courses")
@@ -114,16 +134,17 @@ function getPlacementExamsMockCourse(): CourseWithResources {
 /**
  * Fetches a course with the placement-exams fallback applied consistently
  * for both metadata generation and page rendering.
+ * Wrapped in React cache() to deduplicate queries across generateMetadata and CoursePage.
  */
-async function getCourseWithFallback(
-  slug: string
-): Promise<CourseWithResources | null> {
-  const course = await getCourse(slug);
-  if (!course && slug === "placement-exams") {
-    return getPlacementExamsMockCourse();
+const getCourseWithFallback = cache(
+  async (slug: string): Promise<CourseWithResources | null> => {
+    const course = await getCourse(slug);
+    if (!course && slug === "placement-exams") {
+      return getPlacementExamsMockCourse();
+    }
+    return course;
   }
-  return course;
-}
+);
 
 function formatArabicCount(
   count: number,

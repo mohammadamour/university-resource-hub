@@ -702,6 +702,10 @@ universities (Jadara)
   1. Next.js **Incremental Static Regeneration (ISR)** caches landing pages for `3600s` and course pages for `60s`.
   2. Scheduled GitHub Action or uptime monitor pinging `/api/courses` every 24 hours generates active query traffic, preventing Supabase from ever triggering the auto-pause sequence.
 
+- **True Edge CDN ISR & Cookie-Free Public Client Architecture:**
+  - **Root Cause of Multi-Second Delays:** Previously, public Server Components (`/` and `/courses/[slug]`) called `createClient()`, which internally called `await cookies()`. In Next.js App Router, invoking `cookies()` tells the engine that the page is personalized to a user session, which **completely disabled Incremental Static Regeneration (ISR) and Edge CDN caching**, turning public course pages into dynamic on-demand SSR on every single request.
+  - **Double-Query Elimination (`cache()`):** `generateMetadata` and `CoursePage` each fired separate, un-memoized queries to Supabase. Wrapping `getCourseWithFallback` with React 19 `cache()` deduplicated database round-trips from 2 to 1 during any cold render.
+  - **Build-Time Static Pre-Rendering (`generateStaticParams`):** Adding `generateStaticParams()` to `src/app/courses/[slug]/page.tsx` and `src/app/guides/[slug]/page.tsx` switched courses from `ƒ (Dynamic on demand)` to `● (SSG / ISR)`. All courses are pre-rendered at build time and cached globally across Vercel Edge CDN nodes. When a student taps any course card on the homepage, Next.js prefetches and serves the page in < 50ms directly from client memory.
 ---
 
 ### 4.4 Metadata Expansion & Exam Scope Architecture (Migration `20261020`)

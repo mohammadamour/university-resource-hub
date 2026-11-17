@@ -2,7 +2,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import DepartmentGrid from "@/components/features/DepartmentGrid";
 import HeroSection from "@/components/features/HeroSection";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/server";
 import { DEFAULT_UNIVERSITY_SLUG } from "@/lib/constants";
 import type { DepartmentWithCourses } from "@/types/database";
 
@@ -14,7 +14,7 @@ export const revalidate = 3600;
  * Ordered by display_order so we control the section layout from the database.
  */
 async function getDepartments(): Promise<DepartmentWithCourses[]> {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
 
   // Get the default university
   const { data: university } = await supabase
