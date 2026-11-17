@@ -5,6 +5,7 @@ import AdminTabs from "@/components/features/AdminTabs";
 import { createClient } from "@/lib/supabase/server";
 import UploadForm, { type UploadCourse } from "@/components/features/UploadForm";
 import { verifyAdminSecret } from "@/lib/admin-auth";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "مساهمة بمادة دراسية أو ملخص | ملخصات",
@@ -41,26 +42,47 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
     : undefined;
 
   return (
-    <>
+    <div className="flex min-h-screen flex-col bg-paper text-ink font-sans">
       <Header />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6 sm:py-12" dir="rtl">
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 sm:px-6 sm:py-10" dir="rtl">
         {/* Navigation Tabs preserving key for admin */}
         {isAdmin && <AdminTabs activeTab="upload" adminSecret={key!} />}
 
+        {/* Back Link to Home */}
+        <div className="mb-3">
+          <Link
+            href="/"
+            className="inline-flex min-h-[44px] items-center gap-1.5 text-xs sm:text-sm font-semibold text-muted hover:text-ink transition-colors"
+          >
+            <span>←</span>
+            <span>العودة للرئيسية</span>
+          </Link>
+        </div>
+
         {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl text-foreground">
-            {isAdmin ? "رفع مادة دراسية جديدة (لوحة الإدارة)" : "مساهمة بمادة دراسية أو ملخص"}
+        <div className="mb-7">
+          <h1 className="font-heading text-2xl sm:text-3xl font-bold leading-relaxed text-ink">
+            {isAdmin ? (
+              "رفع مادة دراسية جديدة (لوحة الإدارة)"
+            ) : (
+              <>
+                ساهم{" "}
+                <mark className="rounded-[9px] bg-hi px-1.5 py-0.5 text-ink">
+                  بملخص
+                </mark>{" "}
+                أو مادة
+              </>
+            )}
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground sm:text-base">
+          <p className="mt-2 text-sm sm:text-base leading-relaxed text-muted">
             {isAdmin
               ? "ارفع ملخصات المواد بصيغة PDF ليتم معالجتها، ونشرها فورياً للطلاب باسم الإدارة."
-              : "شارك زملاءك الطلبة بملخصاتك ومصادرك الدراسية. تخضع المذكرات لمراجعة سريعة قبل نشرها لضمان جودة المحتوى."}
+              : "شارك زملاءك الطلبة بملخصاتك ومصادرك. يراجعها فريق المنصة بسرعة قبل النشر لضمان الجودة والفائدة للجميع."}
           </p>
         </div>
 
         {/* Upload Form Card */}
-        <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
+        <div className="rounded-[24px] border border-line bg-surface p-5 sm:p-8 shadow-xs">
           <UploadForm
             initialCourses={(courses as unknown as UploadCourse[]) || []}
             adminSecret={isAdmin ? key : undefined}
@@ -70,6 +92,6 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
         </div>
       </main>
       <Footer />
-    </>
+    </div>
   );
 }

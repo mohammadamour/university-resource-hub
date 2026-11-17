@@ -395,25 +395,27 @@ export default function PdfReaderModal({
       role="dialog"
       aria-modal="true"
       aria-label={`قارئ الملف: ${resource.title}`}
-      className="fixed inset-0 z-[80] flex h-dvh flex-col bg-slate-950/95 text-slate-100 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-[80] flex h-dvh flex-col bg-[#0F1218] text-[#F1ECE2] backdrop-blur-sm animate-in fade-in duration-150"
     >
       {/* Sticky Top Bar */}
-      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-slate-900/95 px-3 py-2 sm:px-5">
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[rgba(241,236,226,0.1)] bg-[#1B1F2A] px-3 py-2 sm:px-5 min-h-[60px]">
         <div className="flex min-w-0 items-center gap-2.5">
           <button
             type="button"
             onClick={onClose}
             aria-label="إغلاق القارئ"
-            className="flex h-10 w-10 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-sm font-bold text-slate-200 hover:bg-white/15 active:scale-95 transition-all cursor-pointer"
+            className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl border border-[rgba(241,236,226,0.15)] bg-white/5 text-sm font-bold text-[#F1ECE2] hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
           >
-            ✕
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
           </button>
 
           <div className="min-w-0">
-            <h2 dir="auto" className="truncate text-xs font-bold text-white sm:text-sm">
+            <h2 dir="auto" className="truncate text-xs sm:text-sm font-heading font-bold text-[#F1ECE2]">
               {resource.title}
             </h2>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-[#A3A8B5]">
               {pdfDoc
                 ? `صفحة ${visiblePage} من ${numPages}`
                 : errorMsg
@@ -425,20 +427,20 @@ export default function PdfReaderModal({
           </div>
         </div>
 
-        {/* Actions: Zoom (Desktop) + Save + Direct Download */}
+        {/* Actions: Zoom (Desktop) + WhatsApp Share + Bookmark + Direct Download */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {pdfDoc && (
-            <div className="hidden sm:flex items-center rounded-xl border border-white/15 bg-white/5 p-0.5 text-[11px] font-mono">
+            <div className="hidden sm:flex items-center rounded-xl border border-[rgba(241,236,226,0.15)] bg-white/5 p-0.5 text-[11px] font-mono">
               <button
                 type="button"
                 onClick={() => setZoomIndex((z) => Math.max(0, z - 1))}
                 disabled={zoomIndex === 0}
                 aria-label="تصغير"
-                className="rounded-lg px-2 py-1 text-slate-200 hover:bg-white/10 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                className="rounded-lg px-2 py-1 text-[#F1ECE2] hover:bg-white/10 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
               >
                 −
               </button>
-              <span className="px-1.5 text-slate-300" dir="ltr">
+              <span className="px-1.5 text-[#A3A8B5]" dir="ltr">
                 {Math.round(zoomScale * 100)}%
               </span>
               <button
@@ -446,12 +448,31 @@ export default function PdfReaderModal({
                 onClick={() => setZoomIndex((z) => Math.min(ZOOM_STEPS.length - 1, z + 1))}
                 disabled={zoomIndex === ZOOM_STEPS.length - 1}
                 aria-label="تكبير"
-                className="rounded-lg px-2 py-1 text-slate-200 hover:bg-white/10 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                className="rounded-lg px-2 py-1 text-[#F1ECE2] hover:bg-white/10 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
               >
                 +
               </button>
             </div>
           )}
+
+          {/* WhatsApp Share Button */}
+          <button
+            type="button"
+            onClick={() => {
+              const text = `ملخص: ${resource.title}\nتصفحه الآن على منصة ملخصات:\n${typeof window !== "undefined" ? window.location.href : "https://molakhasat.me"}`;
+              if (typeof window !== "undefined") {
+                window.location.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+              }
+            }}
+            aria-label="شارك على واتساب"
+            title="مشاركة عبر واتساب"
+            className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl border border-[rgba(241,236,226,0.15)] bg-white/5 text-[#F1ECE2] hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 11.5a8 8 0 0 1-11.9 7L4 20l1.5-4A8 8 0 1 1 20 11.5z" />
+              <path d="M9 9c0 3 3 6 6 6l1-1.5-2-1-1 .8c-1-.4-2-1.4-2.4-2.4l.8-1-1-2z" />
+            </svg>
+          </button>
 
           <button
             type="button"
@@ -459,10 +480,10 @@ export default function PdfReaderModal({
             aria-pressed={isSaved}
             title={isSaved ? "إزالة من مواردي المحفوظة" : "حفظ في مواردي"}
             aria-label={isSaved ? "إزالة من مواردي المحفوظة" : "حفظ في مواردي"}
-            className={`flex h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-xl border transition-all active:scale-95 cursor-pointer ${
+            className={`flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl border transition-all active:scale-95 cursor-pointer ${
               isSaved
-                ? "border-amber-400/40 bg-amber-400/15 text-amber-300"
-                : "border-white/15 bg-white/5 text-slate-300 hover:bg-white/15 hover:text-white"
+                ? "border-hi/60 bg-hi text-ink font-bold shadow-xs"
+                : "border-[rgba(241,236,226,0.15)] bg-white/5 text-[#F1ECE2] hover:bg-white/10"
             }`}
           >
             <BookmarkIcon filled={isSaved} className="h-4 w-4" />
@@ -473,10 +494,12 @@ export default function PdfReaderModal({
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => trackDownload("reader_header")}
-            className="inline-flex h-10 sm:h-9 items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 text-xs font-semibold text-white hover:bg-accent hover:border-accent transition-colors"
+            className="inline-flex h-10 sm:h-11 items-center gap-1.5 rounded-xl bg-hi px-3 sm:px-4 text-xs sm:text-sm font-heading font-bold text-ink hover:bg-hi/90 active:scale-95 transition-all shadow-xs"
             title="تحميل أو فتح الملف الأصلي"
           >
-            <span>⬇</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" />
+            </svg>
             <span className="hidden sm:inline">تحميل</span>
           </a>
         </div>
@@ -488,15 +511,15 @@ export default function PdfReaderModal({
         className="flex-1 overflow-auto overscroll-contain px-2 py-3 sm:px-6 sm:py-6"
       >
         {errorMsg ? (
-          <div className="mx-auto my-12 max-w-md rounded-2xl border border-white/15 bg-slate-900 p-6 text-center space-y-4">
+          <div className="mx-auto my-12 max-w-md rounded-2xl border border-[rgba(241,236,226,0.15)] bg-[#1B1F2A] p-6 text-center space-y-4">
             <div className="text-3xl">📄</div>
-            <p className="text-sm text-slate-200 leading-relaxed">{errorMsg}</p>
+            <p className="text-sm text-[#F1ECE2] leading-relaxed">{errorMsg}</p>
             <a
               href={resource.storage_url}
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => trackDownload("reader_error_fallback")}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-accent/90 transition-colors"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-hi px-5 py-2.5 text-sm font-heading font-bold text-ink shadow-sm hover:bg-hi/90 transition-colors"
             >
               <span>⬇</span>
               <span>فتح / تحميل الملف مباشرة</span>
@@ -505,14 +528,14 @@ export default function PdfReaderModal({
         ) : !pdfDoc ? (
           <div className="mx-auto max-w-xl space-y-3 py-8 text-center">
             <div
-              className="mx-auto w-full rounded-2xl border border-white/10 bg-slate-900/90 flex flex-col items-center justify-center gap-3 animate-pulse"
+              className="mx-auto w-full rounded-2xl border border-[rgba(241,236,226,0.1)] bg-[#1B1F2A]/90 flex flex-col items-center justify-center gap-3 animate-pulse"
               style={{
                 maxWidth: `${containerWidth}px`,
                 aspectRatio: `${defaultAspectRatio}`,
               }}
             >
-              <div className="h-8 w-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-              <p className="text-xs sm:text-sm text-slate-300 font-medium">
+              <div className="h-8 w-8 rounded-full border-2 border-hi border-t-transparent animate-spin" />
+              <p className="text-xs sm:text-sm text-[#A3A8B5] font-medium">
                 جارٍ تجهيز الصفحة الأولى...
               </p>
             </div>
@@ -540,12 +563,12 @@ export default function PdfReaderModal({
                     width: `${targetRenderWidth}px`,
                     aspectRatio: `${ratio}`,
                   }}
-                  className="relative shrink-0 overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-lg"
+                  className="relative shrink-0 overflow-hidden rounded-xl border border-[rgba(241,236,226,0.1)] bg-[#161B24] shadow-xl"
                 >
                   {/* Lightweight placeholder shown before page renders or after eviction */}
                   <div
                     dir="rtl"
-                    className="absolute inset-0 flex items-center justify-center text-xs font-mono text-slate-500 select-none"
+                    className="absolute inset-0 flex items-center justify-center text-xs font-mono text-[#5A5E6B] select-none"
                   >
                     صفحة {pageNum} / {numPages}
                   </div>
@@ -568,7 +591,7 @@ export default function PdfReaderModal({
       </div>
 
       {/* Sticky Bottom Action Bar (Page Navigation + Mobile Zoom + Docked Quiz CTA) */}
-      <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-white/10 bg-slate-900/95 px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] sm:px-5">
+      <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[rgba(241,236,226,0.1)] bg-[#1B1F2A] px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] sm:px-5 min-h-[64px]">
         <div className="flex flex-1 sm:flex-initial items-center justify-between sm:justify-start gap-1.5 sm:gap-2">
           <div className="flex items-center gap-1.5">
             <button
@@ -576,12 +599,12 @@ export default function PdfReaderModal({
               onClick={() => scrollToPage(visiblePage - 1)}
               disabled={!pdfDoc || visiblePage <= 1}
               aria-label="الصفحة السابقة"
-              className="min-h-9 rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/15 active:scale-95 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed transition-all"
+              className="min-h-[44px] rounded-xl border border-[rgba(241,236,226,0.15)] bg-white/5 px-3.5 py-1.5 text-xs font-semibold text-[#F1ECE2] hover:bg-white/10 active:scale-95 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed transition-all"
             >
               ▲ السابقة
             </button>
 
-            <span className="px-1.5 text-xs font-mono text-slate-300" dir="ltr">
+            <span className="px-2 text-xs sm:text-sm font-mono text-[#F1ECE2] font-semibold" dir="ltr">
               {pdfDoc ? `${visiblePage} / ${numPages}` : "—"}
             </span>
 
@@ -590,7 +613,7 @@ export default function PdfReaderModal({
               onClick={() => scrollToPage(visiblePage + 1)}
               disabled={!pdfDoc || visiblePage >= numPages}
               aria-label="الصفحة التالية"
-              className="min-h-9 rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/15 active:scale-95 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed transition-all"
+              className="min-h-[44px] rounded-xl border border-[rgba(241,236,226,0.15)] bg-white/5 px-3.5 py-1.5 text-xs font-semibold text-[#F1ECE2] hover:bg-white/10 active:scale-95 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed transition-all"
             >
               التالية ▼
             </button>
@@ -601,7 +624,7 @@ export default function PdfReaderModal({
             <button
               type="button"
               onClick={() => setZoomIndex((z) => (z + 1) % ZOOM_STEPS.length)}
-              className="sm:hidden min-h-9 rounded-xl border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-mono text-slate-200 active:scale-95 transition-all cursor-pointer"
+              className="sm:hidden min-h-[44px] rounded-xl border border-[rgba(241,236,226,0.15)] bg-white/5 px-3 py-1.5 text-xs font-mono text-[#F1ECE2] active:scale-95 transition-all cursor-pointer"
               title="تغيير التكبير"
               aria-label={`التكبير الحالي ${Math.round(zoomScale * 100)} بالمئة`}
             >
@@ -615,9 +638,11 @@ export default function PdfReaderModal({
           <button
             type="button"
             onClick={() => onStartQuiz(resource.id)}
-            className="inline-flex w-full sm:w-auto min-h-10 items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 shadow-sm hover:bg-emerald-400 active:scale-95 transition-all cursor-pointer"
+            className="inline-flex w-full sm:w-auto min-h-[44px] items-center justify-center gap-2 rounded-xl bg-hi px-5 py-2 text-xs sm:text-sm font-heading font-bold text-ink shadow-sm hover:bg-hi/90 active:scale-95 transition-all cursor-pointer"
           >
-            <span>✨</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z" />
+            </svg>
             <span>اختبر فهمك ({quizQuestionCount} سؤال)</span>
           </button>
         )}
