@@ -645,6 +645,14 @@ POST /api/upload
      - **App & Favicon Route Generation:** Embedded `src/app/icon.png` (32/48/64px auto-scaling) and `src/app/apple-icon.png` (180px for iOS Safari Add to Home Screen).
      - **Component Integration:** Introduced `<LogoMark />` into `Header.tsx`, `Footer.tsx`, and `ResourceList.tsx` (fallback document cover branding).
      - **Zero-Bloat PDF Vector Watermark (`src/lib/pipeline/watermark.ts`):** Upgraded the micro-capsule to the Warm Parchment ink/yellow palette (`#1B1F2A` / `#F2D43A` / `#FBF8F2`) and replaced the generic sparkle with a native vector path (`LOGO_MEEM_RIBBON_SVG_PATH`), guaranteeing zero extra kilobyte bloat and infinite zoom sharpness on mobile.
+  11. **Student-First Shelf Taxonomy, Quiz Legibility & Warm Unfurl Card:**
+     - **Clean Question Typography (`NativeQuiz.tsx`):** Unstylized active question text by replacing display `font-heading` (Reem Kufi) with clean body `font-sans` (`IBM Plex Sans Arabic`), matching the answer options for optimal exam reading speed.
+     - **High-Converting OpenGraph Unfurl Card (`public/og-default.jpg` & `.png`):** Rebuilt the 1200×630 social preview card using the Warm Parchment identity, new brand mark, ruled notebook lines, yellow highlight accents, and instant WhatsApp trust badges (`⚡ بدون تسجيل`, `📖 قراءة فورية`, `🏆 كويزات تفاعلية`).
+     - **Course Filter & Shelf Reordering (`ResourceList.tsx`):** Reordered course shelves and category filter pills to reflect student search intent:
+       1. **ملخصات** (`summary`): Focused summaries and reviews placed prominently at the top.
+       2. **امتحانات وأسئلة** (`past_exam`): Exam archives and training questions.
+       3. **المادة / المرجع** (`official`): Official university syllabus, course slides, and reference guides.
+       4. **الكل** (`all`): Comprehensive full-catalog view.
 
 ---
 

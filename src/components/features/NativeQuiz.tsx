@@ -942,9 +942,9 @@ export default function NativeQuiz({
         </div>
       )}
 
-      {/* Question Text */}
+      {/* Question Text (Uses clean body font for optimal reading comprehension) */}
       <div className="py-4 sm:py-5">
-        <h3 dir="auto" className="font-heading text-base sm:text-xl font-bold leading-relaxed text-ink">
+        <h3 dir="auto" className="text-base sm:text-lg md:text-xl font-bold leading-relaxed text-ink">
           {currentQuestion?.question}
         </h3>
       </div>

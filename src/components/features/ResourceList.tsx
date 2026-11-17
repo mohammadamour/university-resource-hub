@@ -464,15 +464,28 @@ export default function ResourceList({
     }
   };
 
-  // Filter tabs definition
+  // Filter tabs definition: Summaries -> Exams & Questions -> Syllabus/Reference -> All
   const tabs = useMemo(() => {
+    const referenceCount = officialSyllabusResources.length + archiveResources.length;
     return [
+      ...(summaryResources.length > 0
+        ? [{ id: "summary" as const, label: "ملخصات", count: summaryResources.length }]
+        : []),
+      ...(pastExamResources.length > 0
+        ? [{ id: "past_exam" as const, label: "امتحانات وأسئلة", count: pastExamResources.length }]
+        : []),
+      ...(referenceCount > 0
+        ? [{ id: "official" as const, label: "المادة / المرجع", count: referenceCount }]
+        : []),
       { id: "all" as const, label: "الكل", count: activeResources.length },
-      ...(officialSyllabusResources.length > 0 ? [{ id: "official" as const, label: "رسمي", count: officialSyllabusResources.length }] : []),
-      ...(summaryResources.length > 0 ? [{ id: "summary" as const, label: "ملخصات الطلبة", count: summaryResources.length }] : []),
-      ...(pastExamResources.length > 0 ? [{ id: "past_exam" as const, label: "امتحانات سابقة", count: pastExamResources.length }] : []),
     ];
-  }, [activeResources.length, officialSyllabusResources.length, summaryResources.length, pastExamResources.length]);
+  }, [
+    summaryResources.length,
+    pastExamResources.length,
+    officialSyllabusResources.length,
+    archiveResources.length,
+    activeResources.length,
+  ]);
 
   // ─── Empty Course State Funnel ─────────────────────────────────────────────
   if (activeResources.length === 0) {
@@ -881,28 +894,7 @@ export default function ResourceList({
             })}
           </div>
 
-          {/* ─── Shelf 1: 📚 المادة الرسمية / Official Syllabus ────────── */}
-          {(activeFilter === "all" || activeFilter === "official") && officialSyllabusResources.length > 0 && (
-            <section className="space-y-4" aria-label="المادة الرسمية المعتمدة">
-              <div className="border-b border-line pb-3">
-                <h2 className="font-heading text-[27px] font-bold text-ink flex items-center gap-2">
-                  <span>📚</span>
-                  <span>المادة الرسمية المعتمدة</span>
-                </h2>
-                <p className="mt-1 text-xs text-muted sm:text-sm">
-                  الخطة الدراسية، كتاب المادة، أو السلايدات الرسمية الصادرة عن الجامعة.
-                </p>
-              </div>
-
-              <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
-                {officialSyllabusResources.map((r) =>
-                  renderResourceCard(r, { isOfficial: true })
-                )}
-              </ul>
-            </section>
-          )}
-
-          {/* ─── Shelf 2: 🌟 ملخصات ومراجعات ─────────────────────────── */}
+          {/* ─── Shelf 1: 🌟 ملخصات ومراجعات ─────────────────────────── */}
           {(activeFilter === "all" || activeFilter === "summary") && summaryResources.length > 0 && (
             <section className="space-y-4" aria-label="ملخصات ومراجعات شاملة">
               <div className="border-b border-line pb-3">
@@ -921,7 +913,7 @@ export default function ResourceList({
             </section>
           )}
 
-          {/* ─── Shelf 3: 📝 أسئلة ونماذج امتحانات ─────────────────────── */}
+          {/* ─── Shelf 2: 📝 أسئلة ونماذج امتحانات ─────────────────────── */}
           {(activeFilter === "all" || activeFilter === "past_exam") && pastExamResources.length > 0 && (
             <section className="space-y-4" aria-label="أسئلة ونماذج امتحانات سابقة">
               <div className="border-b border-line pb-3">
@@ -940,8 +932,29 @@ export default function ResourceList({
             </section>
           )}
 
+          {/* ─── Shelf 3: 📚 المادة الرسمية / المرجع ──────────────────── */}
+          {(activeFilter === "all" || activeFilter === "official") && officialSyllabusResources.length > 0 && (
+            <section className="space-y-4" aria-label="المادة الرسمية المعتمدة">
+              <div className="border-b border-line pb-3">
+                <h2 className="font-heading text-[27px] font-bold text-ink flex items-center gap-2">
+                  <span>📚</span>
+                  <span>المادة الرسمية / المرجع</span>
+                </h2>
+                <p className="mt-1 text-xs text-muted sm:text-sm">
+                  الخطة الدراسية، كتاب المادة، أو السلايدات الرسمية الصادرة عن الجامعة ومدرس المساق.
+                </p>
+              </div>
+
+              <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
+                {officialSyllabusResources.map((r) =>
+                  renderResourceCard(r, { isOfficial: true })
+                )}
+              </ul>
+            </section>
+          )}
+
           {/* ─── Shelf 4: 🗂️ أرشيف إضافي ومصادر خارجية (Collapsible) ──── */}
-          {activeFilter === "all" && archiveResources.length > 0 && (
+          {(activeFilter === "all" || activeFilter === "official") && archiveResources.length > 0 && (
             <section
               className="rounded-[22px] border border-line bg-surface overflow-hidden shadow-sm transition-all"
               aria-label="أرشيف إضافي ومصادر خارجية"
