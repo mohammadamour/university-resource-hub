@@ -331,17 +331,29 @@ export function BookmarkDrawerButton() {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        aria-label="محفوظاتي"
+        aria-label={`المحفوظات (${isHydrated ? totalCount : 0})`}
         aria-expanded={isOpen}
-        title="محفوظاتي"
-        className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-xs transition-all hover:border-accent/60 hover:text-accent active:scale-95 cursor-pointer"
+        title="المحفوظات"
+        className="relative inline-flex h-[46px] w-[46px] items-center justify-center rounded-[14px] border border-line bg-surface text-ink transition-all hover:border-ink/40 active:scale-95 cursor-pointer p-0"
       >
-        <BookmarkIcon filled={isHydrated && totalCount > 0} className="h-5 w-5" />
+        <svg
+          aria-hidden="true"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill={isHydrated && totalCount > 0 ? "currentColor" : "none"}
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" />
+        </svg>
 
         {isHydrated && totalCount > 0 && (
           <span
             aria-hidden="true"
-            className="absolute -top-1 -end-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 font-mono text-[9px] font-bold text-white shadow-xs"
+            className="absolute -top-1.5 -end-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-[10px] bg-hi px-1 font-mono text-[11px] font-bold text-ink shadow-xs"
           >
             {totalCount > 9 ? "9+" : totalCount}
           </span>

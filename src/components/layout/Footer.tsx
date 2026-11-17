@@ -2,61 +2,55 @@ import { SITE_NAME, WHATSAPP_COMMUNITY_URL } from "@/lib/constants";
 import TrackedExternalLink from "@/components/ui/TrackedExternalLink";
 
 /**
- * Site footer with trust disclaimer, WhatsApp community group, and links.
- * The disclaimer is a core requirement from the README —
- * it establishes that this is student-made and not an official university site.
+ * Site footer with Reem Kufi branding, community WhatsApp group CTA, and trust disclaimer.
+ * Follows the warm parchment design language with accessible contrast and touch targets.
  */
 export default function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="mt-auto border-t border-border bg-card">
+    <footer className="mt-20 border-t border-line bg-paper">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        {/* WhatsApp Community Invitation */}
-        <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4 sm:p-5 text-center sm:text-start transition-all hover:border-emerald-500/40">
-          <div className="flex items-center gap-3.5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 text-2xl shadow-sm">
-              💬
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-foreground">
-                مجتمع IT جدارا على واتساب
-              </h4>
-              <p className="text-xs text-muted-foreground mt-0.5 max-w-xl leading-relaxed">
-                انضم لمجموعتنا لمشاركة الملاحظات، طلب ملخصات وشروحات للمواد، والمساعدة الأكاديمية بين الزملاء.
-              </p>
-            </div>
+        {/* Main Brand & Community Row */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 pb-8">
+          <div className="flex flex-col gap-1.5 max-w-xl">
+            <span className="font-heading text-[22px] font-bold text-ink leading-tight">
+              {SITE_NAME}
+            </span>
+            <p className="text-sm sm:text-[15px] leading-relaxed text-muted">
+              مشروع طلابي غير ربحي لطلبة جامعة جدارا. عندك ملاحظة، أو بدك نشيل ملف؟ تواصل معنا عبر قروب الملاحظات وبنرد بسرعة.
+            </p>
           </div>
+
           <TrackedExternalLink
             href={WHATSAPP_COMMUNITY_URL}
             eventType="whatsapp_community_click"
             metadata={{ source: "footer_cta" }}
-            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:shadow hover:scale-[1.02] active:scale-[0.98]"
+            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-ink bg-transparent px-5 text-sm sm:text-[15px] font-semibold text-ink transition-all hover:bg-surface active:scale-95 cursor-pointer"
           >
-            <span>انضم إلى القروب</span>
-            <span>↗</span>
+            <span>انضم لقروب الملاحظات</span>
+            <span aria-hidden="true">↗</span>
           </TrackedExternalLink>
         </div>
 
         {/* Trust Disclaimer */}
-        <div className="mb-6 rounded-lg bg-secondary p-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            ⚠️ {SITE_NAME} مبادرة طلابية لمساعدة زملائنا في الدراسة. هذا الموقع
-            غير مرتبط رسمياً بالجامعة. تأكد دائماً من متطلبات المادة مع دكتورك.
+        <div className="mb-6 rounded-2xl border border-line bg-surface/70 p-4 text-center">
+          <p className="text-xs sm:text-sm leading-relaxed text-muted">
+            ⚠️ {SITE_NAME} مبادرة طلابية لمساعدة زملائنا في الدراسة. هذا الموقع غير مرتبط رسمياً بالجامعة. تأكد دائماً من متطلبات المادة مع مدرس المساق.
           </p>
         </div>
 
         {/* Bottom Bar */}
-        <div className="flex flex-col items-center justify-between gap-4 text-sm text-muted-foreground sm:flex-row">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm text-muted">
           <p>
-            © {currentYear} {SITE_NAME}. صُنع بـ ❤️ لطلاب الجامعة.
+            © {currentYear} {SITE_NAME}. صُنع بـ ❤️ لطلاب جامعة جدارا.
           </p>
-          <div className="flex gap-4">
+          <div className="flex items-center gap-4">
             <a
               href="https://github.com/mohammadamour/university-resource-hub"
               target="_blank"
               rel="noopener noreferrer"
-              className="transition-colors hover:text-foreground"
+              className="transition-colors hover:text-ink"
             >
               GitHub
             </a>
