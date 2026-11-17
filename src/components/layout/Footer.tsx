@@ -1,5 +1,6 @@
 import { SITE_NAME, WHATSAPP_COMMUNITY_URL } from "@/lib/constants";
 import TrackedExternalLink from "@/components/ui/TrackedExternalLink";
+import LogoMark from "@/components/ui/LogoMark";
 
 /**
  * Site footer with Reem Kufi branding, community WhatsApp group CTA, and trust disclaimer.
@@ -13,10 +14,13 @@ export default function Footer() {
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {/* Main Brand & Community Row */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 pb-8">
-          <div className="flex flex-col gap-1.5 max-w-xl">
-            <span className="font-heading text-[22px] font-bold text-ink leading-tight">
-              {SITE_NAME}
-            </span>
+          <div className="flex flex-col gap-2 max-w-xl">
+            <div className="flex items-center gap-2.5">
+              <LogoMark size={32} />
+              <span className="font-heading text-[22px] font-bold text-ink leading-tight">
+                {SITE_NAME}
+              </span>
+            </div>
             <p className="text-sm sm:text-[15px] leading-relaxed text-muted">
               مشروع طلابي غير ربحي لطلبة جامعة جدارا. عندك ملاحظة، أو بدك نشيل ملف؟ تواصل معنا عبر قروب الملاحظات وبنرد بسرعة.
             </p>

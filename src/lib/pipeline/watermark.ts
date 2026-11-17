@@ -19,9 +19,9 @@ export interface WatermarkOptions {
   resourceId?: string;
 }
 
-/** 4-pointed sparkle SVG path (✦) normalized to a 9x9 bounding box */
-const SPARKLE_SVG_PATH =
-  "M 4.5 0 L 5.7 3.2 L 9 4.5 L 5.7 5.8 L 4.5 9 L 3.3 5.8 L 0 4.5 L 3.3 3.2 Z";
+/** Molakhasat Meem bookmark ribbon SVG path normalized to a 10x10 bounding box */
+const LOGO_MEEM_RIBBON_SVG_PATH =
+  "M 2 0 C 0.9 0 0 0.9 0 2 L 0 5 C 0 6.1 0.9 7 2 7 L 7 7 L 7 10 L 8.5 8.8 L 10 10 L 10 2 C 10 0.9 9.1 0 8 0 Z M 2.2 2 L 7.8 2 L 7.8 5 L 2.2 5 Z";
 
 const DEFAULT_BRAND_TEXT = "molakhasat.me";
 
@@ -29,14 +29,14 @@ const DEFAULT_BRAND_TEXT = "molakhasat.me";
  * Stamps a subtle, high-contrast "Micro-Pill" watermark onto the bottom margin of every page in a PDF.
  *
  * DESIGN RATIONALE:
- * 1. Compact Non-Intrusive Footprint: Trimmed brand copy to "✦ molakhasat.me" (~99pt width),
+ * 1. Compact Non-Intrusive Footprint: Trimmed brand copy to logo + "molakhasat.me" (~99pt width),
  *    preventing the watermark from occluding lecture text and footnotes at the bottom of slides.
  * 2. Bottom Margin Hugging: Positioned at y = 5 with height = 16pt (reaches y = 21pt max),
  *    ensuring it sits safely inside the bottom gutter beneath standard presentation text.
  * 3. Semi-Translucent Glassmorphism: Set to 72% opacity so in edge-case slides where text
  *    runs all the way to the canvas edge, underlying words remain faintly readable through the pill.
- * 4. Vector Sparkle Accent: Uses native SVG vector operators for ✦ in brand emerald (rgb(0.20, 0.85, 0.65))
- *    to bypass WinAnsi font limitations while adding a distinctive visual touch.
+ * 4. Warm Parchment Vector Accent: Uses native SVG vector operators for the Molakhasat bookmark ribbon
+ *    paired with a golden yellow highlighter bar (#F2D43A) for zero bitmap memory and infinite zoom sharpness.
  * 5. Generous Clickable Hitbox: Link annotation covers the entire pill rectangle, making it easy to tap.
  */
 export async function watermarkPdf(
@@ -73,13 +73,13 @@ export async function watermarkPdf(
       const textHeight = font.heightAtSize(fontSize);
 
       // Icon & Layout Metrics (Micro footprint)
-      const sparkleSize = 7.5;
-      const sparkleScale = sparkleSize / 9;
+      const iconSize = 8;
+      const iconScale = iconSize / 10;
       const gap = 5;
       const padX = 10;
       const padY = 3.5;
 
-      const totalContentWidth = sparkleSize + gap + textWidth;
+      const totalContentWidth = iconSize + gap + textWidth;
       const pillWidth = Math.round(totalContentWidth + padX * 2);
       const pillHeight = 16;
 
@@ -87,33 +87,44 @@ export async function watermarkPdf(
       const pillX = Math.round((width - pillWidth) / 2);
       const pillY = 5;
 
-      // 1. Draw Glassmorphic Pill Container (Slate-950 fill with subtle border)
+      // 1. Draw Glassmorphic Pill Container (Warm Parchment Ink #1B1F2A with subtle line border)
       page.drawRectangle({
         x: pillX,
         y: pillY,
         width: pillWidth,
         height: pillHeight,
-        color: rgb(0.06, 0.09, 0.15), // Deep slate-950 (#0f1726)
+        color: rgb(0.11, 0.12, 0.16), // Deep Ink (#1B1F2A)
         opacity: pillOpacity,
-        borderColor: rgb(0.24, 0.32, 0.44), // Subtle slate-600 border (#3d5270)
+        borderColor: rgb(0.87, 0.84, 0.77), // Warm Line (#DDD5C4)
         borderWidth: 0.75,
-        borderOpacity: 0.75,
+        borderOpacity: 0.5,
       });
 
-      // 2. Draw Vector Sparkle Icon (✦) in Brand Emerald-400
       const contentStartX = pillX + padX;
-      // In pdf-lib SVG operators, Y is scaled negatively so the passed Y marks the top of the shape
-      const sparkleY = pillY + (pillHeight + sparkleSize) / 2;
 
-      page.drawSvgPath(SPARKLE_SVG_PATH, {
-        x: contentStartX,
-        y: sparkleY,
-        scale: sparkleScale,
-        color: rgb(0.20, 0.85, 0.65), // Emerald-400 accent
+      // 2a. Draw Yellow Highlighter Stroke Accent behind Meem ribbon
+      page.drawRectangle({
+        x: contentStartX - 1,
+        y: pillY + (pillHeight - 3.5) / 2,
+        width: 6,
+        height: 3.5,
+        color: rgb(0.95, 0.83, 0.23), // Golden Yellow highlight (#F2D43A)
+        opacity: 0.95,
       });
 
-      // 3. Draw Crisp White Bold Brand Text
-      const textX = contentStartX + sparkleSize + gap;
+      // 2b. Draw Vector Meem Bookmark Ribbon in Warm Parchment White
+      // In pdf-lib SVG operators, Y is scaled negatively so the passed Y marks the top of the shape
+      const logoY = pillY + (pillHeight + iconSize) / 2;
+
+      page.drawSvgPath(LOGO_MEEM_RIBBON_SVG_PATH, {
+        x: contentStartX,
+        y: logoY,
+        scale: iconScale,
+        color: rgb(0.98, 0.97, 0.95), // Warm parchment white text (#FBF8F2)
+      });
+
+      // 3. Draw Warm Parchment Brand Text
+      const textX = contentStartX + iconSize + gap;
       // Align font baseline inside pill
       const textY = pillY + (pillHeight - textHeight) / 2 + 1;
 
@@ -122,7 +133,7 @@ export async function watermarkPdf(
         y: textY,
         size: fontSize,
         font,
-        color: rgb(0.98, 0.99, 1.0), // Crisp white text
+        color: rgb(0.98, 0.97, 0.95), // Crisp parchment white text
       });
 
       // 4. Embed Native PDF Clickable Link Annotation over the entire Pill Bounding Box

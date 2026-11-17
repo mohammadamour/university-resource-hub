@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" fill="none">
+  <!-- Yellow Highlighter Stroke -->
+  <rect x="12" y="44" width="66" height="17" rx="8.5" fill="#F2D43A" />
+  
+  <!-- Arabic Meem Bookmark Ribbon Shape -->
+  <path
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M 44 20 C 35 20 28 27 28 36 L 28 48 C 28 57 35 64 44 64 L 76 64 L 76 98 L 84 89 L 92 98 L 92 36 C 92 27 85 20 76 20 L 44 20 Z M 44 33 C 41 33 39 35 39 38 L 39 46 C 39 49 41 51 44 51 L 76 51 L 76 33 L 44 33 Z"
+    fill="#1B1F2A"
+  />
+</svg>

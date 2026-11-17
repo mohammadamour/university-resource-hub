@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SITE_NAME } from "@/lib/constants";
 import { BookmarkDrawerButton } from "@/components/features/BookmarkDrawer";
+import LogoMark from "@/components/ui/LogoMark";
 
 /**
  * Site header with Reem Kufi branding, bookmark drawer trigger, and upload CTA.
@@ -20,35 +21,7 @@ export default function Header() {
           aria-label={`${SITE_NAME} — الرئيسية`}
           className="flex items-center gap-2.5 text-ink transition-opacity hover:opacity-90"
         >
-          {/* Custom SVG logo mark: dark rounded square, golden highlight bar, Reem Kufi 'م' */}
-          <svg
-            aria-hidden="true"
-            width="40"
-            height="40"
-            viewBox="0 0 40 40"
-            className="shrink-0"
-          >
-            <rect width="40" height="40" rx="12" fill="var(--btn, #1B1F2A)" />
-            <rect
-              x="8"
-              y="24"
-              width="24"
-              height="7"
-              rx="3.5"
-              fill="var(--hi, #F2D43A)"
-            />
-            <text
-              x="20"
-              y="29"
-              textAnchor="middle"
-              fontFamily="var(--font-heading), 'Reem Kufi', serif"
-              fontSize="28"
-              fontWeight="700"
-              fill="var(--btn-ink, #FBF8F2)"
-            >
-              م
-            </text>
-          </svg>
+          <LogoMark size={40} priority />
           <span className="font-heading text-2xl sm:text-[27px] font-bold leading-none tracking-tight text-ink">
             {SITE_NAME}
           </span>

@@ -639,6 +639,12 @@ POST /api/upload
      - **Header Bar:** 44×44px close button, clamped title, page indicator, desktop zoom pill, WhatsApp share button, bookmark toggle button (yellow `--hi` fill when saved), and yellow primary download CTA button (`bg-hi text-ink font-bold`).
      - **Bottom Bar:** Prev/Next page navigation buttons, `1 / 45` monospace counter, mobile zoom toggle, and yellow docked quiz CTA button (`✨ اختبر فهمك (X سؤال)`).
      - **Canvas Engine Isolation:** Strictly preserved `PAGE_WINDOW_RADIUS = 2`, `MAX_DPR = 2`, and `ctx.direction = 'ltr'` for mobile memory efficiency and rendering performance.
+  10. **Official Brand Logo & Vector PDF Watermark Integration:**
+     - **Visual Mark Concept:** The Arabic letter 'Meem' (م) fused with an academic bookmark ribbon with an inverted V-notch, intersecting a golden yellow highlighter stroke (`#F2D43A`).
+     - **Asset Hierarchy (`public/brand/`):** Archived `logo-light.png` for parchment paper, `logo-dark.png` for future dark mode, and `logo.svg` for clean vector rendering.
+     - **App & Favicon Route Generation:** Embedded `src/app/icon.png` (32/48/64px auto-scaling) and `src/app/apple-icon.png` (180px for iOS Safari Add to Home Screen).
+     - **Component Integration:** Introduced `<LogoMark />` into `Header.tsx`, `Footer.tsx`, and `ResourceList.tsx` (fallback document cover branding).
+     - **Zero-Bloat PDF Vector Watermark (`src/lib/pipeline/watermark.ts`):** Upgraded the micro-capsule to the Warm Parchment ink/yellow palette (`#1B1F2A` / `#F2D43A` / `#FBF8F2`) and replaced the generic sparkle with a native vector path (`LOGO_MEEM_RIBBON_SVG_PATH`), guaranteeing zero extra kilobyte bloat and infinite zoom sharpness on mobile.
 
 ---
 

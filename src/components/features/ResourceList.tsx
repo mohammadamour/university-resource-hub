@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { Resource } from "@/types/database";
 import NativeQuiz from "@/components/features/NativeQuiz";
 import BookmarkIcon from "@/components/ui/BookmarkIcon";
+import LogoMark from "@/components/ui/LogoMark";
 import { toggleSavedResource, useBookmarks } from "@/lib/bookmarks";
 import { track } from "@/lib/analytics";
 
@@ -117,9 +118,12 @@ function ResourceCover({
       <div className="h-1 sm:h-1.5 w-[55%] rounded-[3px] bg-hi" />
       <div className="h-1 sm:h-1.5 w-[80%] rounded-[3px] bg-[#E4DDCC]" />
       <div className="h-1 sm:h-1.5 w-[60%] rounded-[3px] bg-[#E4DDCC]" />
-      <span className="mt-auto font-mono text-[9px] sm:text-[10px] font-bold tracking-wider text-muted">
-        {isLink ? "LINK" : "PDF"}
-      </span>
+      <div className="mt-auto flex items-center justify-between">
+        <span className="font-mono text-[9px] sm:text-[10px] font-bold tracking-wider text-muted">
+          {isLink ? "LINK" : "PDF"}
+        </span>
+        <LogoMark size={14} className="opacity-50" />
+      </div>
     </div>
   );
 }

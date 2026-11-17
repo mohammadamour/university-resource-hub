@@ -75,6 +75,12 @@ Never ask the user to re-explain the stack or the architecture. Here is everythi
 - **Conserve Context (Never Read All at Once):** Because [`TECHNICAL_ANALYSIS.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/TECHNICAL_ANALYSIS.md) is very comprehensive and large (500+ lines), **NEVER read the whole file in one call**. That wastes tokens and bloats the context window. Check the Table of Contents (lines 8–33) and use targeted line-slice reading (`StartLine`/`EndLine`) or search to view only the exact section needed for your task.
 - **Keep It Up to Date:** Whenever you finish building a feature, modifying a pipeline, or solving an elusive bug, **always update the corresponding section in [`TECHNICAL_ANALYSIS.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/TECHNICAL_ANALYSIS.md)** to keep this living document synchronized with the codebase.
 
+### 🌐 Rule 5: English-Only Agent Communication
+
+- **Strict Communication Language:** Although the product itself is built for Arabic-speaking university students, the founder works on a large widescreen monitor where connected Arabic script causes reading fatigue.
+- **Agent Responses MUST Be Exclusively in English:** Always write your explanations, architectural reviews, summaries, and chat responses in English.
+- **Exceptions:** Only output Arabic when directly citing UI strings, course titles, database values, commit messages, or user-facing Arabic text snippets that are required for the code or implementation.
+
 ---
 
 ## ⚠️ 3. Critical Environment & Code Quirks (Do Not Forget)
