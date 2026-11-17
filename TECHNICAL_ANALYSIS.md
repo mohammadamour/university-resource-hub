@@ -653,6 +653,15 @@ POST /api/upload
        2. **امتحانات وأسئلة** (`past_exam`): Exam archives and training questions.
        3. **المادة / المرجع** (`official`): Official university syllabus, course slides, and reference guides.
        4. **الكل** (`all`): Comprehensive full-catalog view.
+  12. **Prominent Card Badge Hierarchy & 2-Tier Exam Scope Sub-Filtering (`ResourceList.tsx`):**
+     - **Multi-Badge Top Micro-Row (`renderResourceCard`):** Fully exposed database taxonomy metadata on every resource card before the title:
+       - **Official Badge:** `⭐ رسمي معتمد` (`bg-hi/25 border-hi/50 text-ink`)
+       - **Resource Type Badge:** Explicit pill matching the upload taxonomy (`📄 ملخص دراسي`, `📝 أسئلة سنوات وتجميعات`, `📖 دليل دراسي / خطة`, `🔗 رابط خارجي / مرجع`, `📁 سلايدات ومصادر`, `❓ كويز تفاعلي`).
+       - **Exam Scope Badge:** `🎯 مادة الميد` (`bg-hi/25 border-hi/60 text-ink font-bold`), `🏁 مادة الفاينل` (`bg-ink/10 border-ink/30 text-ink font-bold`), and `🌐 شامل / أخرى`.
+       - **Live Quiz Indicator:** `✨ كويز (X سؤال)` displaying live count when interactive questions exist.
+     - **2-Tier Filtering Architecture:** Rendered a dedicated secondary Exam Scope pill row (`جميع الفترات`, `🎯 مادة الميد`, `🏁 مادة الفاينل`, `🌐 شامل / عام`) directly below the category tabs whenever exam-scoped materials are present.
+     - **Deterministic Exam Prioritization:** Applied `sortSummaries` to past exams so Midterm past exams deterministically rank before Final past exams.
+     - **Zero-Result Recovery State:** Added an intuitive, warm parchment empty state card with a 1-tap `[🔄 عرض جميع الموارد]` reset button when a category and exam period filter combination yields 0 results.
 
 ---
 

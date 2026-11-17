@@ -146,6 +146,7 @@ export default function ResourceList({
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<"all" | "official" | "summary" | "past_exam">("all");
+  const [activeExamScope, setActiveExamScope] = useState<"all" | "midterm" | "final" | "other">("all");
   const [selectedQuizCount, setSelectedQuizCount] = useState<5 | 10 | 20 | "all">(10);
   const [selectedQuizDifficulty, setSelectedQuizDifficulty] = useState<"balanced" | "easy" | "medium" | "hard">("balanced");
 
@@ -389,36 +390,66 @@ export default function ResourceList({
     [resources]
   );
 
-  // ─── Shelf 1: 📚 المادة الرسمية / Official Syllabus (is_featured === true) ───
-  const officialSyllabusResources = useMemo(
-    () => activeResources.filter((r) => r.is_featured === true).sort(sortByDisplayOrder),
+  // Exam scope counts across all active resources
+  const midtermCount = useMemo(
+    () => activeResources.filter((r) => r.target_exam === "midterm").length,
+    [activeResources]
+  );
+  const finalCount = useMemo(
+    () => activeResources.filter((r) => r.target_exam === "final").length,
+    [activeResources]
+  );
+  const otherExamCount = useMemo(
+    () => activeResources.filter((r) => (r.target_exam || "other") === "other").length,
     [activeResources]
   );
 
-  // ─── Shelf 2: 🌟 ملخصات ومراجعات (type === 'summary', not featured) ───────────
+  // Filter active resources by activeExamScope
+  const scopeFilteredResources = useMemo(() => {
+    if (activeExamScope === "all") return activeResources;
+    return activeResources.filter((r) => (r.target_exam || "other") === activeExamScope);
+  }, [activeResources, activeExamScope]);
+
+  // ─── Shelf 1: 🌟 ملخصات ومراجعات (type === 'summary', not featured) ───────────
   const summaryResources = useMemo(
-    () => activeResources.filter((r) => !r.is_featured && r.type === "summary").sort(sortSummaries),
-    [activeResources]
+    () =>
+      scopeFilteredResources
+        .filter((r) => !r.is_featured && r.type === "summary")
+        .sort(sortSummaries),
+    [scopeFilteredResources]
   );
 
-  // ─── Shelf 3: 📝 أسئلة ونماذج امتحانات (type === 'past_exam', not featured) ────
+  // ─── Shelf 2: 📝 أسئلة ونماذج امتحانات (type === 'past_exam', not featured) ────
   const pastExamResources = useMemo(
-    () => activeResources.filter((r) => !r.is_featured && r.type === "past_exam").sort(sortByDisplayOrder),
-    [activeResources]
+    () =>
+      scopeFilteredResources
+        .filter((r) => !r.is_featured && r.type === "past_exam")
+        .sort(sortSummaries),
+    [scopeFilteredResources]
+  );
+
+  // ─── Shelf 3: 📚 المادة الرسمية / Official Syllabus & Guides ──────────────────
+  const officialSyllabusResources = useMemo(
+    () =>
+      scopeFilteredResources
+        .filter((r) => r.is_featured === true || r.type === "guide")
+        .sort(sortByDisplayOrder),
+    [scopeFilteredResources]
   );
 
   // ─── Shelf 4: 🗂️ أرشيف إضافي ومصادر خارجية (All other active resources) ───────
   const archiveResources = useMemo(
     () =>
-      activeResources
+      scopeFilteredResources
         .filter(
           (r) =>
             !r.is_featured &&
             r.type !== "summary" &&
-            r.type !== "past_exam"
+            r.type !== "past_exam" &&
+            r.type !== "guide"
         )
         .sort(sortByDisplayOrder),
-    [activeResources]
+    [scopeFilteredResources]
   );
 
   // Shelf 4 sub-categories
@@ -468,23 +499,24 @@ export default function ResourceList({
   const tabs = useMemo(() => {
     const referenceCount = officialSyllabusResources.length + archiveResources.length;
     return [
-      ...(summaryResources.length > 0
-        ? [{ id: "summary" as const, label: "ملخصات", count: summaryResources.length }]
+      ...(summaryResources.length > 0 || activeFilter === "summary"
+        ? [{ id: "summary" as const, label: "ملخصات دراسية", count: summaryResources.length }]
         : []),
-      ...(pastExamResources.length > 0
-        ? [{ id: "past_exam" as const, label: "امتحانات وأسئلة", count: pastExamResources.length }]
+      ...(pastExamResources.length > 0 || activeFilter === "past_exam"
+        ? [{ id: "past_exam" as const, label: "أسئلة سنوات وتجميعات", count: pastExamResources.length }]
         : []),
-      ...(referenceCount > 0
-        ? [{ id: "official" as const, label: "المادة / المرجع", count: referenceCount }]
+      ...(referenceCount > 0 || activeFilter === "official"
+        ? [{ id: "official" as const, label: "خطة المادة / المرجع", count: referenceCount }]
         : []),
-      { id: "all" as const, label: "الكل", count: activeResources.length },
+      { id: "all" as const, label: "الكل", count: scopeFilteredResources.length },
     ];
   }, [
     summaryResources.length,
     pastExamResources.length,
     officialSyllabusResources.length,
     archiveResources.length,
-    activeResources.length,
+    scopeFilteredResources.length,
+    activeFilter,
   ]);
 
   // ─── Empty Course State Funnel ─────────────────────────────────────────────
@@ -522,33 +554,73 @@ export default function ResourceList({
     const isQuiz = resource.type === "quiz";
     const isPdfReadable = isInAppReadablePdf(resource);
     const isSaved = savedResourceIdSet.has(resource.id);
-    const examScopeLabel =
-      resource.target_exam === "midterm"
-        ? "مادة الميد"
-        : resource.target_exam === "final"
-        ? "مادة الفاينل"
-        : null;
+    const isOfficial = Boolean(options?.isOfficial || resource.is_featured);
 
-    const isOfficial = options?.isOfficial;
+    // Type badge config matching UploadForm taxonomy exactly
+    const typeBadge = (() => {
+      switch (resource.type) {
+        case "summary":
+          return { label: "ملخص دراسي", icon: "📄", style: "border-[#14594F]/30 bg-[#14594F]/10 text-[#14594F]" };
+        case "past_exam":
+          return { label: "أسئلة وتجميعات", icon: "📝", style: "border-[#A8361C]/30 bg-[#A8361C]/10 text-[#A8361C]" };
+        case "guide":
+          return { label: "دليل دراسي / خطة", icon: "📖", style: "border-[#2E3A94]/30 bg-[#2E3A94]/10 text-[#2E3A94]" };
+        case "link":
+          return { label: "رابط خارجي / مرجع", icon: "🔗", style: "border-ink/20 bg-ink/5 text-ink" };
+        case "other":
+          return { label: "سلايدات ومصادر", icon: "📁", style: "border-[#7A4F0C]/30 bg-[#7A4F0C]/10 text-[#7A4F0C]" };
+        case "quiz":
+          return { label: "كويز تفاعلي", icon: "❓", style: "border-indigo-600/30 bg-indigo-500/10 text-indigo-700" };
+        default:
+          return null;
+      }
+    })();
+
+    // Exam scope badge
+    const examScopeBadge = (() => {
+      if (resource.target_exam === "midterm") {
+        return { label: "مادة الميد", icon: "🎯", style: "border-hi/60 bg-hi/25 text-ink font-bold" };
+      }
+      if (resource.target_exam === "final") {
+        return { label: "مادة الفاينل", icon: "🏁", style: "border-ink/30 bg-ink/10 text-ink font-bold" };
+      }
+      if (resource.target_exam === "other" && (resource.type === "summary" || resource.type === "past_exam")) {
+        return { label: "شامل / أخرى", icon: "🌐", style: "border-line bg-surface text-muted" };
+      }
+      return null;
+    })();
+
+    const quizQuestionsCount = resource.quiz_data?.questions?.length ?? 0;
 
     const mainInfo = (
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
-        {/* Row 1: Badges (Official + Exam Scope) */}
-        {(isOfficial || examScopeLabel) && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {isOfficial && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-hi/25 border border-hi/50 px-2 py-0.5 text-[11px] font-bold text-ink shrink-0">
-                <span>⭐</span>
-                <span>رسمي</span>
-              </span>
-            )}
-            {examScopeLabel && (
-              <span className="rounded-md bg-surface border border-line px-2 py-0.5 text-[11px] font-semibold text-muted shrink-0">
-                {examScopeLabel}
-              </span>
-            )}
-          </div>
-        )}
+        {/* Row 1: Badges (Official + Resource Type + Exam Scope + Quiz) */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {isOfficial && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-hi/25 border border-hi/50 px-2 py-0.5 text-[11px] font-bold text-ink shrink-0">
+              <span>⭐</span>
+              <span>رسمي معتمد</span>
+            </span>
+          )}
+          {typeBadge && (
+            <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold shrink-0 ${typeBadge.style}`}>
+              <span>{typeBadge.icon}</span>
+              <span>{typeBadge.label}</span>
+            </span>
+          )}
+          {examScopeBadge && (
+            <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] shrink-0 ${examScopeBadge.style}`}>
+              <span>{examScopeBadge.icon}</span>
+              <span>{examScopeBadge.label}</span>
+            </span>
+          )}
+          {quizQuestionsCount > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-hi/60 bg-hi/20 px-2 py-0.5 text-[11px] font-bold text-ink shrink-0">
+              <span>✨</span>
+              <span>كويز ({quizQuestionsCount} سؤال)</span>
+            </span>
+          )}
+        </div>
 
         {/* Row 2: Title */}
         <span
@@ -857,6 +929,12 @@ export default function ResourceList({
     );
   };
 
+  const hasVisibleResources =
+    (activeFilter === "all" && scopeFilteredResources.length > 0) ||
+    (activeFilter === "summary" && summaryResources.length > 0) ||
+    (activeFilter === "past_exam" && pastExamResources.length > 0) ||
+    (activeFilter === "official" && (officialSyllabusResources.length > 0 || archiveResources.length > 0));
+
   return (
     <div dir="rtl">
       {/* ── Two-column layout: main shelves + sticky sidebar ──────────────── */}
@@ -893,6 +971,55 @@ export default function ResourceList({
               );
             })}
           </div>
+
+          {/* Exam Scope Sub-Filter Row (Midterm, Final, All) */}
+          {(midtermCount > 0 || finalCount > 0) && (
+            <div
+              role="radiogroup"
+              aria-label="تصفية حسب فترة الامتحان"
+              className="flex items-center gap-1.5 sm:gap-2 flex-wrap pt-0.5"
+            >
+              <span className="text-xs font-bold text-muted ps-1 hidden sm:inline">
+                فترة الامتحان:
+              </span>
+              {[
+                { id: "all" as const, label: "جميع الفترات", count: activeResources.length },
+                ...(midtermCount > 0
+                  ? [{ id: "midterm" as const, label: "🎯 مادة الميد", count: midtermCount }]
+                  : []),
+                ...(finalCount > 0
+                  ? [{ id: "final" as const, label: "🏁 مادة الفاينل", count: finalCount }]
+                  : []),
+                ...(otherExamCount > 0 && otherExamCount < activeResources.length
+                  ? [{ id: "other" as const, label: "🌐 شامل / عام", count: otherExamCount }]
+                  : []),
+              ].map((scope) => {
+                const isScopeActive = activeExamScope === scope.id;
+                return (
+                  <button
+                    key={scope.id}
+                    type="button"
+                    aria-pressed={isScopeActive}
+                    onClick={() => setActiveExamScope(scope.id)}
+                    className={`min-h-[36px] px-3.5 py-1.5 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer border ${
+                      isScopeActive
+                        ? "bg-ink text-surface border-ink shadow-2xs font-bold"
+                        : "bg-surface text-muted border-line hover:border-muted hover:text-ink"
+                    }`}
+                  >
+                    <span>{scope.label}</span>
+                    <span
+                      className={`min-w-5 h-5 px-1 rounded-full text-[11px] font-mono inline-flex items-center justify-center ${
+                        isScopeActive ? "bg-white/20 text-surface" : "bg-line/60 text-muted"
+                      }`}
+                    >
+                      {scope.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* ─── Shelf 1: 🌟 ملخصات ومراجعات ─────────────────────────── */}
           {(activeFilter === "all" || activeFilter === "summary") && summaryResources.length > 0 && (
@@ -1115,6 +1242,34 @@ export default function ResourceList({
                 </div>
               )}
             </section>
+          )}
+
+          {/* Empty Filter State (when current filter/scope combination yields 0 items) */}
+          {!hasVisibleResources && (
+            <div className="rounded-[22px] border border-dashed border-line bg-surface p-8 sm:p-10 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-line/50 text-2xl mb-3">
+                🔍
+              </div>
+              <h3 className="font-heading text-lg font-bold text-ink sm:text-xl">
+                لا توجد ملفات مطابقة لخيارات التصفية
+              </h3>
+              <p className="mx-auto mt-1 max-w-sm text-xs sm:text-sm text-muted leading-relaxed">
+                لم نجد مواد تحت هذا التصنيف وفترة الامتحان المحددة. جرب اختيار فترة أخرى أو إعادة ضبط التصفية.
+              </p>
+              <div className="mt-4 flex justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveFilter("all");
+                    setActiveExamScope("all");
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl bg-btn px-4 py-2 text-xs font-semibold text-btn-ink hover:opacity-90 active:scale-95 transition-all cursor-pointer"
+                >
+                  <span>🔄</span>
+                  <span>عرض جميع الموارد ({activeResources.length})</span>
+                </button>
+              </div>
+            </div>
           )}
 
           {/* Bottom Crowdsourcing Banner */}
