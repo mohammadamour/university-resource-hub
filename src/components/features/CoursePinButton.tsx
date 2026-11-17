@@ -19,6 +19,7 @@ interface CoursePinButtonProps {
 /**
  * Client-side pin toggle rendered inside Server Component course headers
  * so students can save a course to their Header "محفوظاتي" drawer.
+ * Styling uses new design-system tokens: bg-btn/bg-surface, border-ink, text-btn-ink.
  */
 export default function CoursePinButton({
   courseId,
@@ -57,15 +58,14 @@ export default function CoursePinButton({
         }}
       aria-pressed={isPinned}
       title={isPinned ? "إزالة من مقرراتي المحفوظة" : "حفظ المادة في مقرراتي"}
-      className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all active:scale-95 shadow-2xs cursor-pointer ${
+      className={`inline-flex min-h-[50px] shrink-0 items-center gap-2 rounded-[15px] border-[1.5px] px-5 text-sm font-semibold transition-all active:scale-95 cursor-pointer ${
         isPinned
-          ? "border-amber-500/40 bg-amber-500/15 text-amber-500 hover:bg-amber-500/20"
-          : "border-border bg-card text-muted-foreground hover:border-accent/50 hover:text-foreground"
+          ? "border-transparent bg-btn text-btn-ink hover:opacity-90"
+          : "border-ink bg-surface text-ink hover:bg-line/40"
       }`}
     >
-      <BookmarkIcon filled={isPinned} className="h-3.5 w-3.5" />
+      <BookmarkIcon filled={isPinned} className="h-4 w-4" />
       <span>{isPinned ? "في مقرراتي" : "حفظ المادة"}</span>
     </button>
   );
 }
-

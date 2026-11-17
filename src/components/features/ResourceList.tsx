@@ -45,21 +45,21 @@ function isInAppReadablePdf(resource: Resource): boolean {
 function getPlatformMeta(res: Resource) {
   const url = (res.storage_url || "").toLowerCase();
   if (url.includes("youtube.com") || url.includes("youtu.be") || res.external_platform === "youtube") {
-    return { name: "يوتيوب", badgeClass: "bg-red-500/10 text-red-400 border-red-500/20", icon: "▶️" };
+    return { name: "يوتيوب", badgeClass: "bg-red-500/10 text-red-600 border-red-500/20", icon: "▶️" };
   }
   if (url.includes("github.com") || res.external_platform === "github") {
-    return { name: "GitHub", badgeClass: "bg-slate-500/10 text-slate-300 border-slate-500/20", icon: "💻" };
+    return { name: "GitHub", badgeClass: "bg-slate-500/10 text-slate-700 border-slate-500/20", icon: "💻" };
   }
   if (url.includes("drive.google.com") || res.external_platform === "drive") {
-    return { name: "Google Drive", badgeClass: "bg-amber-500/10 text-amber-400 border-amber-500/20", icon: "📁" };
+    return { name: "Google Drive", badgeClass: "bg-amber-500/10 text-amber-700 border-amber-500/20", icon: "📁" };
   }
-  return { name: "رابط خارجي", badgeClass: "bg-sky-500/10 text-sky-400 border-sky-500/20", icon: "🔗" };
+  return { name: "رابط خارجي", badgeClass: "bg-sky-500/10 text-sky-700 border-sky-500/20", icon: "🔗" };
 }
 
 /**
- * Visual thumbnail or graceful CSS gradient book cover for academic resources.
+ * Visual thumbnail or graceful CSS warm parchment document mock.
  * Renders the real PDF page 1 image if available, or falls back to an elegant
- * digital binder cover with dynamic taxonomy colors, title micro-typography, and spine highlight.
+ * mini-document mockup with dynamic category band, ruled lines, and format label.
  */
 function ResourceCover({
   resource,
@@ -73,7 +73,7 @@ function ResourceCover({
   // If thumbnail_url exists and hasn't errored out, render real image thumbnail
   if (resource.thumbnail_url && !imgError) {
     return (
-      <div className="relative h-17 w-12 shrink-0 overflow-hidden rounded-xl border border-border/80 bg-muted/40 shadow-xs sm:h-20 sm:w-15">
+      <div className="relative h-[96px] w-[72px] sm:h-[112px] sm:w-[84px] shrink-0 overflow-hidden rounded-[10px] border border-line bg-surface shadow-xs">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={resource.thumbnail_url}
@@ -83,7 +83,7 @@ function ResourceCover({
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
         {isOfficial && (
-          <div className="absolute top-1 right-1 rounded-sm bg-amber-500/90 px-1 py-0.2 text-[8px] font-bold text-white shadow-xs">
+          <div className="absolute top-1.5 right-1.5 rounded-md bg-hi px-1.5 py-0.5 text-[9px] font-bold text-ink shadow-xs">
             ⭐
           </div>
         )}
@@ -91,80 +91,35 @@ function ResourceCover({
     );
   }
 
-  // Graceful Fallback: Sleek Digital Book Binder Graphic (Zero redundant text!)
-  const isSummary = resource.type === "summary";
+  // Graceful Fallback: The warm parchment mini-document mock from Claude design!
   const isExam = resource.type === "past_exam";
   const isLink = resource.type === "link";
-  const isGuide = resource.type === "guide";
+  const isSummary = resource.type === "summary";
 
-  const gradientClass = isOfficial
-    ? "from-amber-500/25 via-amber-600/15 to-amber-950/40 border-amber-500/30 text-amber-300"
+  const bandColor = isOfficial
+    ? "#A8361C" // tomato/official deep
     : isSummary
-    ? "from-blue-600/25 via-primary/20 to-blue-950/40 border-blue-500/25 text-blue-300"
+    ? "#14594F" // teal deep
     : isExam
-    ? "from-amber-600/25 via-orange-950/20 to-stone-900/40 border-amber-500/25 text-amber-300"
-    : isGuide
-    ? "from-emerald-600/25 via-teal-950/20 to-slate-900/40 border-emerald-500/25 text-emerald-300"
+    ? "#1B1F2A" // ink
     : isLink
-    ? "from-violet-600/25 via-purple-950/20 to-slate-900/40 border-violet-500/25 text-violet-300"
-    : "from-secondary via-secondary/80 to-muted border-border text-muted-foreground";
-
-  const icon = isOfficial
-    ? "📚"
-    : isSummary
-    ? "📄"
-    : resource.type === "quiz"
-    ? "✨"
-    : isExam
-    ? "📝"
-    : isGuide
-    ? "📖"
-    : isLink
-    ? "🔗"
-    : "📎";
-
-  const typeLabel = isOfficial
-    ? "رسمي"
-    : isSummary
-    ? "ملخص"
-    : isExam
-    ? "امتحان"
-    : isGuide
-    ? "دليل"
-    : isLink
-    ? "رابط"
-    : "ملف";
+    ? "#2E3A94" // indigo
+    : "#7A4F0C"; // ochre
 
   return (
     <div
-      className={`relative flex h-17 w-12 shrink-0 flex-col justify-between overflow-hidden rounded-xl border bg-gradient-to-br p-1.5 shadow-xs transition-transform duration-200 group-hover:scale-[1.03] sm:h-20 sm:w-15 sm:p-2 ${gradientClass}`}
+      aria-hidden="true"
+      className="shrink-0 w-[72px] h-[96px] sm:w-[84px] sm:h-[112px] rounded-[10px] bg-[#FFFDF8] border border-[#E1D9C7] shadow-[0_8px_16px_-8px_rgba(20,24,35,0.25)] overflow-hidden p-2 sm:p-2.5 flex flex-col gap-1.5 transition-transform duration-200 group-hover:scale-[1.03]"
     >
-      {/* Decorative Book Spine Highlight on Right (in RTL right is spine) */}
-      <div className="absolute inset-y-0 right-0 w-1 bg-white/15" />
-
-      {/* Top: Icon + Optional Badge */}
-      <div className="flex items-center justify-between text-sm sm:text-base pl-0.5">
-        <span>{icon}</span>
-        {isOfficial && <span className="text-[9px]">⭐</span>}
-      </div>
-
-      {/* Center: Format Badge (Clean and graphic) */}
-      <div className="my-auto text-center">
-        <span className="font-mono text-[9px] font-bold uppercase tracking-wider opacity-90 sm:text-[10px]">
-          {isLink ? "LINK" : "PDF"}
-        </span>
-      </div>
-
-      {/* Bottom: Type or Scope Mini Tag */}
-      <div className="flex items-center justify-center border-t border-white/10 pt-0.5 sm:pt-1">
-        <span className="text-[8px] font-bold opacity-80 sm:text-[9px]">
-          {resource.target_exam === "midterm"
-            ? "ميد"
-            : resource.target_exam === "final"
-            ? "فاينل"
-            : typeLabel}
-        </span>
-      </div>
+      <div className="h-4 sm:h-5 rounded-[4px] shrink-0" style={{ backgroundColor: bandColor }} />
+      <div className="h-1 sm:h-1.5 w-[90%] rounded-[3px] bg-[#E4DDCC]" />
+      <div className="h-1 sm:h-1.5 w-[70%] rounded-[3px] bg-[#E4DDCC]" />
+      <div className="h-1 sm:h-1.5 w-[55%] rounded-[3px] bg-hi" />
+      <div className="h-1 sm:h-1.5 w-[80%] rounded-[3px] bg-[#E4DDCC]" />
+      <div className="h-1 sm:h-1.5 w-[60%] rounded-[3px] bg-[#E4DDCC]" />
+      <span className="mt-auto font-mono text-[9px] sm:text-[10px] font-bold tracking-wider text-muted">
+        {isLink ? "LINK" : "PDF"}
+      </span>
     </div>
   );
 }
@@ -186,6 +141,10 @@ export default function ResourceList({
   const [activeReaderResource, setActiveReaderResource] = useState<Resource | null>(null);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<"all" | "official" | "summary" | "past_exam">("all");
+  const [selectedQuizCount, setSelectedQuizCount] = useState<5 | 10 | 20 | "all">(10);
+  const [selectedQuizDifficulty, setSelectedQuizDifficulty] = useState<"balanced" | "easy" | "medium" | "hard">("balanced");
+
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasTrackedViewRef = useRef(false);
 
@@ -274,7 +233,6 @@ export default function ResourceList({
   };
 
   const handleToggleSaveResource = (resource: Resource) => {
-    // Require a valid course slug so drawer deep-links resolve properly (/courses/[slug])
     if (!courseSlug) return;
 
     const nowSaved = toggleSavedResource({
@@ -288,7 +246,6 @@ export default function ResourceList({
       hasQuiz: Boolean(resource.quiz_data?.questions?.length),
     });
 
-    // Track bookmark_add / bookmark_remove — helps us understand which resources students return to
     track({
       eventType: nowSaved ? "bookmark_add" : "bookmark_remove",
       resourceId: resource.id,
@@ -336,9 +293,9 @@ export default function ResourceList({
 
       const highlightTarget = (el: HTMLElement) => {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
-        el.classList.add("ring-2", "ring-accent", "shadow-md");
+        el.classList.add("ring-2", "ring-hi", "shadow-md");
         setTimeout(() => {
-          el.classList.remove("ring-2", "ring-accent", "shadow-md");
+          el.classList.remove("ring-2", "ring-hi", "shadow-md");
         }, 2500);
       };
 
@@ -360,7 +317,8 @@ export default function ResourceList({
     }
   }, []);
 
-  // WhatsApp 1-tap share with deep-link & UTM tracking
+  // WhatsApp 1-tap share with deep-link & UTM tracking.
+  // Rule 6 compliant: Uses direct window.location.href assignment to prevent WKWebView popup blockage.
   const handleShareResource = (resource: Resource) => {
     if (typeof window === "undefined") return;
 
@@ -368,7 +326,6 @@ export default function ResourceList({
     const currentPath = courseSlug ? `/courses/${courseSlug}` : window.location.pathname;
     const shareUrl = `${origin}${currentPath}?res=${resource.id}&utm_source=whatsapp&utm_medium=resource_share#res-${resource.id}`;
 
-    // Clean, high-converting WhatsApp message requested by students
     const intro = courseTitle
       ? `ملخص لمادة ${courseTitle} مع بنك أسئلة وكويزات تفاعلية:`
       : `ملخص ${resource.title} مع بنك أسئلة وكويزات تفاعلية:`;
@@ -382,7 +339,6 @@ export default function ResourceList({
 
     showToast("تم فتح واتساب ونسخ الرابط للمشاركة! 📋", 3200);
 
-    // Track WhatsApp share — a high-value virality signal
     track({
       eventType: "whatsapp_share",
       resourceId: resource.id,
@@ -391,9 +347,8 @@ export default function ResourceList({
       resourceTitle: resource.title,
     });
 
-    // Open WhatsApp Web or Mobile App
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
-    window.open(waUrl, "_blank", "noopener,noreferrer");
+    window.location.href = waUrl;
   };
 
   // Deterministic sorting comparator: display_order ASC, then created_at ASC
@@ -425,60 +380,114 @@ export default function ResourceList({
   };
 
   // Filter active resources only
-  const activeResources = resources.filter((r) => (r.status || "active") === "active");
+  const activeResources = useMemo(
+    () => resources.filter((r) => (r.status || "active") === "active"),
+    [resources]
+  );
 
   // ─── Shelf 1: 📚 المادة الرسمية / Official Syllabus (is_featured === true) ───
-  const officialSyllabusResources = activeResources
-    .filter((r) => r.is_featured === true)
-    .sort(sortByDisplayOrder);
+  const officialSyllabusResources = useMemo(
+    () => activeResources.filter((r) => r.is_featured === true).sort(sortByDisplayOrder),
+    [activeResources]
+  );
 
   // ─── Shelf 2: 🌟 ملخصات ومراجعات (type === 'summary', not featured) ───────────
-  const summaryResources = activeResources
-    .filter((r) => !r.is_featured && r.type === "summary")
-    .sort(sortSummaries);
+  const summaryResources = useMemo(
+    () => activeResources.filter((r) => !r.is_featured && r.type === "summary").sort(sortSummaries),
+    [activeResources]
+  );
 
   // ─── Shelf 3: 📝 أسئلة ونماذج امتحانات (type === 'past_exam', not featured) ────
-  const pastExamResources = activeResources
-    .filter((r) => !r.is_featured && r.type === "past_exam")
-    .sort(sortByDisplayOrder);
+  const pastExamResources = useMemo(
+    () => activeResources.filter((r) => !r.is_featured && r.type === "past_exam").sort(sortByDisplayOrder),
+    [activeResources]
+  );
 
   // ─── Shelf 4: 🗂️ أرشيف إضافي ومصادر خارجية (All other active resources) ───────
-  const archiveResources = activeResources
-    .filter(
-      (r) =>
-        !r.is_featured &&
-        r.type !== "summary" &&
-        r.type !== "past_exam"
-    )
-    .sort(sortByDisplayOrder);
+  const archiveResources = useMemo(
+    () =>
+      activeResources
+        .filter(
+          (r) =>
+            !r.is_featured &&
+            r.type !== "summary" &&
+            r.type !== "past_exam"
+        )
+        .sort(sortByDisplayOrder),
+    [activeResources]
+  );
 
   // Shelf 4 sub-categories
-  const externalLinkResources = archiveResources.filter((r) => r.type === "link");
-  const studentContributionResources = archiveResources.filter(
-    (r) => !r.is_admin_uploaded && r.type !== "link"
+  const externalLinkResources = useMemo(
+    () => archiveResources.filter((r) => r.type === "link"),
+    [archiveResources]
   );
-  const chapterSlideResources = archiveResources.filter(
-    (r) => r.is_admin_uploaded !== false && r.type !== "link"
+  const studentContributionResources = useMemo(
+    () => archiveResources.filter((r) => !r.is_admin_uploaded && r.type !== "link"),
+    [archiveResources]
   );
+  const chapterSlideResources = useMemo(
+    () => archiveResources.filter((r) => r.is_admin_uploaded !== false && r.type !== "link"),
+    [archiveResources]
+  );
+
+  // Total interactive quiz questions across this course
+  const totalQuizQuestions = useMemo(() => {
+    return activeResources.reduce(
+      (sum, r) => sum + (r.quiz_data?.questions?.length ?? 0),
+      0
+    );
+  }, [activeResources]);
+
+  // Handler for sidebar "ابدأ الكويز" launcher button
+  const handleStartSidebarQuiz = () => {
+    const firstQuizResource = activeResources.find((r) => r.quiz_data?.questions?.length);
+    if (!firstQuizResource) {
+      showToast("لا تتوفر أسئلة كويز لهذه المادة حالياً 📝");
+      return;
+    }
+    const dock = document.getElementById(`quiz-${firstQuizResource.id}`);
+    if (dock) {
+      dock.scrollIntoView({ behavior: "smooth", block: "center" });
+      const trigger = dock.querySelector<HTMLButtonElement>("[data-quiz-start='true']");
+      if (trigger) trigger.click();
+      showToast("تم فتح الكويز التفاعلي 🎯");
+    } else {
+      document.getElementById(`res-${firstQuizResource.id}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  };
+
+  // Filter tabs definition
+  const tabs = useMemo(() => {
+    return [
+      { id: "all" as const, label: "الكل", count: activeResources.length },
+      ...(officialSyllabusResources.length > 0 ? [{ id: "official" as const, label: "رسمي", count: officialSyllabusResources.length }] : []),
+      ...(summaryResources.length > 0 ? [{ id: "summary" as const, label: "ملخصات الطلبة", count: summaryResources.length }] : []),
+      ...(pastExamResources.length > 0 ? [{ id: "past_exam" as const, label: "امتحانات سابقة", count: pastExamResources.length }] : []),
+    ];
+  }, [activeResources.length, officialSyllabusResources.length, summaryResources.length, pastExamResources.length]);
 
   // ─── Empty Course State Funnel ─────────────────────────────────────────────
   if (activeResources.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-border bg-card/60 p-8 sm:p-12 text-center backdrop-blur-sm" dir="rtl">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-2xl mb-4">
+      <div className="rounded-[22px] border border-dashed border-line bg-surface p-8 sm:p-12 text-center" dir="rtl">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-btn/10 text-2xl mb-4">
           📚
         </div>
-        <h3 className="text-lg font-bold text-foreground sm:text-xl">
+        <h3 className="font-heading text-xl font-bold text-ink sm:text-2xl">
           لا توجد موارد أو ملخصات معتمدة لهذه المادة حتى الآن
         </h3>
-        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground sm:text-base leading-relaxed">
+        <p className="mx-auto mt-2 max-w-md text-sm text-muted sm:text-base leading-relaxed">
           كن أول من يشارك ملخصاته أو أسئلته السابقة لمساعدة زملائك الطلبة في مساق {courseTitle ? `"${courseTitle}"` : "هذه المادة"}!
         </p>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Link
             href={`/upload?courseId=${courseId || ""}&title=${encodeURIComponent(`ملخص شامل | ${courseTitle || ""}`)}`}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-all duration-200 hover:opacity-90 active:scale-95"
+            className="inline-flex items-center gap-2 rounded-[15px] bg-btn px-5 py-2.5 text-sm font-semibold text-btn-ink shadow-sm transition-all duration-200 hover:opacity-90 active:scale-95"
           >
             <span>📤</span>
             <span>كن أول من يشارك ملخصاً</span>
@@ -506,18 +515,18 @@ export default function ResourceList({
     const isOfficial = options?.isOfficial;
 
     const mainInfo = (
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
         {/* Row 1: Badges (Official + Exam Scope) */}
         {(isOfficial || examScopeLabel) && (
           <div className="flex items-center gap-1.5 flex-wrap">
             {isOfficial && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-500 shrink-0">
+              <span className="inline-flex items-center gap-1 rounded-md bg-hi/25 border border-hi/50 px-2 py-0.5 text-[11px] font-bold text-ink shrink-0">
                 <span>⭐</span>
                 <span>رسمي</span>
               </span>
             )}
             {examScopeLabel && (
-              <span className="rounded-md bg-accent/10 border border-accent/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent shrink-0">
+              <span className="rounded-md bg-surface border border-line px-2 py-0.5 text-[11px] font-semibold text-muted shrink-0">
                 {examScopeLabel}
               </span>
             )}
@@ -527,13 +536,13 @@ export default function ResourceList({
         {/* Row 2: Title */}
         <span
           dir="auto"
-          className="text-sm font-bold text-card-foreground group-hover:text-accent transition-colors line-clamp-2 sm:text-base leading-snug"
+          className="text-base sm:text-lg font-bold text-ink group-hover:text-btn transition-colors line-clamp-2 leading-snug"
         >
           {resource.title}
         </span>
 
-        {/* Row 3: Streamlined Metadata (One tight, clean line) */}
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
+        {/* Row 3: Streamlined Metadata */}
+        <div className="flex items-center gap-2 text-xs sm:text-sm text-muted truncate">
           {resource.professor_name ? (
             <span className="truncate">👨‍🏫 د. {resource.professor_name}</span>
           ) : resource.author_name ? (
@@ -554,7 +563,7 @@ export default function ResourceList({
         {resource.description && (
           <p
             dir="auto"
-            className="text-xs text-muted-foreground/80 line-clamp-1 mt-0.5"
+            className="text-xs text-muted/80 line-clamp-1 mt-0.5"
           >
             {resource.description}
           </p>
@@ -566,19 +575,19 @@ export default function ResourceList({
       <li
         id={`res-${resource.id}`}
         key={resource.id}
-        className={`group flex flex-col overflow-hidden rounded-2xl border transition-all duration-300 ${
+        className={`group flex flex-col overflow-hidden rounded-[22px] border transition-all duration-300 ${
           isOfficial
-            ? "border-amber-500/35 bg-card shadow-xs hover:border-amber-500/60 hover:shadow-md"
-            : "border-border/80 bg-card shadow-xs hover:border-accent/40 hover:shadow-md"
+            ? "border-hi/60 bg-surface shadow-xs hover:border-hi hover:shadow-md"
+            : "border-line bg-surface shadow-xs hover:border-muted/60 hover:shadow-md"
         }`}
       >
-        <div className="flex items-center justify-between gap-2 p-3.5 sm:gap-4 sm:p-4 transition-colors group-hover:bg-secondary/15">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 transition-colors group-hover:bg-paper/40">
           {/* Main Click Target (Cover + Details) */}
           {isQuiz && !resource.quiz_data ? (
             <button
               type="button"
               onClick={() => setActiveEmbedId(activeEmbedId === resource.id ? null : resource.id)}
-              className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4 text-start cursor-pointer"
+              className="flex min-w-0 flex-1 items-center gap-3.5 sm:gap-4 text-start cursor-pointer"
             >
               <ResourceCover resource={resource} isOfficial={isOfficial} />
               {mainInfo}
@@ -587,7 +596,7 @@ export default function ResourceList({
             <button
               type="button"
               onClick={() => handleOpenPdfReader(resource)}
-              className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4 text-start cursor-pointer"
+              className="flex min-w-0 flex-1 items-center gap-3.5 sm:gap-4 text-start cursor-pointer"
               title="قراءة الملف داخل الموقع"
             >
               <ResourceCover resource={resource} isOfficial={isOfficial} />
@@ -599,14 +608,14 @@ export default function ResourceList({
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => handleResourceOutboundClick(resource, "card_body")}
-              className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4 cursor-pointer"
+              className="flex min-w-0 flex-1 items-center gap-3.5 sm:gap-4 cursor-pointer"
             >
               <ResourceCover resource={resource} isOfficial={isOfficial} />
               {mainInfo}
             </a>
           ) : (
             <div
-              className="flex min-w-0 flex-1 items-center gap-3 opacity-60 cursor-not-allowed sm:gap-4"
+              className="flex min-w-0 flex-1 items-center gap-3.5 opacity-60 cursor-not-allowed sm:gap-4"
               title="الملف قيد المعالجة أو التجهيز حالياً"
             >
               <ResourceCover resource={resource} isOfficial={isOfficial} />
@@ -614,29 +623,61 @@ export default function ResourceList({
             </div>
           )}
 
-          {/* Action Buttons (Bookmark + WhatsApp Share + Download/Open) */}
-          <div className="flex items-center gap-1.5 shrink-0 pr-1 sm:pr-2">
-            {/* Resource Bookmark Button */}
-            <button
-              type="button"
-              onClick={() => handleToggleSaveResource(resource)}
-              aria-pressed={isSaved}
-              className={`flex h-9 w-9 items-center justify-center rounded-full transition-all hover:scale-105 active:scale-95 shadow-2xs cursor-pointer ${
-                isSaved
-                  ? "bg-amber-500/15 text-amber-500 border border-amber-500/35"
-                  : "bg-secondary/80 text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
-              title={isSaved ? "إزالة من مواردي المحفوظة" : "حفظ المورد للرجوع السريع"}
-              aria-label={isSaved ? "إزالة من المحفوظات" : "حفظ المورد"}
-            >
-              <BookmarkIcon filled={isSaved} className="h-4 w-4" />
-            </button>
+          {/* Action Buttons (Download/Open + WhatsApp Share + Bookmark) */}
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center pt-2 sm:pt-0">
+            {/* Primary Action Button (Download/Read/Open) */}
+            {isQuiz && !resource.quiz_data ? (
+              <button
+                type="button"
+                onClick={() => setActiveEmbedId(activeEmbedId === resource.id ? null : resource.id)}
+                className="h-11 px-4 rounded-[14px] bg-btn text-btn-ink font-semibold text-sm inline-flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-xs"
+                title="عرض الاختبار"
+              >
+                <span>{activeEmbedId === resource.id ? "إغلاق" : "اختبار"}</span>
+                <span className="text-xs">{activeEmbedId === resource.id ? "▲" : "◀"}</span>
+              </button>
+            ) : isPdfReadable ? (
+              <button
+                type="button"
+                onClick={() => handleOpenPdfReader(resource)}
+                className="h-11 px-4 rounded-[14px] bg-btn text-btn-ink font-semibold text-sm inline-flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-xs"
+                title="قراءة الملف داخل الموقع"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <span>قراءة</span>
+              </button>
+            ) : isValidResourceUrl(resource.storage_url) ? (
+              <a
+                href={resource.storage_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => handleResourceOutboundClick(resource, "card_button")}
+                className="h-11 px-4 rounded-[14px] bg-btn text-btn-ink font-semibold text-sm inline-flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-xs"
+                title="تحميل / فتح الملف"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"/>
+                </svg>
+                <span>{resource.type === "link" ? "زيارة" : "تحميل"}</span>
+              </a>
+            ) : (
+              <div
+                className="h-11 px-3 rounded-[14px] bg-line/40 text-muted opacity-60 cursor-not-allowed inline-flex items-center gap-1 text-xs"
+                title="الملف قيد المعالجة"
+              >
+                <span>⏳</span>
+                <span>قيد التجهيز</span>
+              </div>
+            )}
 
             {/* WhatsApp Share Button */}
             <button
               type="button"
               onClick={() => handleShareResource(resource)}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/80 text-muted-foreground transition-all hover:bg-emerald-500/15 hover:text-emerald-500 hover:scale-105 active:scale-95 shadow-2xs cursor-pointer"
+              className="w-11 h-11 rounded-[14px] border border-line bg-surface text-ink inline-flex items-center justify-center transition-all hover:bg-emerald-500/10 hover:text-emerald-700 hover:border-emerald-500/30 hover:scale-105 active:scale-95 shadow-2xs cursor-pointer"
               title="مشاركة الملخص عبر واتساب"
               aria-label="مشاركة عبر واتساب"
             >
@@ -649,39 +690,21 @@ export default function ResourceList({
               </svg>
             </button>
 
-            {/* Primary Action Button (Download/Open) */}
-            {isQuiz && !resource.quiz_data ? (
-              <button
-                type="button"
-                onClick={() => setActiveEmbedId(activeEmbedId === resource.id ? null : resource.id)}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/80 text-foreground transition-all group-hover:bg-accent group-hover:text-white group-hover:scale-105 shadow-2xs cursor-pointer"
-                title="عرض الاختبار"
-              >
-                <span className="text-xs font-bold">
-                  {activeEmbedId === resource.id ? "🔽" : "▶️"}
-                </span>
-              </button>
-            ) : isValidResourceUrl(resource.storage_url) ? (
-              <a
-                href={resource.storage_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => handleResourceOutboundClick(resource, "card_button")}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/80 text-foreground transition-all group-hover:bg-accent group-hover:text-white group-hover:scale-105 shadow-2xs"
-                title="تحميل / فتح الملف"
-              >
-                <span className="text-xs font-bold">
-                  {resource.type === "link" || resource.type === "other" ? "↗" : "⬇"}
-                </span>
-              </a>
-            ) : (
-              <div
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/40 text-muted-foreground opacity-60 cursor-not-allowed shadow-2xs"
-                title="الملف قيد المعالجة"
-              >
-                <span className="text-xs">⏳</span>
-              </div>
-            )}
+            {/* Resource Bookmark Button */}
+            <button
+              type="button"
+              onClick={() => handleToggleSaveResource(resource)}
+              aria-pressed={isSaved}
+              className={`w-11 h-11 rounded-[14px] border inline-flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-2xs cursor-pointer ${
+                isSaved
+                  ? "bg-hi/25 text-ink border-hi/60"
+                  : "bg-surface border-line text-muted hover:bg-line/40 hover:text-ink"
+              }`}
+              title={isSaved ? "إزالة من مواردي المحفوظة" : "حفظ المورد للرجوع السريع"}
+              aria-label={isSaved ? "إزالة من المحفوظات" : "حفظ المورد"}
+            >
+              <BookmarkIcon filled={isSaved} className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
@@ -689,7 +712,7 @@ export default function ResourceList({
         {resource.quiz_data && (
           <div
             id={`quiz-${resource.id}`}
-            className="border-t border-border/50 bg-accent/[0.04] px-3.5 py-2.5 sm:px-4 sm:py-3 transition-colors group-hover:bg-accent/[0.08]"
+            className="border-t border-line bg-paper/40 px-3.5 py-2.5 sm:px-4 sm:py-3 transition-colors group-hover:bg-paper/70"
           >
             <NativeQuiz
               quizData={resource.quiz_data}
@@ -703,10 +726,10 @@ export default function ResourceList({
 
         {/* Embedded Iframe for legacy URL quizzes */}
         {isQuiz && !resource.quiz_data && activeEmbedId === resource.id && (
-          <div className="border-t border-border bg-muted/30 p-4 sm:p-6">
+          <div className="border-t border-line bg-surface p-4 sm:p-6">
             <iframe
               src={resource.storage_url}
-              className="min-h-150 w-full rounded-lg border border-border bg-background shadow-sm"
+              className="min-h-150 w-full rounded-lg border border-line bg-paper shadow-sm"
               allowFullScreen
             />
           </div>
@@ -733,16 +756,16 @@ export default function ResourceList({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span dir="auto" className="text-sm font-medium text-foreground truncate">
+            <span dir="auto" className="text-sm font-medium text-ink truncate">
               {res.title}
             </span>
             {examScopeLabel && (
-              <span className="rounded bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+              <span className="rounded bg-line/40 px-2 py-0.5 text-[10px] font-semibold text-muted">
                 {examScopeLabel}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+          <div className="flex items-center gap-2 text-xs text-muted mt-0.5">
             {res.author_name ? (
               <span>مساهمة: {res.author_name}</span>
             ) : (
@@ -761,7 +784,7 @@ export default function ResourceList({
       <div
         id={`res-${res.id}`}
         key={res.id}
-        className="flex items-center justify-between gap-3 p-3.5 sm:p-4 hover:bg-secondary/30 transition-colors"
+        className="flex items-center justify-between gap-3 p-3.5 sm:p-4 hover:bg-line/20 transition-colors"
       >
         {isPdfReadable ? (
           <button
@@ -776,17 +799,17 @@ export default function ResourceList({
           infoBody
         )}
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => handleToggleSaveResource(res)}
             aria-pressed={isSaved}
             title={isSaved ? "إزالة من المحفوظات" : "حفظ المورد"}
             aria-label={isSaved ? "إزالة من المحفوظات" : "حفظ المورد"}
-            className={`flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-xl border transition-colors cursor-pointer ${
+            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-colors cursor-pointer ${
               isSaved
-                ? "border-amber-500/40 bg-amber-500/15 text-amber-500"
-                : "border-border bg-card text-muted-foreground hover:text-foreground"
+                ? "border-hi/60 bg-hi/25 text-ink"
+                : "border-line bg-surface text-muted hover:text-ink"
             }`}
           >
             <BookmarkIcon filled={isSaved} className="h-3.5 w-3.5" />
@@ -798,14 +821,14 @@ export default function ResourceList({
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => handleResourceOutboundClick(res, "archive_button")}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shrink-0"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink hover:bg-btn hover:text-btn-ink hover:border-btn transition-all shrink-0"
             >
               <span>تحميل</span>
               <span>⬇</span>
             </a>
           ) : (
             <span
-              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground opacity-60 cursor-not-allowed shrink-0"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-line/30 px-3 py-1.5 text-xs font-semibold text-muted opacity-60 cursor-not-allowed shrink-0"
               title="الملف قيد المعالجة حالياً"
             >
               <span>قيد التجهيز</span>
@@ -818,250 +841,424 @@ export default function ResourceList({
   };
 
   return (
-    <div className="space-y-10" dir="rtl">
-      {/* ─── Shelf 1: 📚 المادة الرسمية / Official Syllabus ────────── */}
-      {officialSyllabusResources.length > 0 && (
-        <section className="space-y-4" aria-label="المادة الرسمية المعتمدة">
-          <div className="border-b border-border pb-3">
-            <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl flex items-center gap-2">
-              <span>📚</span>
-              <span>المادة الرسمية المعتمدة</span>
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-              الخطة الدراسية، كتاب المادة، أو السلايدات الرسمية الصادرة عن الجامعة.
-            </p>
-          </div>
+    <div dir="rtl">
+      {/* ── Two-column layout: main shelves + sticky sidebar ──────────────── */}
+      <div className="flex flex-col lg:flex-row gap-8 lg:gap-10 items-start">
 
-          <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
-            {officialSyllabusResources.map((r) =>
-              renderResourceCard(r, { isOfficial: true })
-            )}
-          </ul>
-        </section>
-      )}
+        {/* ── Main column: Filter Tabs + 4-tier shelf architecture ───────────── */}
+        <div className="flex-[999_1_560px] min-w-0 space-y-8 w-full">
 
-      {/* ─── Shelf 2: 🌟 ملخصات ومراجعات ─────────────────────────── */}
-      {summaryResources.length > 0 && (
-        <section className="space-y-4" aria-label="ملخصات ومراجعات شاملة">
-          <div className="border-b border-border pb-3">
-            <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl flex items-center gap-2">
-              <span>🌟</span>
-              <span>ملخصات ومراجعات شاملة</span>
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-              شروحات ومذكرات مركزة تغطي مواضيع الامتحانات مع بنوك أسئلة تفاعلية ذكية.
-            </p>
-          </div>
-
-          <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
-            {summaryResources.map((r) => renderResourceCard(r))}
-          </ul>
-        </section>
-      )}
-
-      {/* ─── Shelf 3: 📝 أسئلة ونماذج امتحانات ─────────────────────── */}
-      {pastExamResources.length > 0 && (
-        <section className="space-y-4" aria-label="أسئلة ونماذج امتحانات سابقة">
-          <div className="border-b border-border pb-3">
-            <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl flex items-center gap-2">
-              <span>📝</span>
-              <span>أسئلة ونماذج امتحانات سابقة</span>
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-              تجميعات امتحانات السنوات السابقة وأسئلة التدريب للاختبارات النصفية والنهائية.
-            </p>
-          </div>
-
-          <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
-            {pastExamResources.map((r) => renderResourceCard(r))}
-          </ul>
-        </section>
-      )}
-
-      {/* ─── Shelf 4: 🗂️ أرشيف إضافي ومصادر خارجية (Collapsible) ──── */}
-      {archiveResources.length > 0 && (
-        <section
-          className="rounded-2xl border border-border bg-card/70 overflow-hidden shadow-sm transition-all"
-          aria-label="أرشيف إضافي ومصادر خارجية"
-        >
-          <button
-            type="button"
-            onClick={() => setIsArchiveOpen(!isArchiveOpen)}
-            className="flex w-full items-center justify-between p-4 sm:p-5 text-start hover:bg-secondary/40 transition-colors cursor-pointer"
-          >
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 font-bold text-foreground text-base sm:text-lg">
-                <span>🗂️</span>
-                <span>أرشيف إضافي ومصادر خارجية</span>
-                <span
-                  className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground"
-                  dir="ltr"
+          {/* Filter Tabs */}
+          <div role="group" aria-label="نوع الملفات" className="flex flex-wrap gap-2.5">
+            {tabs.map((tab) => {
+              const isActive = activeFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => setActiveFilter(tab.id)}
+                  className={`min-h-[46px] px-4.5 py-2 rounded-full text-sm font-semibold inline-flex items-center gap-2.5 transition-all cursor-pointer border-[1.5px] ${
+                    isActive
+                      ? "bg-btn text-btn-ink border-btn shadow-xs"
+                      : "bg-surface text-ink border-line hover:border-muted/50"
+                  }`}
                 >
-                  {archiveResources.length}
-                </span>
+                  <span>{tab.label}</span>
+                  <span
+                    className={`min-w-6 h-6 px-1.5 rounded-full text-xs font-mono inline-flex items-center justify-center ${
+                      isActive ? "bg-white/20 text-btn-ink" : "bg-line/60 text-muted"
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ─── Shelf 1: 📚 المادة الرسمية / Official Syllabus ────────── */}
+          {(activeFilter === "all" || activeFilter === "official") && officialSyllabusResources.length > 0 && (
+            <section className="space-y-4" aria-label="المادة الرسمية المعتمدة">
+              <div className="border-b border-line pb-3">
+                <h2 className="font-heading text-[27px] font-bold text-ink flex items-center gap-2">
+                  <span>📚</span>
+                  <span>المادة الرسمية المعتمدة</span>
+                </h2>
+                <p className="mt-1 text-xs text-muted sm:text-sm">
+                  الخطة الدراسية، كتاب المادة، أو السلايدات الرسمية الصادرة عن الجامعة.
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground sm:text-sm">
-                سلايدات الفصول المنفردة، شروحات يوتيوب، مراجع إضافية، ومساهمات الطلاب.
-              </p>
-            </div>
 
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold text-accent hidden sm:inline">
-                {isArchiveOpen ? "طي الأرشيف" : "عرض المزيد"}
-              </span>
-              <span className="rounded-lg bg-secondary p-2 text-xs font-bold text-muted-foreground transition-transform duration-200">
-                {isArchiveOpen ? "▲" : "▼"}
-              </span>
-            </div>
-          </button>
+              <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
+                {officialSyllabusResources.map((r) =>
+                  renderResourceCard(r, { isOfficial: true })
+                )}
+              </ul>
+            </section>
+          )}
 
-          {isArchiveOpen && (
-            <div className="border-t border-border bg-background/50 p-4 sm:p-6 space-y-6 animate-in fade-in-50 duration-200">
-              {/* Sub-header 1: External Links */}
-              {externalLinkResources.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
-                    <span>🔗</span>
-                    <span>روابط ومصادر خارجية</span>
-                    <span className="text-xs text-muted-foreground font-normal">
-                      ({externalLinkResources.length})
+          {/* ─── Shelf 2: 🌟 ملخصات ومراجعات ─────────────────────────── */}
+          {(activeFilter === "all" || activeFilter === "summary") && summaryResources.length > 0 && (
+            <section className="space-y-4" aria-label="ملخصات ومراجعات شاملة">
+              <div className="border-b border-line pb-3">
+                <h2 className="font-heading text-[27px] font-bold text-ink flex items-center gap-2">
+                  <span>🌟</span>
+                  <span>ملخصات ومراجعات شاملة</span>
+                </h2>
+                <p className="mt-1 text-xs text-muted sm:text-sm">
+                  شروحات ومذكرات مركزة تغطي مواضيع الامتحانات مع بنوك أسئلة تفاعلية ذكية.
+                </p>
+              </div>
+
+              <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
+                {summaryResources.map((r) => renderResourceCard(r))}
+              </ul>
+            </section>
+          )}
+
+          {/* ─── Shelf 3: 📝 أسئلة ونماذج امتحانات ─────────────────────── */}
+          {(activeFilter === "all" || activeFilter === "past_exam") && pastExamResources.length > 0 && (
+            <section className="space-y-4" aria-label="أسئلة ونماذج امتحانات سابقة">
+              <div className="border-b border-line pb-3">
+                <h2 className="font-heading text-[27px] font-bold text-ink flex items-center gap-2">
+                  <span>📝</span>
+                  <span>أسئلة ونماذج امتحانات سابقة</span>
+                </h2>
+                <p className="mt-1 text-xs text-muted sm:text-sm">
+                  تجميعات امتحانات السنوات السابقة وأسئلة التدريب للاختبارات النصفية والنهائية.
+                </p>
+              </div>
+
+              <ul className="space-y-3 sm:space-y-3.5 list-none p-0 m-0">
+                {pastExamResources.map((r) => renderResourceCard(r))}
+              </ul>
+            </section>
+          )}
+
+          {/* ─── Shelf 4: 🗂️ أرشيف إضافي ومصادر خارجية (Collapsible) ──── */}
+          {activeFilter === "all" && archiveResources.length > 0 && (
+            <section
+              className="rounded-[22px] border border-line bg-surface overflow-hidden shadow-sm transition-all"
+              aria-label="أرشيف إضافي ومصادر خارجية"
+            >
+              <button
+                type="button"
+                onClick={() => setIsArchiveOpen(!isArchiveOpen)}
+                className="flex w-full items-center justify-between p-4 sm:p-5 text-start hover:bg-line/30 transition-colors cursor-pointer"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-ink text-base sm:text-lg">
+                    <span>🗂️</span>
+                    <span>أرشيف إضافي ومصادر خارجية</span>
+                    <span
+                      className="rounded-full bg-line/60 px-2.5 py-0.5 text-xs font-semibold text-muted"
+                      dir="ltr"
+                    >
+                      {archiveResources.length}
                     </span>
-                  </h4>
+                  </div>
+                  <p className="text-xs text-muted sm:text-sm">
+                    سلايدات الفصول المنفردة، شروحات يوتيوب، مراجع إضافية، ومساهمات الطلاب.
+                  </p>
+                </div>
 
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {externalLinkResources.map((res) => {
-                      const meta = getPlatformMeta(res);
-                      const valid = isValidResourceUrl(res.storage_url);
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-ink hidden sm:inline">
+                    {isArchiveOpen ? "طي الأرشيف" : "عرض المزيد"}
+                  </span>
+                  <span className="rounded-lg bg-line/40 p-2 text-xs font-bold text-muted transition-transform duration-200">
+                    {isArchiveOpen ? "▲" : "▼"}
+                  </span>
+                </div>
+              </button>
 
-                      if (!valid) {
-                        return (
-                          <div
-                            key={res.id}
-                            className="opacity-60 cursor-not-allowed flex flex-col justify-between rounded-2xl border border-border bg-card p-4"
-                            title="الرابط قيد التحديث"
-                          >
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span
-                                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${meta.badgeClass}`}
-                                >
-                                  <span>{meta.icon}</span>
-                                  <span>{meta.name}</span>
-                                </span>
-                              </div>
-                              <h5 dir="auto" className="text-sm font-bold text-foreground line-clamp-2">
-                                {res.title}
-                              </h5>
-                              {res.description && (
-                                <p dir="auto" className="text-xs text-muted-foreground line-clamp-2">
-                                  {res.description}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      }
+              {isArchiveOpen && (
+                <div className="border-t border-line bg-paper/30 p-4 sm:p-6 space-y-6 animate-in fade-in-50 duration-200">
+                  {/* External Links */}
+                  {externalLinkResources.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-bold text-ink flex items-center gap-2">
+                        <span>🔗</span>
+                        <span>روابط ومصادر خارجية</span>
+                        <span className="text-xs text-muted font-normal">
+                          ({externalLinkResources.length})
+                        </span>
+                      </h4>
 
-                      return (
-                        <a
-                          key={res.id}
-                          href={res.storage_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => handleResourceOutboundClick(res, "external_card")}
-                          className="group flex flex-col justify-between rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:border-accent hover:shadow-md active:scale-[0.99]"
-                        >
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${meta.badgeClass}`}
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {externalLinkResources.map((res) => {
+                          const meta = getPlatformMeta(res);
+                          const valid = isValidResourceUrl(res.storage_url);
+
+                          if (!valid) {
+                            return (
+                              <div
+                                key={res.id}
+                                className="opacity-60 cursor-not-allowed flex flex-col justify-between rounded-[18px] border border-line bg-surface p-4"
+                                title="الرابط قيد التحديث"
                               >
-                                <span>{meta.icon}</span>
-                                <span>{meta.name}</span>
-                              </span>
-                              <span className="text-xs text-muted-foreground group-hover:text-accent transition-colors">
-                                ↗
-                              </span>
-                            </div>
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span
+                                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${meta.badgeClass}`}
+                                    >
+                                      <span>{meta.icon}</span>
+                                      <span>{meta.name}</span>
+                                    </span>
+                                  </div>
+                                  <h5 dir="auto" className="text-sm font-bold text-ink line-clamp-2">
+                                    {res.title}
+                                  </h5>
+                                  {res.description && (
+                                    <p dir="auto" className="text-xs text-muted line-clamp-2">
+                                      {res.description}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }
 
-                            <h5 dir="auto" className="text-sm font-bold text-foreground group-hover:text-accent transition-colors line-clamp-2">
-                              {res.title}
-                            </h5>
+                          return (
+                            <a
+                              key={res.id}
+                              href={res.storage_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => handleResourceOutboundClick(res, "external_card")}
+                              className="group flex flex-col justify-between rounded-[18px] border border-line bg-surface p-4 transition-all duration-200 hover:border-muted hover:shadow-md active:scale-[0.99]"
+                            >
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span
+                                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${meta.badgeClass}`}
+                                  >
+                                    <span>{meta.icon}</span>
+                                    <span>{meta.name}</span>
+                                  </span>
+                                  <span className="text-xs text-muted group-hover:text-ink transition-colors">
+                                    ↗
+                                  </span>
+                                </div>
 
-                            {res.description && (
-                              <p dir="auto" className="text-xs text-muted-foreground line-clamp-2">
-                                {res.description}
-                              </p>
-                            )}
-                          </div>
+                                <h5 dir="auto" className="text-sm font-bold text-ink group-hover:text-btn transition-colors line-clamp-2">
+                                  {res.title}
+                                </h5>
 
-                          <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
-                            <span>فتح المورد الخارجي</span>
-                            <span className="font-semibold text-accent">زيارة الموقع ←</span>
-                          </div>
-                        </a>
-                      );
-                    })}
-                  </div>
+                                {res.description && (
+                                  <p dir="auto" className="text-xs text-muted line-clamp-2">
+                                    {res.description}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="mt-4 pt-3 border-t border-line/60 flex items-center justify-between text-xs text-muted">
+                                <span>فتح المورد الخارجي</span>
+                                <span className="font-semibold text-ink">زيارة الموقع ←</span>
+                              </div>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Chapter Slides */}
+                  {chapterSlideResources.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-bold text-ink flex items-center gap-2">
+                        <span>📎</span>
+                        <span>سلايدات وفصول إضافية</span>
+                        <span className="text-xs text-muted font-normal">
+                          ({chapterSlideResources.length})
+                        </span>
+                      </h4>
+                      <div className="rounded-xl border border-line bg-surface overflow-hidden divide-y divide-line">
+                        {chapterSlideResources.map(renderSubduedArchiveRow)}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Student Community */}
+                  {studentContributionResources.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-bold text-ink flex items-center gap-2">
+                        <span>👥</span>
+                        <span>مساهمات الطلاب</span>
+                        <span className="text-xs text-muted font-normal">
+                          ({studentContributionResources.length})
+                        </span>
+                      </h4>
+                      <div className="rounded-xl border border-line bg-surface overflow-hidden divide-y divide-line">
+                        {studentContributionResources.map(renderSubduedArchiveRow)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
+            </section>
+          )}
 
-              {/* Sub-header 2: Extra Chapter Slides & Guides */}
-              {chapterSlideResources.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
-                    <span>📎</span>
-                    <span>سلايدات وفصول إضافية</span>
-                    <span className="text-xs text-muted-foreground font-normal">
-                      ({chapterSlideResources.length})
-                    </span>
-                  </h4>
-                  <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
-                    {chapterSlideResources.map(renderSubduedArchiveRow)}
-                  </div>
-                </div>
-              )}
+          {/* Bottom Crowdsourcing Banner */}
+          <div className="rounded-[22px] border border-dashed border-line bg-surface p-6 text-center sm:p-8">
+            <h4 className="font-heading text-base font-bold text-ink sm:text-lg">
+              💡 هل لديك تلخيص أفضل أو أسئلة إضافية؟
+            </h4>
+            <p className="mt-1 text-xs text-muted sm:text-sm max-w-lg mx-auto leading-relaxed">
+              ساهم في إثراء أرشيف المادة وساعد زملاءك في الدفعة على التفوق! يتم مراجعة الملف من قبل فريق المنصة قبل نشره.
+            </p>
+            <div className="mt-4">
+              <Link
+                href={`/upload?courseId=${courseId || ""}&title=${encodeURIComponent(`ملخص | ${courseTitle || ""}`)}`}
+                className="inline-flex items-center gap-2 rounded-[14px] bg-btn px-5 py-2.5 text-xs font-bold text-btn-ink shadow-sm transition-all duration-200 hover:opacity-90 active:scale-95"
+              >
+                <span>📤</span>
+                <span>شارك ملخصك مع زملائك</span>
+              </Link>
+            </div>
+          </div>
 
-              {/* Sub-header 3: Student Community Contributions */}
-              {studentContributionResources.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
-                    <span>👥</span>
-                    <span>مساهمات الطلاب</span>
-                    <span className="text-xs text-muted-foreground font-normal">
-                      ({studentContributionResources.length})
-                    </span>
-                  </h4>
-                  <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
-                    {studentContributionResources.map(renderSubduedArchiveRow)}
-                  </div>
+        </div>
+
+        {/* ── Sidebar column: Quiz Launcher + Direct Link + Upload CTA ──────── */}
+        <aside className="w-full lg:w-[320px] lg:max-w-[340px] shrink-0 flex flex-col gap-5 lg:sticky lg:top-24">
+          
+          {/* 1. Quiz Launcher Card (Dark theme with Reem Kufi & SVG progress ring) */}
+          {totalQuizQuestions > 0 && (
+            <div className="bg-btn text-btn-ink rounded-[26px] p-6 flex flex-col gap-4.5 shadow-md">
+              <div className="flex items-center justify-between gap-3">
+                <span className="bg-hi text-ink px-3 py-1 rounded-[9px] font-heading text-xl font-bold">
+                  اختبر نفسك
+                </span>
+                <svg aria-hidden="true" width="44" height="44" viewBox="0 0 100 100" className="shrink-0 -rotate-90">
+                  <circle cx="50" cy="50" r="45" fill="none" strokeWidth="10" className="stroke-btn-ink/20" />
+                  <circle cx="50" cy="50" r="45" fill="none" strokeWidth="10" strokeLinecap="round" strokeDasharray="282.74" strokeDashoffset="141" className="stroke-hi" />
+                </svg>
+              </div>
+
+              <p className="text-[15px] leading-relaxed opacity-90 m-0">
+                كويز تفاعلي من {totalQuizQuestions} سؤال، وكل إجابة معها شرح يوضح ليش.
+              </p>
+
+              {/* Question Count Selector */}
+              <div className="flex flex-col gap-2">
+                <span className="text-[13px] opacity-80">عدد الأسئلة</span>
+                <div className="flex flex-wrap gap-2">
+                  {([5, 10, 20, "all"] as const).map((cnt) => {
+                    const isPicked = selectedQuizCount === cnt;
+                    return (
+                      <button
+                        key={cnt}
+                        type="button"
+                        aria-pressed={isPicked}
+                        onClick={() => setSelectedQuizCount(cnt)}
+                        className={`min-w-[46px] h-11 px-3.5 rounded-[12px] text-[14px] font-semibold transition-all cursor-pointer ${
+                          isPicked
+                            ? "bg-hi text-ink font-bold shadow-xs"
+                            : "bg-btn-ink/15 text-btn-ink hover:bg-btn-ink/25"
+                        }`}
+                      >
+                        {cnt === "all" ? "الكل" : cnt}
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
+
+              {/* Difficulty Selector */}
+              <div className="flex flex-col gap-2">
+                <span className="text-[13px] opacity-80">الصعوبة</span>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { id: "balanced" as const, label: "متوازن" },
+                    { id: "easy" as const, label: "سهل" },
+                    { id: "medium" as const, label: "متوسط" },
+                    { id: "hard" as const, label: "صعب" },
+                  ]).map((lvl) => {
+                    const isPicked = selectedQuizDifficulty === lvl.id;
+                    return (
+                      <button
+                        key={lvl.id}
+                        type="button"
+                        aria-pressed={isPicked}
+                        onClick={() => setSelectedQuizDifficulty(lvl.id)}
+                        className={`h-11 px-3.5 rounded-[12px] text-[14px] font-semibold transition-all cursor-pointer ${
+                          isPicked
+                            ? "bg-hi text-ink font-bold shadow-xs"
+                            : "bg-btn-ink/15 text-btn-ink hover:bg-btn-ink/25"
+                        }`}
+                      >
+                        {lvl.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Start Quiz Action */}
+              <button
+                type="button"
+                onClick={handleStartSidebarQuiz}
+                className="h-[52px] rounded-[16px] bg-hi text-ink font-heading text-lg font-bold hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer w-full flex items-center justify-center mt-1"
+              >
+                ابدأ الكويز
+              </button>
             </div>
           )}
-        </section>
-      )}
 
-      {/* ─── Persistent Bottom Crowdsourcing Banner ─────────────────────── */}
-      <div className="rounded-2xl border border-dashed border-border bg-card/40 p-6 text-center sm:p-8 backdrop-blur-sm">
-        <h4 className="text-base font-bold text-foreground sm:text-lg">
-          💡 هل لديك تلخيص أفضل أو أسئلة إضافية؟
-        </h4>
-        <p className="mt-1 text-xs text-muted-foreground sm:text-sm max-w-lg mx-auto leading-relaxed">
-          ساهم في إثراء أرشيف المادة وساعد زملاءك في الدفعة على التفوق! يتم مراجعة الملف من قبل فريق المنصة قبل نشره.
-        </p>
-        <div className="mt-4">
-          <Link
-            href={`/upload?courseId=${courseId || ""}&title=${encodeURIComponent(`ملخص | ${courseTitle || ""}`)}`}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm transition-all duration-200 hover:opacity-90 active:scale-95"
-          >
-            <span>📤</span>
-            <span>شارك ملخصك مع زملائك</span>
-          </Link>
-        </div>
+          {/* 2. Direct Link Copy Widget */}
+          <div className="bg-surface border border-line rounded-[22px] p-5 flex flex-col gap-3">
+            <span className="font-bold text-ink text-base">رابط مباشر للمادة</span>
+            <span className="text-sm leading-relaxed text-muted">
+              الصقه في القروب، ويفتح مباشرة على هذه الصفحة.
+            </span>
+            <div className="flex items-center gap-2 border border-dashed border-muted/50 rounded-[14px] p-1.5 pe-2">
+              <span className="flex-1 min-w-0 font-mono text-xs text-ink/80 text-left px-2 truncate" dir="ltr">
+                {`molakhasat.me/courses/${courseSlug || ""}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const url = `https://molakhasat.me/courses/${courseSlug || ""}`;
+                  if (navigator.clipboard) {
+                    navigator.clipboard.writeText(url);
+                    showToast("تم نسخ الرابط المباشر للمادة! 📋");
+                  }
+                }}
+                aria-label="نسخ الرابط"
+                className="shrink-0 w-11 h-11 rounded-[12px] bg-btn text-btn-ink flex items-center justify-center hover:opacity-90 active:scale-95 transition-all cursor-pointer"
+              >
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="8" y="8" width="12" height="12" rx="2"/>
+                  <path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* 3. Upload CTA Widget */}
+          <div className="border-[1.5px] border-dashed border-line rounded-[22px] p-5 flex flex-col items-start gap-3 bg-surface/50">
+            <span className="font-bold text-ink text-base">عندك ملخص أو امتحان قديم؟</span>
+            <span className="text-sm leading-relaxed text-muted">
+              شاركه ويستفيد منه كل الدفعة، واسمك بيظهر عليه.
+            </span>
+            <Link
+              href={`/upload?courseId=${courseId || ""}&title=${encodeURIComponent(`ملخص | ${courseTitle || ""}`)}`}
+              className="inline-flex min-h-[46px] items-center gap-2 rounded-[14px] border-[1.5px] border-ink bg-transparent px-4 text-sm font-semibold text-ink transition-all hover:bg-ink/8 active:scale-95 cursor-pointer"
+            >
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              <span>ارفع ملف</span>
+            </Link>
+          </div>
+
+        </aside>
+
       </div>
 
-      {/* ─── Lazy-Loaded In-App PDF Reader Modal ────────────────────── */}
+      {/* Lazy-Loaded In-App PDF Reader Modal */}
       {activeReaderResource && (
         <PdfReaderModal
           key={activeReaderResource.id}
@@ -1074,9 +1271,9 @@ export default function ResourceList({
         />
       )}
 
-      {/* ─── Floating Toast Notification ─────────────────────── */}
+      {/* Floating Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-xl border border-border/80 bg-foreground text-background px-4 py-2.5 text-xs font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-xl border border-line bg-btn text-btn-ink px-4 py-2.5 text-xs font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
           <span>{toastMessage}</span>
         </div>
       )}
