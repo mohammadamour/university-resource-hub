@@ -22,7 +22,10 @@ export async function generateStaticParams() {
   try {
     const supabase = createPublicClient();
     const { data: courses } = await supabase.from("courses").select("slug");
-    const staticParams = (courses || []).map((c) => ({ slug: c.slug }));
+    const uniqueSlugs = Array.from(
+      new Set((courses || []).map((c) => c.slug).filter(Boolean))
+    );
+    const staticParams = uniqueSlugs.map((slug) => ({ slug }));
     if (!staticParams.some((p) => p.slug === "placement-exams")) {
       staticParams.push({ slug: "placement-exams" });
     }
@@ -39,11 +42,12 @@ interface CoursePageProps {
 /**
  * Fetches a single course by slug, including all its resources.
  * Uses createPublicClient (no cookies) to ensure clean static generation and edge CDN caching.
+ * Gracefully handles duplicate slugs across departments by picking the course with the most resources.
  */
 async function getCourse(slug: string): Promise<CourseWithResources | null> {
   const supabase = createPublicClient();
 
-  const { data: course } = await supabase
+  const { data: courses, error } = await supabase
     .from("courses")
     .select(
       `
@@ -53,10 +57,27 @@ async function getCourse(slug: string): Promise<CourseWithResources | null> {
     `
     )
     .eq("slug", slug)
-    .eq("resources.status", "active")
-    .single();
+    .eq("resources.status", "active");
 
-  return course as CourseWithResources | null;
+  if (error) {
+    console.error(`[getCourse] Error fetching course with slug "${slug}":`, error);
+    return null;
+  }
+
+  if (!courses || courses.length === 0) {
+    return null;
+  }
+
+  // If duplicate courses exist with the same slug across departments,
+  // pick the one with active resources to prevent a false 404 crash.
+  if (courses.length > 1) {
+    console.warn(
+      `[getCourse] Duplicate courses found for slug "${slug}" (${courses.length} matches). Selecting the one with most resources.`
+    );
+    courses.sort((a, b) => (b.resources?.length || 0) - (a.resources?.length || 0));
+  }
+
+  return courses[0] as CourseWithResources;
 }
 
 /**
