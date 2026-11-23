@@ -11,6 +11,7 @@ import type {
 import type { Resource } from "@/types/database";
 import BookmarkIcon from "@/components/ui/BookmarkIcon";
 import { track } from "@/lib/analytics";
+import { getDownloadUrl } from "@/lib/utils";
 
 interface PdfReaderModalProps {
   resource: Resource;
@@ -490,12 +491,10 @@ export default function PdfReaderModal({
           </button>
 
           <a
-            href={resource.storage_url}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={getDownloadUrl(resource.storage_url, resource.title)}
             onClick={() => trackDownload("reader_header")}
             className="inline-flex h-10 sm:h-11 items-center gap-1.5 rounded-xl bg-hi px-3 sm:px-4 text-xs sm:text-sm font-heading font-bold text-ink hover:bg-hi/90 active:scale-95 transition-all shadow-xs"
-            title="تحميل أو فتح الملف الأصلي"
+            title="تحميل الملف الأصلي"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" />
@@ -515,14 +514,12 @@ export default function PdfReaderModal({
             <div className="text-3xl">📄</div>
             <p className="text-sm text-[#F1ECE2] leading-relaxed">{errorMsg}</p>
             <a
-              href={resource.storage_url}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={getDownloadUrl(resource.storage_url, resource.title)}
               onClick={() => trackDownload("reader_error_fallback")}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-hi px-5 py-2.5 text-sm font-heading font-bold text-ink shadow-sm hover:bg-hi/90 transition-colors"
             >
               <span>⬇</span>
-              <span>فتح / تحميل الملف مباشرة</span>
+              <span>تحميل الملف مباشرة</span>
             </a>
           </div>
         ) : !pdfDoc ? (

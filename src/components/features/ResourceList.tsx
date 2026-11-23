@@ -9,6 +9,7 @@ import BookmarkIcon from "@/components/ui/BookmarkIcon";
 import LogoMark from "@/components/ui/LogoMark";
 import { toggleSavedResource, useBookmarks } from "@/lib/bookmarks";
 import { track } from "@/lib/analytics";
+import { getDownloadUrl } from "@/lib/utils";
 
 // Code-split the pdf.js reader modal so initial course page JS pays 0 KB overhead
 const PdfReaderModal = dynamic(
@@ -682,9 +683,13 @@ export default function ResourceList({
             </button>
           ) : isValidResourceUrl(resource.storage_url) ? (
             <a
-              href={resource.storage_url}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={
+                resource.type === "link"
+                  ? resource.storage_url
+                  : getDownloadUrl(resource.storage_url, resource.title)
+              }
+              target={resource.type === "link" ? "_blank" : undefined}
+              rel={resource.type === "link" ? "noopener noreferrer" : undefined}
               onClick={() => handleResourceOutboundClick(resource, "card_body")}
               className="flex min-w-0 flex-1 items-center gap-3.5 sm:gap-4 cursor-pointer"
             >
@@ -729,12 +734,16 @@ export default function ResourceList({
               </button>
             ) : isValidResourceUrl(resource.storage_url) ? (
               <a
-                href={resource.storage_url}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={
+                  resource.type === "link"
+                    ? resource.storage_url
+                    : getDownloadUrl(resource.storage_url, resource.title)
+                }
+                target={resource.type === "link" ? "_blank" : undefined}
+                rel={resource.type === "link" ? "noopener noreferrer" : undefined}
                 onClick={() => handleResourceOutboundClick(resource, "card_button")}
                 className="h-11 px-4 rounded-[14px] bg-btn text-btn-ink font-semibold text-sm inline-flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-xs"
-                title="تحميل / فتح الملف"
+                title={resource.type === "link" ? "زيارة الرابط" : "تحميل الملف"}
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"/>
@@ -895,14 +904,18 @@ export default function ResourceList({
 
           {isValidResourceUrl(res.storage_url) ? (
             <a
-              href={res.storage_url}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={
+                res.type === "link"
+                  ? res.storage_url
+                  : getDownloadUrl(res.storage_url, res.title)
+              }
+              target={res.type === "link" ? "_blank" : undefined}
+              rel={res.type === "link" ? "noopener noreferrer" : undefined}
               onClick={() => handleResourceOutboundClick(res, "archive_button")}
               className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink hover:bg-btn hover:text-btn-ink hover:border-btn transition-all shrink-0"
             >
-              <span>تحميل</span>
-              <span>⬇</span>
+              <span>{res.type === "link" ? "زيارة" : "تحميل"}</span>
+              <span>{res.type === "link" ? "↗" : "⬇"}</span>
             </a>
           ) : (
             <span

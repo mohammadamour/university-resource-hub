@@ -62,3 +62,25 @@ export function sanitizeTextForPostgres(text: string | null | undefined): string
   return cleaned.trim() || null;
 }
 
+/**
+ * Transforms a Supabase storage URL to force browser download attachment disposition
+ * via Supabase's native `?download=` query parameter.
+ * This prevents mobile browsers and in-app webviews from opening blank stalled tabs.
+ */
+export function getDownloadUrl(
+  url: string | null | undefined,
+  title?: string | null
+): string {
+  if (!url) return "";
+  if (url.includes(".supabase.co/storage/")) {
+    const cleanTitle = (title || "ملخص")
+      .trim()
+      .replace(/[\\/:*?"<>|]/g, "_")
+      .slice(0, 80);
+    const filename = `${cleanTitle}.pdf`;
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}download=${encodeURIComponent(filename)}`;
+  }
+  return url;
+}
+
