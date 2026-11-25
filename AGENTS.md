@@ -188,3 +188,27 @@ Adding a course is strictly an atomic database row addition + seed file sync. **
 - **Homepage Visibility Rule (`DepartmentGrid.tsx`):** A newly added course with 0 approved resources is **deliberately hidden from the homepage grid** to prevent empty card clutter. It appears **immediately** in the `/upload` dropdown and at its direct URL `/courses/[slug]`. Once the first approved resource is attached, it surfaces on the homepage automatically.
 - **Arabic Typography Standard:** Always connect the conjunction "و" to the subsequent word without spaces (`الشبكات وتراسل البيانات`, NOT `الشبكات و تراسل البيانات`), matching the rest of the course catalog and standard Arabic orthography.
 
+---
+
+## 📱 7. Mobile Remote Dispatch Protocol ("I'm on phone" / "I'm out of home")
+
+When the user states **"I'm on phone"**, **"I'm out of home"**, or indicates they are controlling the computer remotely from a mobile device:
+
+### ⚡ Behavioral Rules for Mobile Control
+1. **Branch Isolation:**
+   - Always verify and operate on the dedicated branch (`mobile-dispatch` or the active task branch) so any misstep can be reverted with zero risk to `main`.
+2. **Audit Logging in [`PHONE_ACTIONS_LOG.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/PHONE_ACTIONS_LOG.md):**
+   - Every file modification, schema addition, script run, or architectural decision completed while in this mode **MUST be logged** in [`PHONE_ACTIONS_LOG.md`](file:///c:/Users/somet/Downloads/Coding/university%20resource%20hub/PHONE_ACTIONS_LOG.md) (gitignored).
+   - This ensures the founder has a full chronological changelog waiting when they return to their desk.
+3. **High Signal-to-Noise & Extreme Conciseness:**
+   - The user cannot easily read long essays or complex code blocks on a mobile screen. Keep explanations to 1–3 punchy bullet points.
+4. **One-Tap Execution Trigger:**
+   - When the next step is clear, state what you will do and end with:
+     > _"If you want me to proceed, just type `proceed`."_
+5. **Multiple Choice Decision Architecture:**
+   - When architectural or feature choices are needed, present them as concise lettered options:
+     > `[A] Option 1 (Recommended) — reason`  
+     > `[B] Option 2 — reason`  
+     > _"Reply with A or B."_
+
+
