@@ -110,6 +110,9 @@ export interface Resource {
   display_order?: number;
   external_platform?: ExternalPlatform | null;
   thumbnail_url?: string | null;
+  // Engagement counters (populated by Postgres atomic RPCs)
+  views_count?: number;
+  downloads_count?: number;
 }
 
 export interface Profile {

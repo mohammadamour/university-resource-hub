@@ -1,6 +1,8 @@
 import dns from "node:dns";
+import { after } from "next/server";
 import type { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { trackResourceView, trackResourceDownload } from "@/lib/resource-counters";
 
 // Dynamic route: reads incoming beacon payloads on every request
 export const dynamic = "force-dynamic";
@@ -110,6 +112,18 @@ export async function POST(req: NextRequest) {
       }
     } else if (error) {
       console.warn("[events] Insert failed:", error.message);
+    }
+
+    // Atomically increment resource engagement counters after the main insert.
+    // Uses after() so the HTTP 200 is returned immediately without waiting on
+    // the counter RPCs — keeping beacon response time under 50 ms.
+    const resourceId = normalizeUuid(body.resource_id);
+    if (resourceId) {
+      if (eventType === "pdf_reader_open") {
+        after(trackResourceView(resourceId));
+      } else if (eventType === "pdf_download") {
+        after(trackResourceDownload(resourceId));
+      }
     }
   } catch (err) {
     console.warn("[events] Unexpected handler error:", err);

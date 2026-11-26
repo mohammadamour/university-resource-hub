@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { after } from "next/server";
+import { trackResourceView } from "@/lib/resource-counters";
 
 interface RouteProps {
   params: Promise<{ id: string }>;
@@ -44,6 +46,8 @@ export async function GET(request: Request, props: RouteProps) {
       const courseSlug = (resource as { courses?: { slug?: string } | null })?.courses
         ?.slug;
       if (courseSlug) {
+        // Fire-and-forget counter increment so the redirect is never delayed
+        after(trackResourceView(id));
         return NextResponse.redirect(
           new URL(
             `/courses/${courseSlug}?ref=pdf_watermark&rid=${encodeURIComponent(id)}`,
