@@ -65,9 +65,10 @@ Never ask the user to re-explain the stack or the architecture. Here is everythi
 ### 💡 Rule 3: Always Suggest Copy-Paste Git Commits (Never Run Them Yourself)
 
 - Whenever you complete a feature, bug fix, or meaningful step:
-  - **Do NOT run `git commit` yourself.**
+  - **Do NOT run `git commit` yourself** during standard desktop sessions.
   - **Always provide a clean, descriptive terminal snippet** at the end of your response with `git add` and `git commit -m "..."` using conventional commit style.
   - The user will copy and paste this command themselves into their terminal.
+- **Exception (Mobile Out-of-Home Dispatch Mode — §7):** When the user explicitly activates `"I'm on phone"` / `"I'm out of home"` mode and instructs you to commit directly on the isolated `mobile-dispatch` branch (never `main`), verify you are on `mobile-dispatch`, commit cleanly, and log the commit hash in `PHONE_ACTIONS_LOG.md`.
 
 ### 📖 Rule 4: Living Technical Analysis & Token-Efficient Reading
 
