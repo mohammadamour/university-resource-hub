@@ -4,7 +4,8 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import TrackedExternalLink from "@/components/ui/TrackedExternalLink";
 import LogoMark from "@/components/ui/LogoMark";
-import { SITE_NAME, WHATSAPP_COMMUNITY_URL } from "@/lib/constants";
+import { createPublicClient } from "@/lib/supabase/server";
+import { SITE_NAME } from "@/lib/constants";
 
 // Static informational page cached for 1 hour at the edge
 export const revalidate = 3600;
@@ -15,7 +16,40 @@ export const metadata: Metadata = {
     "تعرّف على محمد العمور وقصة إنشاء منصة ملخصات — مبادرة طلابية مجانية لطلبة جامعة جدارا.",
 };
 
-export default function AboutPage() {
+async function getPlatformMetrics() {
+  try {
+    const supabase = createPublicClient();
+    const { data: courses } = await supabase
+      .from("courses")
+      .select("id, resources (id, status)");
+
+    if (!courses) return { activeCourses: 20, activeResources: 130 };
+
+    let totalResources = 0;
+    let activeCourses = 0;
+
+    for (const c of courses) {
+      const activeRes = (c.resources || []).filter(
+        (r: { id: string; status?: string }) => (r.status || "active") === "active"
+      );
+      if (activeRes.length > 0) {
+        activeCourses++;
+        totalResources += activeRes.length;
+      }
+    }
+
+    return {
+      activeCourses: activeCourses || 20,
+      activeResources: totalResources || 130,
+    };
+  } catch {
+    return { activeCourses: 20, activeResources: 130 };
+  }
+}
+
+export default async function AboutPage() {
+  const metrics = await getPlatformMetrics();
+
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink font-sans">
       <Header />
@@ -76,9 +110,9 @@ export default function AboutPage() {
                 className="font-heading text-2xl sm:text-[26px] font-bold leading-[1.3] text-ink"
                 dir="ltr"
               >
-                130+
+                {metrics.activeResources}+
               </div>
-              <div className="text-[13px] text-muted">ملف</div>
+              <div className="text-[13px] text-muted">ملف معتمد</div>
             </div>
 
             <div className="rounded-[18px] border border-line bg-surface p-3.5 sm:p-4 text-center shadow-2xs">
@@ -86,16 +120,19 @@ export default function AboutPage() {
                 className="font-heading text-2xl sm:text-[26px] font-bold leading-[1.3] text-ink"
                 dir="ltr"
               >
-                20
+                {metrics.activeCourses}
               </div>
-              <div className="text-[13px] text-muted">مادة</div>
+              <div className="text-[13px] text-muted">مادة دراسية</div>
             </div>
 
             <div className="rounded-[18px] border border-line bg-surface p-3.5 sm:p-4 text-center shadow-2xs">
-              <div className="font-heading text-2xl sm:text-[26px] font-bold leading-[1.3] text-ink">
-                مجاني
+              <div
+                className="font-heading text-2xl sm:text-[26px] font-bold leading-[1.3] text-ink"
+                dir="ltr"
+              >
+                1,600+
               </div>
-              <div className="text-[13px] text-muted">بدون حساب</div>
+              <div className="text-[13px] text-muted">زائر أسبوعياً</div>
             </div>
           </div>
 
@@ -215,9 +252,10 @@ export default function AboutPage() {
             </h2>
 
             <p className="m-0 text-[16px] leading-[2] text-ink/90">
-              أبنيه وأصونه بجانب دراستي، فقد تجد خطأ أو ملفًا ناقصًا. أخبرني
-              وسأصلحه. وإن كان عندك ملخص يفيد زملاءك فشاركه، ويصل اسمك مع ملفك إن
-              أحببت.
+              أنا أيضًا طالب وعندي دراستي وامتحاناتي ومشاغلي، ولست متفرغًا دائمًا
+              لمتابعة كل مادة أو ملاحقة كل طلب في وقته؛ فاعذرني على أي تقصير أو
+              تأخر. ويسعدني جدًا وممتن لمن يساعد زملاءه برفع ما يملكه من
+              ملخصات أو أسئلة، ويصل اسمك مع ملفك إن أحببت.
             </p>
 
             <div className="mt-1.5 flex flex-col sm:flex-row flex-wrap gap-2.5">
@@ -238,13 +276,13 @@ export default function AboutPage() {
                 >
                   <path d="M12 5v14M5 12h14" />
                 </svg>
-                <span>ساهم بملف</span>
+                <span>ساهم بملف الآن</span>
               </Link>
 
-              <TrackedExternalLink
-                href={WHATSAPP_COMMUNITY_URL}
-                eventType="whatsapp_community_click"
-                metadata={{ source: "about_developer_cta" }}
+              <a
+                href="https://wa.me/962789543936"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex h-[52px] flex-1 min-w-[200px] items-center justify-center gap-2.5 rounded-[16px] border-[1.5px] border-ink bg-transparent px-5 text-[16px] font-semibold text-ink transition-all hover:bg-surface active:scale-95"
               >
                 <svg
@@ -261,8 +299,8 @@ export default function AboutPage() {
                   <path d="M20 11.5a8 8 0 0 1-11.9 7L4 20l1.5-4A8 8 0 1 1 20 11.5z" />
                   <path d="M9 9c0 3 3 6 6 6l1-1.5-2-1-1 .8c-1-.4-2-1.4-2.4-2.4l.8-1-1-2z" />
                 </svg>
-                <span>انضم لمجتمع واتساب</span>
-              </TrackedExternalLink>
+                <span>واتساب مباشر (0789543936)</span>
+              </a>
 
               <Link
                 href="/terms#s4"
