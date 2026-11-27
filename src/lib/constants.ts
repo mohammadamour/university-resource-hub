@@ -21,10 +21,14 @@ export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://molakhasat.
 // ─── Storage ────────────────────────────────────────────────────────────────
 export const R2_PUBLIC_URL = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || "";
 
-// ─── Community Channels ─────────────────────────────────────────────────────
+// ─── Community Channels & Contact ──────────────────────────────────────────
 export const WHATSAPP_COMMUNITY_URL =
   process.env.NEXT_PUBLIC_WHATSAPP_COMMUNITY_URL ||
   "https://chat.whatsapp.com/ENoxCoa04pO1XrpoXXwUjv?s=cl&p=a&mlu=4&ilr=4";
+
+export const CONTACT_PHONE_RAW = "962796309335";
+export const CONTACT_PHONE_DISPLAY = "+962 79 630 9335";
+export const CONTACT_PHONE_LOCAL = "0796309335";
 
 // ─── ISR Revalidation Intervals (seconds) ───────────────────────────────────
 export const REVALIDATE_LANDING = 3600; // Landing page: every 1 hour

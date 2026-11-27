@@ -5,7 +5,11 @@ import Footer from "@/components/layout/Footer";
 import TrackedExternalLink from "@/components/ui/TrackedExternalLink";
 import LogoMark from "@/components/ui/LogoMark";
 import { createPublicClient } from "@/lib/supabase/server";
-import { SITE_NAME } from "@/lib/constants";
+import {
+  SITE_NAME,
+  CONTACT_PHONE_RAW,
+  CONTACT_PHONE_LOCAL,
+} from "@/lib/constants";
 
 // Static informational page cached for 1 hour at the edge
 export const revalidate = 3600;
@@ -280,7 +284,7 @@ export default async function AboutPage() {
               </Link>
 
               <a
-                href="https://wa.me/962789543936"
+                href={`https://wa.me/${CONTACT_PHONE_RAW}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex h-[52px] flex-1 min-w-[200px] items-center justify-center gap-2.5 rounded-[16px] border-[1.5px] border-ink bg-transparent px-5 text-[16px] font-semibold text-ink transition-all hover:bg-surface active:scale-95"
@@ -299,7 +303,7 @@ export default async function AboutPage() {
                   <path d="M20 11.5a8 8 0 0 1-11.9 7L4 20l1.5-4A8 8 0 1 1 20 11.5z" />
                   <path d="M9 9c0 3 3 6 6 6l1-1.5-2-1-1 .8c-1-.4-2-1.4-2.4-2.4l.8-1-1-2z" />
                 </svg>
-                <span>واتساب مباشر (0789543936)</span>
+                <span>واتساب مباشر ({CONTACT_PHONE_LOCAL})</span>
               </a>
 
               <Link
