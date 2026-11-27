@@ -1447,4 +1447,15 @@ If and when student-facing paid features are introduced, they must strictly foll
 
 ---
 
-_Maintained continuously during development. Last updated: November 11, 2026._
+### 11.8 Community, Trust & Transparency Architecture (November 27, 2026)
+
+- **Mobile-First Legal & Trust Anchors:**
+  - `/about`: Direct founder attribution, personal portfolio linking (`mohammadamour.vercel.app`), dynamic active course and resource metrics queried from Supabase, and transparent workload notes inviting student contributions.
+  - `/terms`: 10-section clean compliance architecture with dedicated `#dmca` anchor, direct WhatsApp escalation (`+962 79 630 9335`), and a strict 48-hour copyright takedown SLA.
+- **Viral Referral & Growth Surfaces:**
+  - Modernized mobile 2x2 grid and desktop 4-column footer featuring the **300+ students** WhatsApp community badge and Web Share API fallback mechanism (`ShareSiteButton.tsx`).
+  - Centralized contact credentials in `src/lib/constants.ts` for clean single-point updates.
+
+---
+
+_Maintained continuously during development. Last updated: November 27, 2026._
