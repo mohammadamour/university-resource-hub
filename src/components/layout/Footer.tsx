@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { SITE_NAME, WHATSAPP_COMMUNITY_URL } from "@/lib/constants";
+import {
+  SITE_NAME,
+  WHATSAPP_COMMUNITY_URL,
+  FOUNDER_WEBSITE_URL,
+} from "@/lib/constants";
 import TrackedExternalLink from "@/components/ui/TrackedExternalLink";
 import LogoMark from "@/components/ui/LogoMark";
 import ShareSiteButton from "@/components/ui/ShareSiteButton";
@@ -182,7 +186,7 @@ export default function Footer() {
             <p>
               صُنع بواسطة{" "}
               <TrackedExternalLink
-                href="https://github.com/mohammadamour"
+                href={FOUNDER_WEBSITE_URL}
                 eventType="external_link_click"
                 metadata={{ source: "footer_creator_credit" }}
                 className="font-semibold text-[#1B5C8A] underline underline-offset-4 hover:opacity-80"
@@ -291,7 +295,7 @@ export default function Footer() {
             <p>
               صُنع بواسطة{" "}
               <TrackedExternalLink
-                href="https://github.com/mohammadamour"
+                href={FOUNDER_WEBSITE_URL}
                 eventType="external_link_click"
                 metadata={{ source: "footer_creator_credit" }}
                 className="font-semibold text-[#1B5C8A] underline underline-offset-4 hover:opacity-80"

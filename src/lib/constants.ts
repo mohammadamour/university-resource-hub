@@ -30,6 +30,10 @@ export const CONTACT_PHONE_RAW = "962796309335";
 export const CONTACT_PHONE_DISPLAY = "+962 79 630 9335";
 export const CONTACT_PHONE_LOCAL = "0796309335";
 
+// ─── Founder Links ──────────────────────────────────────────────────────────
+export const FOUNDER_WEBSITE_URL = "https://mohammadamour.vercel.app/";
+export const FOUNDER_GITHUB_URL = "https://github.com/mohammadamour";
+
 // ─── ISR Revalidation Intervals (seconds) ───────────────────────────────────
 export const REVALIDATE_LANDING = 3600; // Landing page: every 1 hour
 export const REVALIDATE_COURSE = 60;    // Course pages: every 1 minute
