@@ -3,6 +3,7 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import TrackedExternalLink from "@/components/ui/TrackedExternalLink";
+import LogoMark from "@/components/ui/LogoMark";
 import { SITE_NAME, WHATSAPP_COMMUNITY_URL } from "@/lib/constants";
 
 // Static informational page cached for 1 hour at the edge
@@ -20,138 +21,300 @@ export default function AboutPage() {
       <Header />
 
       <main
-        className="mx-auto w-full max-w-3xl flex-1 px-4 py-6 sm:px-6 sm:py-10"
+        className="mx-auto w-full max-w-2xl flex-1 px-4 py-7 sm:px-6 sm:py-10"
         dir="rtl"
       >
-        {/* Back to Home */}
-        <div className="mb-4">
+        {/* Back Link */}
+        <div className="mb-5 flex items-center justify-between">
           <Link
             href="/"
-            className="inline-flex min-h-[44px] items-center gap-1.5 text-sm font-semibold text-muted transition-colors hover:text-ink"
+            aria-label="العودة للرئيسية"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-[14px] border border-line bg-surface text-ink transition-all hover:bg-paper active:scale-95"
           >
-            <span aria-hidden="true">←</span>
-            <span>العودة للرئيسية</span>
+            <svg
+              aria-hidden="true"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14m0 0l-6-6m6 6l-6 6" />
+            </svg>
           </Link>
         </div>
 
-        {/* Page Hero */}
-        <section className="mb-8">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-1 text-xs font-semibold text-muted">
-            <span className="text-brand-green">✦</span>
-            <span>مبادرة طلابية مستقلة</span>
-          </div>
+        <div className="flex flex-col gap-6 sm:gap-7">
+          {/* Top Hero Section */}
+          <div className="flex flex-col gap-3.5">
+            <span className="self-start inline-flex h-[30px] items-center rounded-full border border-line bg-surface px-3 text-[13.5px] font-semibold text-ink">
+              مبادرة طلابية مستقلة
+            </span>
 
-          <h1 className="font-heading text-3xl sm:text-4xl font-bold leading-snug text-ink">
-            من وراء منصة{" "}
-            <mark className="rounded-[10px] bg-hi px-2 py-0.5 text-ink">
-              {SITE_NAME}
-            </mark>
-            ؟
-          </h1>
+            <h1 className="m-0 font-heading text-[32px] sm:text-[36px] font-bold leading-[1.55] text-ink">
+              من وراء{" "}
+              <mark className="rounded-[8px] bg-hi px-1.5 text-ink">
+                {SITE_NAME}
+              </mark>
+              ؟
+            </h1>
 
-          <p className="mt-3 text-base sm:text-lg leading-relaxed text-muted">
-            أهلاً بك! أنا <strong className="text-ink">محمد العمور</strong>، طالب
-            هندسة برمجيات في جامعة جدارا، ومطوّر أنظمة ويب أؤمن أن التكنولوجيا
-            أجمل ما فيها حين تحل مشكلة يومية حقيقية يعيشها زملاؤك.
-          </p>
-        </section>
-
-        {/* Origin Story Card */}
-        <section className="mb-6 rounded-[24px] border border-line bg-surface p-5 sm:p-8 shadow-xs">
-          <h2 className="font-heading text-xl sm:text-2xl font-bold text-ink mb-3">
-            ليش بدأت فكرة {SITE_NAME}؟
-          </h2>
-          <div className="space-y-4 text-sm sm:text-base leading-relaxed text-muted">
-            <p>
-              كل فصل دراسي تتكرر نفس المعاناة في قروبات الواتساب الجامعية:
-              ملفات تضيع وسط مئات الرسائل، روابط تنتهي صلاحيتها، وطلبة مستجدون
-              يسألون في كل مكان عن ملخص مضمون أو أسئلة سنوات سابقة قبل الامتحان
-              بساعات.
-            </p>
-            <p>
-              قررت بناء{" "}
-              <strong className="text-ink">{SITE_NAME}</strong> لتكون المرجع
-              الوحيد المرتب والدائم: رابط واحد تفتحه من موبايلك بدون تسجيل دخول،
-              تجد فيه الملخصات، السلايدات، وكويزات المراجعة التفاعلية لكل مادة في
-              ثوانٍ.
+            <p className="m-0 text-[16.5px] sm:text-[17px] leading-[2] text-muted">
+              أنا <b>محمد العمور</b>، طالب سنة أولى هندسة برمجيات في جامعة
+              جدارا. بنيت ملخصات وحدي، بجانب دراستي، لأن زملائي كانوا يسألونني
+              كل فصل عن الملخصات والمصادر.
             </p>
           </div>
-        </section>
 
-        {/* Core Pillars Grid */}
-        <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-[20px] border border-line bg-surface p-5">
-            <div className="mb-2 text-lg font-bold text-ink">
-              1. مجاني للأبد
+          {/* Quick Metrics Grid */}
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+            <div className="rounded-[18px] border border-line bg-surface p-3.5 sm:p-4 text-center shadow-2xs">
+              <div
+                className="font-heading text-2xl sm:text-[26px] font-bold leading-[1.3] text-ink"
+                dir="ltr"
+              >
+                130+
+              </div>
+              <div className="text-[13px] text-muted">ملف</div>
             </div>
-            <p className="text-sm leading-relaxed text-muted">
-              لا رسوم اشتراك، ولا محتوى مغلق، ولا إعلانات مزعجة تبطئ تصفحك قبل
-              الامتحان.
-            </p>
-          </div>
 
-          <div className="rounded-[20px] border border-line bg-surface p-5">
-            <div className="mb-2 text-lg font-bold text-ink">
-              2. بدون تسجيل دخول
+            <div className="rounded-[18px] border border-line bg-surface p-3.5 sm:p-4 text-center shadow-2xs">
+              <div
+                className="font-heading text-2xl sm:text-[26px] font-bold leading-[1.3] text-ink"
+                dir="ltr"
+              >
+                20
+              </div>
+              <div className="text-[13px] text-muted">مادة</div>
             </div>
-            <p className="text-sm leading-relaxed text-muted">
-              ادخل من رابط الواتساب مباشرة، تصفح الملف، أو اختبر نفسك بالكويز
-              بدون حساب أو كلمة مرور.
-            </p>
-          </div>
 
-          <div className="rounded-[20px] border border-line bg-surface p-5">
-            <div className="mb-2 text-lg font-bold text-ink">
-              3. مراجعة قبل النشر
+            <div className="rounded-[18px] border border-line bg-surface p-3.5 sm:p-4 text-center shadow-2xs">
+              <div className="font-heading text-2xl sm:text-[26px] font-bold leading-[1.3] text-ink">
+                مجاني
+              </div>
+              <div className="text-[13px] text-muted">بدون حساب</div>
             </div>
-            <p className="text-sm leading-relaxed text-muted">
-              كل ملخص يرفعه الطلبة يُراجع ويُفهرس بوضوح لضمان جودة المحتوى وسهولة
-              الوصول إليه.
+          </div>
+
+          {/* Why Did It Start? (لماذا بدأت؟) */}
+          <div className="flex flex-col gap-2.5">
+            <h2 className="m-0 font-heading text-[24px] sm:text-[25px] font-bold leading-[1.5] text-ink">
+              لماذا بدأت؟
+            </h2>
+            <p className="m-0 text-[16px] leading-[2] text-ink/90">
+              كل فصل تتكرر القصة نفسها: ملفات تضيع وسط مئات الرسائل في قروبات
+              الواتساب، وروابط تنتهي صلاحيتها، وطلاب يسألون قبل الامتحان بساعات:
+              من عنده ملخص هذه المادة؟
+            </p>
+            <p className="m-0 text-[16px] leading-[2] text-ink/90">
+              فجمعت ما عندي وما يشاركه الزملاء في مكان واحد مرتب: ملخصات
+              وسلايدات وأسئلة سنوات سابقة، وكويز مراجعة لكل مادة. تفتحه من هاتفك
+              بضغطة واحدة، دون حساب.
             </p>
           </div>
-        </section>
 
-        {/* Engineering & Community Contact Card */}
-        <section className="rounded-[24px] border border-line bg-surface p-5 sm:p-8 shadow-xs">
-          <h2 className="font-heading text-xl sm:text-2xl font-bold text-ink mb-2">
-            تواصل معي أو ساهم في تطوير المنصة
-          </h2>
-          <p className="text-sm sm:text-base leading-relaxed text-muted mb-5">
-            المنصة تكبر بمساهماتكم وملاحظاتكم. إذا كان لديك ملخص يفيد زملاءك،
-            أو اقتراح لتحسين تجربة الدراسة، أو واجهت أي مشكلة تقنية، يسعدني
-            سماع رأيك.
-          </p>
+          {/* What You Find Here (ما الذي تجده هنا) */}
+          <div className="flex flex-col">
+            <h2 className="m-0 font-heading text-[24px] sm:text-[25px] font-bold leading-[1.5] text-ink">
+              ما الذي تجده هنا
+            </h2>
 
-          <div className="flex flex-col sm:flex-row flex-wrap gap-3">
+            <div className="mt-2.5 flex flex-col">
+              {/* Item 1 */}
+              <div className="flex gap-3.5 border-t border-line py-4.5">
+                <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-hi/70 text-[15px] font-bold text-ink">
+                  1
+                </span>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[17px] font-bold leading-[1.6] text-ink">
+                    مجاني وغير ربحي
+                  </span>
+                  <p className="m-0 text-[15.5px] leading-[1.95] text-muted">
+                    لا رسوم ولا اشتراك ولا محتوى مغلق. ملخصات مشروع طلابي وليس
+                    تجاريًا.
+                  </p>
+                </div>
+              </div>
+
+              {/* Item 2 */}
+              <div className="flex gap-3.5 border-t border-line py-4.5">
+                <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-hi/70 text-[15px] font-bold text-ink">
+                  2
+                </span>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[17px] font-bold leading-[1.6] text-ink">
+                    بدون تسجيل
+                  </span>
+                  <p className="m-0 text-[15.5px] leading-[1.95] text-muted">
+                    افتح أي ملف أو ابدأ كويزًا مباشرة، دون حساب أو كلمة مرور.
+                  </p>
+                </div>
+              </div>
+
+              {/* Item 3 */}
+              <div className="flex gap-3.5 border-t border-line py-4.5">
+                <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-hi/70 text-[15px] font-bold text-ink">
+                  3
+                </span>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[17px] font-bold leading-[1.6] text-ink">
+                    مراجعة قبل النشر
+                  </span>
+                  <p className="m-0 text-[15.5px] leading-[1.95] text-muted">
+                    أراجع كل ملف يرفعه الطلاب قبل نشره للتأكد من وضوحه وتصنيفه
+                    وأنه لا يخالف الشروط. المراجعة لا تضمن صحة كل معلومة، فارجع
+                    دائمًا إلى مادة الدكتور.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Callout Box: What You Must Know */}
+          <div className="flex flex-col gap-2 rounded-[22px] border border-[#ECD9A0] bg-[#F7F2E7] p-4.5 sm:p-5 shadow-2xs">
+            <span className="flex items-center gap-2 text-[17px] font-bold text-ink">
+              <svg
+                aria-hidden="true"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="shrink-0 text-ink"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 11v5M12 8h.01" />
+              </svg>
+              <span>ما يجب أن تعرفه</span>
+            </span>
+
+            <p className="m-0 text-[15.5px] leading-[1.95] text-ink/90">
+              ملخصات مبادرة مستقلة وغير تابعة رسميًا للجامعة. الملفات من إعداد
+              طلاب وقد تحتوي أخطاء، وأسئلة الكويز يولّدها الذكاء الاصطناعي فقد
+              تخطئ أيضًا. المرجع الأخير دائمًا هو مادة الدكتور.
+            </p>
+
             <Link
-              href="/upload"
-              className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[14px] bg-btn px-5 text-sm sm:text-[15px] font-semibold text-btn-ink transition-all hover:opacity-95 active:scale-95"
+              href="/terms"
+              className="self-start inline-flex min-h-[44px] items-center gap-1.5 font-bold text-[15px] text-[#2A4DB0] underline underline-offset-[5px] decoration-[1.5px] hover:opacity-80"
             >
-              <span aria-hidden="true">+</span>
-              <span>ساهم بملخص أو أسئلة</span>
+              اقرأ الشروط والخصوصية
             </Link>
-
-            <TrackedExternalLink
-              href={WHATSAPP_COMMUNITY_URL}
-              eventType="whatsapp_community_click"
-              metadata={{ source: "about_page" }}
-              className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-ink bg-transparent px-5 text-sm sm:text-[15px] font-semibold text-ink transition-all hover:bg-paper active:scale-95"
-            >
-              <span>انضم لمجتمع واتساب</span>
-              <span aria-hidden="true">↗</span>
-            </TrackedExternalLink>
-
-            <TrackedExternalLink
-              href="https://github.com/mohammadamour"
-              eventType="external_link_click"
-              metadata={{ source: "about_page_github" }}
-              className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[14px] border border-line bg-paper px-5 text-sm sm:text-[15px] font-semibold text-ink transition-all hover:border-ink/40 active:scale-95"
-            >
-              <span>GitHub</span>
-              <span aria-hidden="true">↗</span>
-            </TrackedExternalLink>
           </div>
-        </section>
+
+          {/* Solo Developer Section (أطوّره وحدي) */}
+          <div className="flex flex-col gap-2.5">
+            <h2 className="m-0 font-heading text-[24px] sm:text-[25px] font-bold leading-[1.5] text-ink">
+              أطوّره وحدي
+            </h2>
+
+            <p className="m-0 text-[16px] leading-[2] text-ink/90">
+              أبنيه وأصونه بجانب دراستي، فقد تجد خطأ أو ملفًا ناقصًا. أخبرني
+              وسأصلحه. وإن كان عندك ملخص يفيد زملاءك فشاركه، ويصل اسمك مع ملفك إن
+              أحببت.
+            </p>
+
+            <div className="mt-1.5 flex flex-col sm:flex-row flex-wrap gap-2.5">
+              <Link
+                href="/upload"
+                className="inline-flex h-[54px] flex-1 min-w-[200px] items-center justify-center gap-2.5 rounded-[16px] bg-btn px-5 text-[16.5px] font-bold text-btn-ink transition-all hover:opacity-95 active:scale-95"
+              >
+                <svg
+                  aria-hidden="true"
+                  width="19"
+                  height="19"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                <span>ساهم بملف</span>
+              </Link>
+
+              <TrackedExternalLink
+                href={WHATSAPP_COMMUNITY_URL}
+                eventType="whatsapp_community_click"
+                metadata={{ source: "about_developer_cta" }}
+                className="inline-flex h-[52px] flex-1 min-w-[200px] items-center justify-center gap-2.5 rounded-[16px] border-[1.5px] border-ink bg-transparent px-5 text-[16px] font-semibold text-ink transition-all hover:bg-surface active:scale-95"
+              >
+                <svg
+                  aria-hidden="true"
+                  width="19"
+                  height="19"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.9"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M20 11.5a8 8 0 0 1-11.9 7L4 20l1.5-4A8 8 0 1 1 20 11.5z" />
+                  <path d="M9 9c0 3 3 6 6 6l1-1.5-2-1-1 .8c-1-.4-2-1.4-2.4-2.4l.8-1-1-2z" />
+                </svg>
+                <span>انضم لمجتمع واتساب</span>
+              </TrackedExternalLink>
+
+              <Link
+                href="/terms#s4"
+                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 text-[15px] font-semibold text-muted transition-colors hover:text-ink"
+              >
+                <svg
+                  aria-hidden="true"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.9"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 21V4m0 0h11l-2 4 2 4H5" />
+                </svg>
+                <span>أبلغ عن خطأ أو ملف</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Project Owner Row */}
+          <div className="flex items-center gap-3.5 border-t border-line pt-5">
+            <LogoMark size={50} variant="dark" />
+            <div className="flex flex-col">
+              <span className="text-[13.5px] text-muted">صاحب المشروع</span>
+              <TrackedExternalLink
+                href="https://github.com/mohammadamour"
+                eventType="external_link_click"
+                metadata={{ source: "about_author_credit" }}
+                className="inline-flex min-h-[36px] items-center gap-1 font-bold text-[#2A4DB0] underline underline-offset-[5px] decoration-[1.5px] hover:opacity-80"
+              >
+                <span>محمد العمور</span>
+                <svg
+                  aria-hidden="true"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M7 17L17 7M9 7h8v8" />
+                </svg>
+              </TrackedExternalLink>
+            </div>
+          </div>
+        </div>
       </main>
 
       <Footer />
