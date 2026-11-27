@@ -3,7 +3,13 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import TrackedExternalLink from "@/components/ui/TrackedExternalLink";
-import { SITE_NAME, WHATSAPP_COMMUNITY_URL } from "@/lib/constants";
+import {
+  SITE_NAME,
+  WHATSAPP_COMMUNITY_URL,
+  CONTACT_PHONE_RAW,
+  CONTACT_PHONE_DISPLAY,
+  CONTACT_PHONE_LOCAL,
+} from "@/lib/constants";
 
 // Static legal & privacy page cached for 1 hour at the edge
 export const revalidate = 3600;
@@ -211,7 +217,7 @@ export default function TermsPage() {
                 أسمائهم.
               </p>
               <TrackedExternalLink
-                href="https://wa.me/962789543936?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%D8%8C%20%D8%A3%D9%88%D8%AF%20%D8%AA%D9%82%D8%AF%D9%8A%D9%85%20%D8%B7%D9%84%D8%A8%20%D8%A5%D8%B2%D8%A7%D9%84%D8%A9%20%D8%A3%D9%88%20%D8%AA%D8%B9%D8%AF%D9%8A%D9%84%20%D9%85%D8%AD%D8%AA%D9%88%D9%89%20%D9%81%D9%8A%20%D9%85%D9%84%D8%AE%D8%B5%D8%A7%D8%AA%3A"
+                href={`https://wa.me/${CONTACT_PHONE_RAW}?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%D8%8C%20%D8%A3%D9%88%D8%AF%20%D8%AA%D9%82%D8%AF%D9%8A%D9%85%20%D8%B7%D9%84%D8%A8%20%D8%A5%D8%B2%D8%A7%D9%84%D8%A9%20%D8%A3%D9%88%20%D8%AA%D8%B9%D8%AF%D9%8A%D9%84%20%D9%85%D8%AD%D8%AA%D9%88%D9%89%20%D9%81%D9%8A%20%D9%85%D9%84%D8%AE%D8%B5%D8%A7%D8%AA%3A`}
                 eventType="whatsapp_community_click"
                 metadata={{ source: "terms_dmca_button" }}
                 className="self-start inline-flex h-[48px] items-center gap-2 rounded-[14px] bg-btn px-5 text-[15.5px] font-bold text-btn-ink transition-all hover:opacity-95 active:scale-95"
@@ -229,7 +235,7 @@ export default function TermsPage() {
                 >
                   <path d="M5 21V4m0 0h11l-2 4 2 4H5" />
                 </svg>
-                <span>أرسل طلب إزالة عبر واتساب (0789543936)</span>
+                <span>أرسل طلب إزالة عبر واتساب ({CONTACT_PHONE_LOCAL})</span>
               </TrackedExternalLink>
             </section>
 
@@ -357,13 +363,13 @@ export default function TermsPage() {
               <p className="m-0 text-[15.5px] leading-[2] text-muted">
                 لأي استفسار، اقتراح لتطوير المنصة، أو بلاغ عن محتوى، يسعدني تواصلك معي مباشرة عبر واتساب على الرقم:{" "}
                 <a
-                  href="https://wa.me/962789543936"
+                  href={`https://wa.me/${CONTACT_PHONE_RAW}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-bold text-[#2A4DB0] underline underline-offset-4 hover:opacity-80 inline-block"
                   dir="ltr"
                 >
-                  +962 78 954 3936
+                  {CONTACT_PHONE_DISPLAY}
                 </a>
                 {" "}أو من خلال{" "}
                 <TrackedExternalLink

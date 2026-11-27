@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { SITE_NAME, WHATSAPP_COMMUNITY_URL } from "@/lib/constants";
+import {
+  SITE_NAME,
+  WHATSAPP_COMMUNITY_URL,
+  FOUNDER_WEBSITE_URL,
+} from "@/lib/constants";
 import TrackedExternalLink from "@/components/ui/TrackedExternalLink";
 import LogoMark from "@/components/ui/LogoMark";
 import ShareSiteButton from "@/components/ui/ShareSiteButton";
@@ -76,12 +80,20 @@ export default function Footer() {
 
   const whatsappCommunityCard = (
     <div className="rounded-2xl bg-ink p-5 text-surface shadow-xs">
-      <div className="flex items-center gap-2 text-sm sm:text-[15px] font-bold text-surface">
-        <WhatsAppIcon className="h-4 w-4 shrink-0 text-hi" />
-        <span>مجتمع ملخصات على واتساب</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm sm:text-[15px] font-bold text-surface">
+          <WhatsAppIcon className="h-4 w-4 shrink-0 text-hi" />
+          <span>مجتمع ملخصات على واتساب</span>
+        </div>
+        <span
+          className="rounded-full bg-surface/15 px-2.5 py-0.5 text-[11px] font-bold text-hi"
+          dir="ltr"
+        >
+          300+ طالب
+        </span>
       </div>
-      <p className="mt-1.5 text-xs sm:text-[13px] leading-relaxed text-surface/75">
-        شارك ملاحظاتك، اطلب ملخصًا، وساعد زملاءك.
+      <p className="mt-2 text-xs sm:text-[13px] leading-relaxed text-surface/80">
+        انضم لأكثر من 300 طالب؛ شارك ملاحظاتك، اطلب ملخصًا، وساعد زملاءك.
       </p>
       <TrackedExternalLink
         href={WHATSAPP_COMMUNITY_URL}
@@ -89,7 +101,7 @@ export default function Footer() {
         metadata={{ source: "footer_community_card" }}
         className="mt-4 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-hi px-4 text-sm font-bold text-ink transition-all hover:opacity-95 active:scale-[0.98]"
       >
-        <span>انضم للقروب</span>
+        <span>انضم لأكثر من 300 طالب</span>
         <span aria-hidden="true">↗</span>
       </TrackedExternalLink>
     </div>
@@ -182,7 +194,7 @@ export default function Footer() {
             <p>
               صُنع بواسطة{" "}
               <TrackedExternalLink
-                href="https://github.com/mohammadamour"
+                href={FOUNDER_WEBSITE_URL}
                 eventType="external_link_click"
                 metadata={{ source: "footer_creator_credit" }}
                 className="font-semibold text-[#1B5C8A] underline underline-offset-4 hover:opacity-80"
@@ -273,7 +285,7 @@ export default function Footer() {
                     className="inline-flex items-center gap-2 transition-colors hover:text-muted"
                   >
                     <WhatsAppIcon className="h-4 w-4 shrink-0 text-muted" />
-                    <span>مجتمع واتساب</span>
+                    <span>مجتمع واتساب (300+ طالب)</span>
                   </TrackedExternalLink>
                 </li>
                 <li>
@@ -291,7 +303,7 @@ export default function Footer() {
             <p>
               صُنع بواسطة{" "}
               <TrackedExternalLink
-                href="https://github.com/mohammadamour"
+                href={FOUNDER_WEBSITE_URL}
                 eventType="external_link_click"
                 metadata={{ source: "footer_creator_credit" }}
                 className="font-semibold text-[#1B5C8A] underline underline-offset-4 hover:opacity-80"

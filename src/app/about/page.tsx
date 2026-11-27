@@ -5,7 +5,13 @@ import Footer from "@/components/layout/Footer";
 import TrackedExternalLink from "@/components/ui/TrackedExternalLink";
 import LogoMark from "@/components/ui/LogoMark";
 import { createPublicClient } from "@/lib/supabase/server";
-import { SITE_NAME } from "@/lib/constants";
+import {
+  SITE_NAME,
+  CONTACT_PHONE_RAW,
+  CONTACT_PHONE_LOCAL,
+  FOUNDER_WEBSITE_URL,
+  FOUNDER_GITHUB_URL,
+} from "@/lib/constants";
 
 // Static informational page cached for 1 hour at the edge
 export const revalidate = 3600;
@@ -280,7 +286,7 @@ export default async function AboutPage() {
               </Link>
 
               <a
-                href="https://wa.me/962789543936"
+                href={`https://wa.me/${CONTACT_PHONE_RAW}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex h-[52px] flex-1 min-w-[200px] items-center justify-center gap-2.5 rounded-[16px] border-[1.5px] border-ink bg-transparent px-5 text-[16px] font-semibold text-ink transition-all hover:bg-surface active:scale-95"
@@ -299,7 +305,7 @@ export default async function AboutPage() {
                   <path d="M20 11.5a8 8 0 0 1-11.9 7L4 20l1.5-4A8 8 0 1 1 20 11.5z" />
                   <path d="M9 9c0 3 3 6 6 6l1-1.5-2-1-1 .8c-1-.4-2-1.4-2.4-2.4l.8-1-1-2z" />
                 </svg>
-                <span>واتساب مباشر (0789543936)</span>
+                <span>واتساب مباشر ({CONTACT_PHONE_LOCAL})</span>
               </a>
 
               <Link
@@ -325,30 +331,44 @@ export default async function AboutPage() {
           </div>
 
           {/* Project Owner Row */}
-          <div className="flex items-center gap-3.5 border-t border-line pt-5">
-            <LogoMark size={50} variant="dark" />
-            <div className="flex flex-col">
-              <span className="text-[13.5px] text-muted">صاحب المشروع</span>
-              <TrackedExternalLink
-                href="https://github.com/mohammadamour"
-                eventType="external_link_click"
-                metadata={{ source: "about_author_credit" }}
-                className="inline-flex min-h-[36px] items-center gap-1 font-bold text-[#2A4DB0] underline underline-offset-[5px] decoration-[1.5px] hover:opacity-80"
-              >
-                <span>محمد العمور</span>
-                <svg
-                  aria-hidden="true"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+          <div className="flex items-center justify-between gap-3.5 border-t border-line pt-5">
+            <div className="flex items-center gap-3.5">
+              <LogoMark size={50} variant="dark" />
+              <div className="flex flex-col">
+                <span className="text-[13.5px] text-muted">صاحب المشروع</span>
+                <TrackedExternalLink
+                  href={FOUNDER_WEBSITE_URL}
+                  eventType="external_link_click"
+                  metadata={{ source: "about_author_credit" }}
+                  className="inline-flex min-h-[36px] items-center gap-1 font-bold text-[#2A4DB0] underline underline-offset-[5px] decoration-[1.5px] hover:opacity-80"
                 >
-                  <path d="M7 17L17 7M9 7h8v8" />
-                </svg>
+                  <span>محمد العمور</span>
+                  <svg
+                    aria-hidden="true"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M7 17L17 7M9 7h8v8" />
+                  </svg>
+                </TrackedExternalLink>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <TrackedExternalLink
+                href={FOUNDER_GITHUB_URL}
+                eventType="external_link_click"
+                metadata={{ source: "about_github_icon" }}
+                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:text-ink hover:border-ink/30"
+              >
+                <span>GitHub</span>
+                <span aria-hidden="true">↗</span>
               </TrackedExternalLink>
             </div>
           </div>
